@@ -1,0 +1,81 @@
+-- ==========================================================================================
+-- USULAN: urutan penguncian yang seragam pada jalur tulis - BELUM DITERAPKAN
+-- ==========================================================================================
+-- Ditemukan saat mengaudit seluruh jalur tulis ke public.claims, 20 September 2026.
+--
+-- YANG SUDAH BENAR
+-- rc_private.mutate_claims_unchecked - jalur submit, release, claim, clearing - mengunci
+-- barisnya dalam urutan yang PASTI:
+--
+--   for item in select value from jsonb_array_elements(p_items) order by value->>'no_doc' loop
+--     select * into c from public.claims where no_doc = item->>'no_doc' for update;
+--
+-- Urutan itu yang mencegah deadlock. Bila dua transaksi mengunci baris yang sama dalam urutan
+-- berbeda - A mengunci DOC-2 lalu meminta DOC-1, sementara B mengunci DOC-1 lalu meminta
+-- DOC-2 - keduanya saling menunggu selamanya. Postgres mendeteksinya setelah deadlock_timeout
+-- dan mematikan salah satu dengan SQLSTATE 40P01. Tidak ada data yang rusak, tetapi satu
+-- pengguna melihat kegagalan yang tidak dapat ia jelaskan dan tidak dapat ia hindari.
+--
+-- Dengan urutan yang seragam, keadaan itu tidak mungkin terjadi: siapa pun yang lebih dulu
+-- mendapat DOC-1 pasti juga yang lebih dulu sampai ke DOC-2.
+--
+-- YANG BELUM
+-- Dua fungsi yang ditambahkan belakangan mengunci per baris TANPA urutan:
+--
+--   rc_posting_exception    for r in select value from jsonb_array_elements(p_rows) loop
+--   rc_reprocessing_upload  for r in select value from jsonb_array_elements(p_rows) loop
+--
+-- Keduanya melakukan "select ... for update" di dalam perulangan itu. Pola pengamannya sudah
+-- ada di sebelah, hanya tidak ikut terbawa.
+--
+-- SEBERAPA MUNGKIN TERJADI
+-- Perlu dua orang menyentuh dokumen yang sama pada saat yang sama. Pada Posting Exception
+-- pengguna umumnya bekerja pada depotnya sendiri, jadi peluangnya kecil - tetapi tidak nol:
+-- dua OSC yang menangani depot sama, atau satu orang yang menekan tombolnya dua kali dengan
+-- daftar yang urutannya berbeda, cukup untuk memicunya. Pada 300 pengguna peluangnya naik.
+--
+-- Perbaikannya satu baris untuk masing-masing, tidak mengubah perilaku apa pun selain urutan
+-- pemrosesan. Karena itu ia ditawarkan lebih dulu daripada gagasan apa pun yang menambah
+-- infrastruktur.
+--
+-- CARA MEMBUKTIKANNYA SESUDAH DITERAPKAN
+-- Deadlock tidak akan muncul pada pengujian satu sesi. Yang membuktikannya adalah skenario D
+-- pada rencana uji beban - dua pengguna mengirim daftar dokumen yang sama dengan urutan
+-- terbalik, berulang kali. Sebelum perbaikan, hitungan SQLSTATE 40P01 akan naik; sesudahnya
+-- harus nol.
+-- ==========================================================================================
+
+-- ------------------------------------------------------------------------------------------
+-- Cara menerapkannya
+-- ------------------------------------------------------------------------------------------
+-- Kedua fungsi ini panjang, dan menuliskannya ulang di sini berarti menyalin badan fungsi yang
+-- dapat menyimpang dari yang sesungguhnya terpasang. Yang benar adalah menyunting SATU BARIS
+-- pada berkas migration aslinya, lalu menjalankan ulang berkas itu:
+--
+--   supabase/migrations/20261027010000_rc_posting_exception_per_baris.sql
+--     sebelum : for r in select value from jsonb_array_elements(p_rows) loop
+--     sesudah : for r in select value from jsonb_array_elements(p_rows) order by value->>'noDoc' loop
+--
+--   supabase/migrations/20261028010000_rc_reprocessing_doc.sql
+--     sebelum : for r in select value from jsonb_array_elements(p_rows) loop
+--     sesudah : for r in select value from jsonb_array_elements(p_rows) order by value->>'noDoc' loop
+--
+-- Keduanya "create or replace", jadi menjalankan ulang berkasnya aman dan tidak menyentuh data.
+--
+-- Catatan: kuncinya 'noDoc' (huruf kapital D), bukan 'no_doc'. Kedua fungsi itu menerima baris
+-- dari layar dalam bentuk camelCase, berbeda dari mutate_claims_unchecked yang menerima
+-- snake_case dari adapter. Menyalin begitu saja akan menghasilkan ORDER BY atas nilai NULL -
+-- yang tetap sah secara sintaks, tidak menimbulkan galat, dan sama sekali tidak mengurutkan.
+
+-- ------------------------------------------------------------------------------------------
+-- Yang juga pantas ditinjau, tetapi bukan sekarang
+-- ------------------------------------------------------------------------------------------
+-- rc_private.archive_claims dan rc_private.unarchive_claims mengubah public.claims lewat satu
+-- UPDATE menyeluruh tanpa "for update". Dua pengarsipan serentak atas himpunan yang bertumpang
+-- tindih dapat mengunci baris dalam urutan yang ditentukan planner, dan urutan itu tidak dijamin
+-- sama antarsesi.
+--
+-- Risikonya lebih kecil: pengarsipan jarang dilakukan, biasanya oleh satu orang, dan bukan
+-- bagian dari alur harian. Diangkat di sini supaya tercatat, bukan untuk dikerjakan sekarang -
+-- menambah penguncian pada jalur yang jarang dipakai hanya akan memperlambatnya tanpa alasan
+-- yang terbukti.

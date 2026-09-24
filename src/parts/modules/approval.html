@@ -1,0 +1,150 @@
+                <!-- MODULE: MANAGEMENT OF APPROVAL -->
+                <!-- Tahap persetujuan sebelum Release. Dua antrean dipisahkan menurut TOP yang
+                     diketik depot saat mengunggah, dihitung sejak tanggal posting: Within
+                     Payment Term dan Overdue. Depot Head hanya memperoleh WPT - tabnya
+                     disembunyikan, DAN permintaannya ditolak server, karena menyembunyikan tab
+                     saja bukan penjagaan.
+
+                     Dua tampilan: daftar batch, lalu rincian dokumen sebuah batch. Menyetujui
+                     dan menolak dapat dilakukan dari keduanya, satu per satu maupun massal. -->
+                <div id="modApproval" class="module-section hidden max-w-7xl mx-auto px-4">
+                    <div class="flex border-b border-gray-200 mb-0">
+                        <button onclick="switchApprovalTab('wpt')" data-rc-tab="approval.wpt" id="apTabWpt"
+                            class="sub-tab-btn px-6 py-3 font-bold text-sm border-b-2 border-pink-600 text-pink-700">Within Payment Term</button>
+                        <button onclick="switchApprovalTab('ovd')" data-rc-tab="approval.ovd" id="apTabOvd"
+                            class="sub-tab-btn px-6 py-3 font-bold text-sm border-b-2 border-transparent text-gray-500">Overdue</button>
+                        <button onclick="switchApprovalTab('hold')" data-rc-tab="approval.hold" id="apTabHold"
+                            class="sub-tab-btn px-6 py-3 font-bold text-sm border-b-2 border-transparent text-gray-500">On Hold &amp; Expired</button>
+                        <button onclick="switchApprovalTab('history')" data-rc-tab="approval.history" id="apTabHistory"
+                            class="sub-tab-btn px-6 py-3 font-bold text-sm border-b-2 border-transparent text-gray-500">History</button>
+                    </div>
+
+                    <div id="apBar" class="bg-gray-50 p-4 rounded-b-xl border border-t-0 border-gray-200 mb-6 flex flex-wrap gap-3 items-center shadow-sm">
+                        <button onclick="loadApproval()" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 text-sm font-bold py-2.5 px-4 rounded-lg shadow-sm transition"><i class="fas fa-sync mr-1.5"></i> Muat Ulang</button>
+                        <button onclick="toggleApprovalKolomPanel()" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 text-sm font-bold py-2.5 px-4 rounded-lg shadow-sm transition"><i class="fas fa-table-columns mr-1.5"></i> Kolom</button>
+                        <button onclick="downloadApprovalExcel()" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 text-sm font-bold py-2.5 px-4 rounded-lg shadow-sm transition"><i class="fas fa-file-excel mr-1.5 text-green-600"></i> Excel</button>
+                        <!-- Penyaring depot. Dibekukan sendiri bila akun ini hanya memegang satu
+                             depot - menyodorkan pilihan yang hanya berisi satu isian bukan pilihan,
+                             melainkan gangguan. -->
+                        <select id="apFilterDepot" onchange="loadApproval()" class="px-3 py-2.5 border border-gray-300 rounded-lg bg-white text-sm font-bold text-gray-700 max-w-[260px]"></select>
+                        <input id="apCari" type="search" oninput="apCariBerubah()" placeholder="Cari batch, dokumen, toko, campaign…" class="px-3 py-2.5 border border-gray-300 rounded-lg text-sm flex-1 min-w-[220px]">
+                        <span id="apRingkas" class="text-[11px] text-gray-500"></span>
+                        <div class="flex-1"></div>
+                        <span id="apPeranCatatan" class="hidden text-[11px] text-amber-700 font-bold"></span>
+                    </div>
+
+                    <!-- Pemilihan kolom jejak, mengikuti cara tab Open pada Claim Upload. -->
+                    <div id="apKolomPanel" class="hidden mb-6 bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                        <p class="text-[10px] font-black uppercase text-gray-500 mb-2">Kolom jejak yang ditampilkan</p>
+                        <div id="apKolomDaftar" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2"></div>
+                    </div>
+
+                    <!-- ---- Tampilan pertama: daftar batch ---- -->
+                    <div id="apPaneDaftar">
+                        <div id="apAksiMassal" class="hidden mb-4 p-4 bg-pink-50 border border-pink-200 rounded-xl flex flex-wrap gap-3 items-center">
+                            <span class="font-bold text-pink-900 text-sm"><span id="apTerpilih">0</span> batch dipilih</span>
+                            <div class="flex-1"></div>
+                            <button onclick="postingApproval('approve')" class="px-5 py-2 bg-pink-600 hover:bg-pink-700 text-white font-bold rounded-lg text-sm">Posting Approve</button>
+                            <button onclick="postingApproval('reject')" class="px-5 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-sm">Posting Reject</button>
+                        </div>
+                        <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+                            <div class="overflow-auto max-h-[620px]"><table class="w-full text-sm" id="apTableBatch">
+                                <thead class="bg-gray-50 text-gray-600 sticky top-0"><tr>
+                                    <th class="p-3 text-center w-12" data-rc-no-sort="1"><input type="checkbox" id="apPilihSemua" onchange="toggleSemuaApproval(this)" class="w-4 h-4 rounded"></th>
+                                    <th class="p-3 text-left text-[10px] font-black uppercase">No Batch</th>
+                                    <th class="p-3 text-right text-[10px] font-black uppercase">Qty Doc</th>
+                                    <th class="p-3 text-right text-[10px] font-black uppercase">Qty Cust</th>
+                                    <th class="p-3 text-right text-[10px] font-black uppercase">Qty Campaign</th>
+                                    <th class="p-3 text-right text-[10px] font-black uppercase whitespace-nowrap min-w-[160px]">Total Net CB</th>
+                                    <th class="p-3 text-left text-[10px] font-black uppercase">Depot</th>
+                                    <th class="p-3 text-left text-[10px] font-black uppercase">Submitted By</th>
+                                    <th class="p-3 text-center text-[10px] font-black uppercase">Posting Date</th>
+                                    <th class="p-3 text-center text-[10px] font-black uppercase" data-rc-no-sort="1">Tindakan</th>
+                                </tr></thead>
+                                <tbody id="apBatchBody"></tbody>
+                            </table></div>
+                        </div>
+                    </div>
+
+                    <!-- ---- Tampilan kedua: rincian sebuah batch ---- -->
+                    <div id="apPaneRincian" class="hidden">
+                        <div class="mb-4 flex flex-wrap items-center gap-3">
+                            <button onclick="kembaliKeDaftarApproval()" class="px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold rounded-lg text-sm"><i class="fas fa-arrow-left mr-1.5"></i> Kembali</button>
+                            <h3 class="font-black text-gray-800 text-lg" id="apRincianJudul">-</h3>
+                        </div>
+                        <div id="apAksiRincian" class="hidden mb-4 p-4 bg-pink-50 border border-pink-200 rounded-xl flex flex-wrap gap-3 items-center">
+                            <span class="font-bold text-pink-900 text-sm"><span id="apDocTerpilih">0</span> dokumen dipilih</span>
+                            <div class="flex-1"></div>
+                            <button onclick="postingApprovalDoc('approve')" class="px-5 py-2 bg-pink-600 hover:bg-pink-700 text-white font-bold rounded-lg text-sm">Approve Terpilih</button>
+                            <button onclick="postingApprovalDoc('reject')" class="px-5 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-sm">Reject Terpilih</button>
+                        </div>
+                        <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+                            <div class="overflow-auto max-h-[620px]"><table class="w-full text-sm" id="apTableDoc">
+                                <thead class="bg-gray-50 text-gray-600 sticky top-0"><tr id="apDocHead"></tr></thead>
+                                <tbody id="apDocBody"></tbody>
+                            </table></div>
+                        </div>
+                    </div>
+
+                    <!-- ---- Tab On Hold & Expired ---- -->
+                    <!-- Bentuknya mengikuti panel lain: bilah aksi muncul begitu ada yang
+                         dipilih, tabel yang dapat diurutkan, dan tombol per baris. Bedanya satu:
+                         kotak alasan WAJIB diisi, dengan satu tombol cepat untuk sebab yang
+                         paling sering - perubahan SO atau billing date. -->
+                    <div id="apPaneHold" class="hidden">
+                        <div id="apAksiHold" class="hidden mb-4 p-4 bg-amber-50 border border-amber-200 rounded-xl flex flex-wrap gap-3 items-center">
+                            <span class="font-bold text-amber-900 text-sm"><span id="apHoldTerpilih">0</span> dokumen dipilih</span>
+                            <div class="flex-1"></div>
+                            <button onclick="postingHold('approve')" id="apBtnHoldApprove" class="px-5 py-2 bg-pink-600 hover:bg-pink-700 text-white font-bold rounded-lg text-sm">Approve</button>
+                            <button onclick="postingHold('reject')" id="apBtnHoldReject" class="px-5 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-sm">Reject</button>
+                        </div>
+                        <p id="apHoldCatatan" class="hidden mb-4 p-3 bg-gray-50 border border-gray-200 rounded-xl text-[11px] text-gray-600"></p>
+                        <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+                            <div class="overflow-auto max-h-[620px]"><table class="w-full text-sm" id="apTableHold">
+                                <thead class="bg-gray-50 text-gray-600 sticky top-0"><tr>
+                                    <th class="p-3 text-center w-12" data-rc-no-sort="1"><input type="checkbox" id="apHoldSemua" onchange="toggleSemuaHold(this)" class="w-4 h-4 rounded"></th>
+                                    <th class="p-3 text-center text-[10px] font-black uppercase">Status Pengajuan</th>
+                                    <th class="p-3 text-center text-[10px] font-black uppercase">Asal</th>
+                                    <th class="p-3 text-left text-[10px] font-black uppercase">No Doc</th>
+                                    <th class="p-3 text-left text-[10px] font-black uppercase">Depot</th>
+                                    <th class="p-3 text-left text-[10px] font-black uppercase">Customer</th>
+                                    <th class="p-3 text-left text-[10px] font-black uppercase">Campaign</th>
+                                    <th class="p-3 text-right text-[10px] font-black uppercase whitespace-nowrap min-w-[160px]">Net CB</th>
+                                    <th class="p-3 text-left text-[10px] font-black uppercase">Alasan Terakhir</th>
+                                    <th class="p-3 text-left text-[10px] font-black uppercase">Oleh</th>
+                                    <th class="p-3 text-center text-[10px] font-black uppercase" data-rc-no-sort="1">Tindakan</th>
+                                </tr></thead>
+                                <tbody id="apHoldBody"></tbody>
+                            </table></div>
+                        </div>
+                    </div>
+
+                    <!-- ---- Tab History ---- -->
+                    <div id="apPaneHistory" class="hidden">
+                        <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+                            <div class="p-5 pb-3">
+                                <h3 class="font-black text-gray-700">Riwayat Approval</h3>
+                                <p class="text-[11px] text-gray-500 mt-1">Setiap baris di sini juga tercatat pada Log Aktivitas, karena keduanya ditulis pada saat yang sama.</p>
+                            </div>
+                            <div class="overflow-auto max-h-[620px]"><table class="w-full text-sm" id="apTableHistory">
+                                <thead class="bg-gray-50 text-gray-600 sticky top-0"><tr>
+                                    <th class="p-3 text-left text-[10px] font-black uppercase">Waktu</th>
+                                    <th class="p-3 text-left text-[10px] font-black uppercase">No Doc</th>
+                                    <th class="p-3 text-left text-[10px] font-black uppercase">No Batch</th>
+                                    <th class="p-3 text-left text-[10px] font-black uppercase">Depot</th>
+                                    <th class="p-3 text-center text-[10px] font-black uppercase">Tindakan</th>
+                                    <th class="p-3 text-center text-[10px] font-black uppercase">Dari</th>
+                                    <th class="p-3 text-center text-[10px] font-black uppercase">Ke</th>
+                                    <th class="p-3 text-left text-[10px] font-black uppercase">Oleh</th>
+                                    <th class="p-3 text-left text-[10px] font-black uppercase">Alasan</th>
+                                </tr></thead>
+                                <tbody id="apHistoryBody"></tbody>
+                            </table></div>
+                            <div class="p-4 border-t border-gray-100 flex flex-wrap items-center gap-3">
+                                <button onclick="apHalaman(-1)" id="apPrev" class="px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold rounded-lg text-sm"><i class="fas fa-chevron-left mr-1"></i> Sebelumnya</button>
+                                <button onclick="apHalaman(1)" id="apNext" class="px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold rounded-lg text-sm">Berikutnya <i class="fas fa-chevron-right ml-1"></i></button>
+                                <span id="apHalamanInfo" class="text-[11px] text-gray-500"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>

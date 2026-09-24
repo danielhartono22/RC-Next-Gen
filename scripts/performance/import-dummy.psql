@@ -1,0 +1,75 @@
+-- STAGING ONLY, after a reviewed schema-only deployment. Not an application migration.
+-- Run psql from the dataset directory. Supply -v test_ref=<ref>; never use the app .env.
+\set ON_ERROR_STOP on
+begin;
+select set_config('rc.performance_ref', :'test_ref', true);
+do $$ begin
+ if current_setting('rc.performance_ref') !~ '^[a-z]{20}$'
+    or current_setting('rc.performance_ref')='vvojshgcduqlugngpzkj' then raise exception 'Forbidden target'; end if;
+ if exists(select 1 from public.claims) or exists(select 1 from public.customers)
+    or exists(select 1 from public.depots) or exists(select 1 from public.campaigns)
+    or exists(select 1 from public.profiles) or exists(select 1 from auth.users)
+    or exists(select 1 from staging.rc_snapshots) or exists(select 1 from public.activity_logs)
+ then raise exception 'Requires EMPTY isolated schema, not a data clone'; end if;
+ if to_regclass('cron.job') is not null then
+   if exists(select 1 from cron.job where active) then raise exception 'Disable cron jobs in isolated staging first'; end if;
+ end if;
+ if to_regclass('vault.decrypted_secrets') is not null then
+   if exists(select 1 from vault.decrypted_secrets) then raise exception 'Remove external service secrets from isolated staging first'; end if;
+ end if;
+ if exists(select 1 from public.email_settings where aktif) or exists(select 1 from public.email_outbox)
+    or exists(select 1 from rc_private.oauth_cache) then raise exception 'Disable email settings and require empty outbox/OAuth cache'; end if;
+end $$;
+\copy public.depots(id,depot_code,depot_name,region,abbr) from 'depots.csv' with (format csv,header true)
+\copy public.campaigns(id,campaign_code,campaign_name,period_start,period_end,cashback_type,tax_status,status) from 'campaigns.csv' with (format csv,header true)
+\copy public.customers(id,customer_code,customer_name,tax_subject,top_text,bank,account_number,account_name) from 'customers.csv' with (format csv,header true)
+\copy public.customer_depots(customer_id,depot_id) from 'customer_depots.csv' with (format csv,header true)
+\copy public.claims(id,no_doc,campaign_id,customer_id,depot_id,status,previous_status,cb_net,net_value,volume,tax_subject,period_start,period_end,created_at,updated_at,version_no,uploaded_at,released_at,claimed_at,cleared_at,batch_upload,batch_release,batch_claim,batch_clearing) from 'claims.csv' with (format csv,header true)
+-- Non-real identifiers. No contact addresses capable of receiving email.
+update public.customers set npwp='DUMMY-NPWP-'||customer_code;
+update public.claims set gross_up=rc_private.gross_claimed(cb_net,tax_subject,'Customer');
+insert into rc_private.claim_sensitive(claim_id,npwp,bank,account_number,account_name,top_text)
+select c.id,u.npwp,u.bank,u.account_number,u.account_name,u.top_text
+from public.claims c join public.customers u on u.id=c.customer_id;
+insert into public.claim_status_history(claim_id,from_status,to_status,action,created_at,batch)
+select c.id,h.from_status,h.to_status,h.action,c.created_at+h.step*interval '1 day',
+ case h.step when 1 then c.batch_upload when 2 then c.batch_release when 3 then c.batch_claim when 4 then c.batch_clearing end
+from public.claims c cross join (values (1,'not_yet','submitted','submit'),(2,'submitted','released','release'),
+ (3,'released','claimed','claim'),(4,'claimed','done','clearing')) h(step,from_status,to_status,action)
+where h.step<=case c.status when 'submitted' then 1 when 'released' then 2 when 'claimed' then 3 when 'done' then 4 when 'on_hold' then 1 else 0 end;
+insert into public.claim_status_history(claim_id,from_status,to_status,action,created_at,reason)
+select id,case status when 'on_hold' then 'submitted' else 'not_yet' end,status,
+ case status when 'on_hold' then 'hold' else 'expire' end,updated_at,'Dummy seed'
+from public.claims where status in('on_hold','expired');
+insert into public.activity_logs(depot_id,event_type,entity_id,created_at,details)
+select depot_id,'dummy_seed',id,created_at,'{"synthetic":true}' from public.claims
+where right(no_doc,1) in('0','2','4','6','8');
+do $$ begin
+ if (select count(*) from public.claims)<>1000000 then raise exception 'Expected exactly one million claims'; end if;
+ if exists(select 1 from public.claims c left join public.customer_depots cd
+ on cd.customer_id=c.customer_id and cd.depot_id=c.depot_id where cd.customer_id is null) then raise exception 'Invalid customer/depot relation'; end if;
+ if exists(select 1 from public.claims c where c.version_no<>(select count(*)+1 from public.claim_status_history h where h.claim_id=c.id)) then raise exception 'History/version mismatch'; end if;
+end $$;
+create schema rc_perf;
+revoke all on schema rc_perf from public,anon,authenticated;
+create table rc_perf.environment(project_ref text not null,dataset_id text not null,seeded_at timestamptz default now());
+insert into rc_perf.environment values(current_setting('rc.performance_ref'),'rc-perf-20260921-v1');
+create function public.rc_perf_environment() returns jsonb language sql stable security definer set search_path='' as $$
+ select jsonb_build_object('project_ref',e.project_ref,'dataset_id',e.dataset_id,
+ 'claim_rows',(select count(*) from public.claims),
+ 'dummy_only',not exists(select 1 from public.claims where no_doc not like 'PERF/%')
+  and not exists(select 1 from public.customers where customer_code not like 'PERFU%')
+  and not exists(select 1 from public.profiles where user_code not like 'PERF\_%' escape '\'),
+ 'side_effects_disabled',not exists(select 1 from cron.job where active)
+   and not exists(select 1 from vault.decrypted_secrets)
+   and not exists(select 1 from public.email_settings where aktif)
+   and not exists(select 1 from public.email_outbox)
+   and not exists(select 1 from rc_private.oauth_cache)) from rc_perf.environment e;
+$$;
+revoke all on function public.rc_perf_environment() from public;
+grant execute on function public.rc_perf_environment() to anon,authenticated;
+commit;
+analyze public.claims; analyze public.customers; analyze public.customer_depots;
+analyze public.campaigns; analyze public.depots; analyze public.claim_status_history;
+analyze public.activity_logs; analyze rc_private.claim_sensitive;
+select public.rc_perf_environment(),pg_database_size(current_database()) as actual_database_bytes;

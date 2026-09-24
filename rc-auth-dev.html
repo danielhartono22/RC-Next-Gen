@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RC DEV — Login Supabase</title>
+<style>body{font:16px system-ui;background:#f1f5f9;color:#172554;margin:0}main{max-width:560px;margin:7vh auto;padding:32px;background:white;border-radius:16px}label{display:block;margin:16px 0 6px}input,button{font:inherit;padding:12px;box-sizing:border-box;width:100%}button{margin-top:18px;background:#1e40af;color:white;border:0;border-radius:8px;cursor:pointer}p{line-height:1.5}#message{white-space:pre-wrap}li{padding:8px}button:disabled{opacity:.5}</style>
+</head><body><main>
+<h1>Resource Collection DEV</h1>
+<p>Login Supabase dengan user ID Anda. Halaman ini untuk pengujian login dan akses depot. Transaksi RC belum dialihkan.</p>
+<form id="login"><label for="userid">User ID</label><input id="userid" autocomplete="username" required>
+<label for="password">Password/PIN</label><input id="password" type="password" autocomplete="current-password" required>
+<button>Masuk</button></form>
+<form id="change" hidden><h2>Ganti password</h2><p>Buat password baru sebelum mengakses data RC.</p>
+<label for="newPassword">Password baru (minimal 8 karakter)</label><input id="newPassword" type="password" minlength="8" autocomplete="new-password" required>
+<label for="confirmPassword">Ulangi password baru</label><input id="confirmPassword" type="password" minlength="8" autocomplete="new-password" required><button>Simpan password</button></form>
+<section id="account" hidden><h2 id="name"></h2><p>Depot yang dapat diakses:</p><ul id="depots"></ul></section>
+<p id="message" role="status"></p><button id="logout" hidden>Keluar</button>
+</main><script src="config/rc-auth-dev.js"></script><script type="module" src="scripts/rc-auth-dev.mjs"></script></body></html>

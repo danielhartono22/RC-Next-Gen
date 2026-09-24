@@ -1,0 +1,27 @@
+{
+  "default_supabase_environment": "dev",
+  "supabase_projects": {
+    "dev": {
+      "project_ref": "vvojshgcduqlugngpzkj",
+      "project_url": "https://vvojshgcduqlugngpzkj.supabase.co",
+      "dashboard_url": "https://supabase.com/dashboard/project/vvojshgcduqlugngpzkj",
+      "mcp_server": "supabase"
+    },
+    "prod": null
+  },
+  "assignment": {
+    "decided_at_utc": "2026-09-14T14:20:54Z",
+    "decision_source": "Owner instruction in conversation: tetapkan dev",
+    "supersedes_previous_environment": "prod"
+  },
+  "work_scope": {
+    "active_module": "resource_collection",
+    "active_environment": "dev",
+    "document_center": "deferred",
+    "document_center_legacy_environment": "prod",
+    "document_center_sync_inventory_required_for_current_dev_work": false,
+    "decision_source": "Owner instruction: doc center dikesampingkan dulu karena masih all prod",
+    "scope_document": "docs/scope.md"
+  },
+  "usage": "Project and scope registry for development and future deployment tooling; not loaded by the legacy frontends."
+}

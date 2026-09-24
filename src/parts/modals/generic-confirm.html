@@ -1,0 +1,14 @@
+        <!-- MODAL GENERIC CONFIRM / ALERT (pengganti confirm()/alert() bawaan browser) -->
+        <div id="genericConfirmModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+                <div id="gcmHeader" class="bg-red-50 p-6 text-center border-b border-red-100 relative">
+                    <div id="gcmIconWrap" class="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-3 shadow-sm border border-red-100 text-red-500 text-3xl"><i id="gcmIcon" class="fas fa-exclamation-triangle"></i></div>
+                    <h3 id="gcmTitle" class="font-black text-gray-800 text-xl tracking-tight">Konfirmasi</h3>
+                </div>
+                <div class="p-6 bg-white text-center"><p id="gcmMessage" class="text-sm text-gray-600 whitespace-pre-line leading-relaxed"></p></div>
+                <div class="p-4 bg-gray-50 border-t flex justify-center gap-3">
+                    <button type="button" id="gcmCancelBtn" class="w-1/2 py-3 bg-white border border-gray-300 text-gray-700 font-bold rounded-xl shadow-sm hover:bg-gray-100 transition">Batal</button>
+                    <button type="button" id="gcmConfirmBtn" class="w-1/2 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-md transition">Ya, Lanjutkan</button>
+                </div>
+            </div>
+        </div>

@@ -1,0 +1,178 @@
+{
+  "recorded_at_utc": "2026-09-14T13:55:21.858Z",
+  "scope": "Offline synthetic characterization; no network or production operations",
+  "interpretation": "PASS means the observed legacy behavior was reproduced, including defects; not a safety or migration acceptance result.",
+  "models": [
+    "Apps Script services replaced with in-memory fixtures. Lock modeled as non-recursive per Google API semantics.",
+    "Spreadsheet writes modeled as immediate; failure injection demonstrates missing rollback, not observed live persistence.",
+    "Cache TTL/eviction, real concurrency, Apps Script runtime, formula evaluation and deployed-version parity are not tested.",
+    "Legacy embedded token key replaced in memory with a synthetic test key; test tokens never recorded."
+  ],
+  "source_hashes": {
+    "ResourceCollection": "f13412886da16b52fb12adc3228734faedaae1b52ba496d93b78982deb88a884",
+    "DocumentCenter": "cd062c289168b729592c326d32650f9d4b4867f19ef100c100577b0729d25bd1",
+    "index (4).html": "54b7686d1b94b30ef8a0505c479a82785afaee83d1e75b3125a5491846f5437a",
+    "index (5).html": "2bc8510a4029a1973191334980efa149443a2e6f9687bab7a834751073980429"
+  },
+  "total": 26,
+  "passed": 26,
+  "failed": 0,
+  "checks": [
+    {
+      "id": "B01",
+      "description": "Both complete backend files compile as JavaScript",
+      "evidence": "RCB:1-1558; DCB:1-502",
+      "result": "PASS"
+    },
+    {
+      "id": "B02",
+      "description": "RC private route rejects absent and tampered tokens",
+      "evidence": "RCB:450-469",
+      "result": "PASS"
+    },
+    {
+      "id": "B03",
+      "description": "RC login returns foreign-depot documents and synthetic sensitive customer fields",
+      "evidence": "RCB:524-652",
+      "result": "PASS"
+    },
+    {
+      "id": "B04",
+      "description": "RC admin can read all logs despite UI role restriction",
+      "evidence": "RCB:513-521",
+      "result": "PASS"
+    },
+    {
+      "id": "B05",
+      "description": "RC public activity route accepts caller-supplied actor",
+      "evidence": "RCB:456-458,500-503",
+      "result": "PASS"
+    },
+    {
+      "id": "B06",
+      "description": "RC reads Released foreign-depot workflow row even without spoofed role/scope",
+      "evidence": "RCB:797-859",
+      "result": "PASS"
+    },
+    {
+      "id": "B07",
+      "description": "RC dashboard trusts a body role over signed admin role",
+      "evidence": "RCB:1183-1239",
+      "result": "PASS"
+    },
+    {
+      "id": "B08",
+      "description": "RC signed admin can create a system-manager fixture account",
+      "evidence": "RCB:1321-1382",
+      "result": "PASS"
+    },
+    {
+      "id": "B09",
+      "description": "RC signed admin can update another account permission flags",
+      "evidence": "RCB:1385-1414",
+      "result": "PASS"
+    },
+    {
+      "id": "B10",
+      "description": "Issued RC token remains accepted after account is disabled; logout route is absent",
+      "evidence": "RCB:120-135,472-488",
+      "result": "PASS"
+    },
+    {
+      "id": "B11",
+      "description": "RC clearing approve skips Submitted regular claim directly to Done across depots",
+      "evidence": "RCB:862-977",
+      "result": "PASS"
+    },
+    {
+      "id": "B12",
+      "description": "RC submit accepts Released and changes unrelated supplied customer master",
+      "evidence": "RCB:655-795",
+      "result": "PASS"
+    },
+    {
+      "id": "B13",
+      "description": "RC Hold accepts Released, restores it, and also accepts legacy RA7",
+      "evidence": "RCB:979-1050",
+      "result": "PASS"
+    },
+    {
+      "id": "B14",
+      "description": "RC Expired rejects Done but changes RA07 to Expired",
+      "evidence": "RCB:1053-1106",
+      "result": "PASS"
+    },
+    {
+      "id": "B15",
+      "description": "Backend gross-up is 100000 while frontend export is zero for NIPSEA net 85000 Badan",
+      "evidence": "RCB:245-273; RCF:1737-1756",
+      "result": "PASS"
+    },
+    {
+      "id": "B16",
+      "description": "Batch counter is shared across suffixes and wraps after 9999",
+      "evidence": "RCB:278-325",
+      "result": "PASS"
+    },
+    {
+      "id": "B17",
+      "description": "Nested batch generator releases shared lock before RC workflow writes in documented lock model",
+      "evidence": "RCB:278-325,869-975",
+      "result": "PASS"
+    },
+    {
+      "id": "B18",
+      "description": "Profile address update overwrites column also read as masterLink",
+      "evidence": "RCB:575,1480-1517",
+      "result": "PASS"
+    },
+    {
+      "id": "B19",
+      "description": "DC submit route writes without any login and stores caller actor",
+      "evidence": "DCB:113-150,369-502",
+      "result": "PASS"
+    },
+    {
+      "id": "B20",
+      "description": "DC login ignores inactive status; lookup returns foreign-depot synthetic identifier without session",
+      "evidence": "DCB:165-233",
+      "result": "PASS"
+    },
+    {
+      "id": "B21",
+      "description": "DC preview only labels unknown campaign and submit accepts it with negative amounts",
+      "evidence": "DCB:257-263,419-445",
+      "result": "PASS"
+    },
+    {
+      "id": "B22",
+      "description": "DC partial acceptance deduplicates campaign/customer across depots",
+      "evidence": "DCB:379-387,419-445",
+      "result": "PASS"
+    },
+    {
+      "id": "B23",
+      "description": "DC delimiter collision rejects distinct campaign/customer tuples",
+      "evidence": "DCB:381,422",
+      "result": "PASS"
+    },
+    {
+      "id": "B24",
+      "description": "DC cached index misses same-row key edits",
+      "evidence": "DCB:334-363",
+      "result": "PASS"
+    },
+    {
+      "id": "B25",
+      "description": "DC failure between column writes leaves partial fixture row and no rollback",
+      "evidence": "DCB:458-479",
+      "result": "PASS"
+    },
+    {
+      "id": "B26",
+      "description": "DC upload lookup enforces server 200-row cap after full source range read",
+      "evidence": "DCB:200-228",
+      "result": "PASS"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+                <!-- MODAL: EDITOR BARIS MASTER -->
+        <!-- Namanya berakhiran "Modal" dan tempatnya anak langsung <body> BUKAN kebetulan.
+             Pengelola modal mencari 'body > [id$="Modal"]' dan gaya penggulir lapisan memakai
+             selektor yang sama; sebelumnya editor ini bernama rcRowEditor dan bersarang di
+             dalam workspace, sehingga ia luput dari keduanya - layar di belakangnya tetap
+             hidup, dan pada layar pendek tombol Simpan tidak dapat dicapai. Itulah sebab
+             Customer Master dan Campaign Master terasa tidak bisa diubah. -->
+                <div id="rcRowEditorModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[90] p-4">
+                    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[92vh]"><div class="bg-emerald-50 p-5 border-b border-emerald-100 flex justify-between items-center"><h3 id="rcRowEditorTitle" class="font-black text-gray-800 text-lg">Ubah Data</h3><button onclick="closeRcRowEditor()" class="text-emerald-400 hover:text-emerald-700"><i class="fas fa-times text-xl"></i></button></div><div class="p-6 overflow-auto"><div id="rcRowEditorError" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded text-sm font-bold mb-4"><span id="rcRowEditorErrorText">-</span></div><div id="rcRowEditorFields" class="space-y-4"></div></div><div class="p-4 bg-gray-50 border-t flex gap-3"><button onclick="closeRcRowEditor()" class="flex-1 py-2.5 bg-white border border-gray-300 text-gray-700 font-bold rounded-xl hover:bg-gray-100">Batal</button><button onclick="saveRcRowEditor()" id="btnSaveRcRow" class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md">Simpan</button></div></div>
+                </div>

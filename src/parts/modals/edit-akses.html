@@ -1,0 +1,154 @@
+        <!-- MODAL EDIT AKSES -->
+        <!-- Kartu "Hak Menu Dashboard" tidak lagi memuat daftar modul yang ditulis tangan.
+             Dulu daftar itu berisi select huruf J sampai S ditambah Q "Print Document", padahal
+             Print Document tidak punya permission apa pun di database dan modul Document Center
+             sendiri sudah dihapus atas instruksi pemilik. Sekarang seluruh isinya dirender dari
+             katalog permission yang datang dari server, sehingga modul yang tidak ada tidak
+             mungkin muncul, dan modul baru muncul sendiri tanpa menyentuh berkas ini. -->
+        <div id="editAccessModal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[95vh] border border-gray-100">
+                <div class="p-5 border-b bg-white flex justify-between items-center sticky top-0 z-20">
+                    <div>
+                        <h3 class="font-black text-gray-800 text-xl tracking-tight">Console Otorisasi Matrix</h3>
+                        <p class="text-xs font-bold text-gray-500 mt-0.5" id="editUserDisplay">-</p>
+                    </div>
+                    <button onclick="closeEditModal()" class="text-gray-400 hover:text-red-500 bg-gray-50 w-8 h-8 rounded-full"><i class="fas fa-times"></i></button>
+                </div>
+
+                <div class="p-6 overflow-auto flex-1 bg-slate-50 relative">
+                    <input type="hidden" id="editUserId">
+                    <div class="flex items-center gap-4 mb-6 p-4 bg-white border border-gray-200 rounded-xl shadow-sm">
+                        <div class="bg-blue-100 text-blue-600 w-14 h-14 rounded-full flex items-center justify-center font-black text-2xl"><i class="fas fa-user-shield"></i></div>
+                        <div>
+                            <p class="font-black text-gray-800 text-xl tracking-tight" id="editIdentityName">-</p>
+                            <p class="text-xs font-bold text-gray-500 uppercase mt-0.5" id="editRoleDisplay">Role: -</p>
+                        </div>
+                    </div>
+
+                    <div id="editSelfNote" class="hidden mb-5 p-4 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-900">
+                        <b>Anda sedang menyunting akun sendiri.</b> Hanya identitas yang dapat diubah di sini.
+                        Peran, hak modul dan yurisdiksi sendiri sengaja dikunci: satu kesalahan pada ketiganya akan
+                        mengunci Anda keluar dan tidak ada siapa pun lagi yang dapat mengembalikannya.
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="bg-white p-5 border border-gray-200 rounded-xl shadow-sm space-y-4">
+                            <h4 class="text-xs font-black text-indigo-800 uppercase border-b border-indigo-100 pb-2.5">Pengaturan Akun Dasar</h4>
+                            <div>
+                                <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1.5 ml-1">Status Aktivasi</label>
+                                <select id="editActivation" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white font-bold text-gray-800">
+                                    <option value="Active">Active</option>
+                                    <option value="Inactive">Inactive</option>
+                                </select>
+                            </div>
+                            <div id="editRoleContainer" class="hidden">
+                                <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1.5 ml-1">Ubah Role Pengguna</label>
+                                <select id="editRoleInput" onchange="handleEditRoleSwitch()" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white font-bold text-gray-800">
+                                    <option value="admin">Admin</option>
+                                    <option value="osc">OSC</option>
+                                    <option value="depot head">Depot Head</option>
+                                    <option value="management">Management</option>
+                                    <option value="supervisor">Supervisor</option>
+                                    <option value="others">Others</option>
+                                </select>
+                                <!-- Opsi System Manager hanya ditambahkan oleh openEditModal ketika
+                                     pemanggilnya memang System Manager. -->
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1.5 ml-1">Suffix Batch</label>
+                                <input id="editSuffix" type="text" maxlength="4" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white font-mono tracking-wide">
+                            </div>
+                        </div>
+
+                        <!-- Identitas dapat dikoreksi pengelola. Kode pengguna sengaja tidak ikut:
+                             ia adalah kunci login dan mengubahnya akan memutus akun dari riwayatnya. -->
+                        <div class="bg-white p-5 border border-gray-200 rounded-xl shadow-sm space-y-4">
+                            <h4 class="text-xs font-black text-emerald-800 uppercase border-b border-emerald-100 pb-2.5">Identitas</h4>
+                            <div>
+                                <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1.5 ml-1">Nama Lengkap</label>
+                                <input id="editFullName" type="text" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white font-bold text-gray-800">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1.5 ml-1">Email Bisnis</label>
+                                <input id="editEmail" type="email" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1.5 ml-1">Kode Depot Asal</label>
+                                <select id="editHomeDepot" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white font-bold text-gray-800"></select>
+                                <p class="text-[10px] text-gray-400 mt-1 ml-1">Depot asal selalu menjadi bagian dari yurisdiksi.</p>
+                            </div>
+                        </div>
+
+                        <div id="editModuleMatrixContainer" class="md:col-span-2 bg-white p-5 border border-gray-200 rounded-xl shadow-sm">
+                            <h4 class="text-xs font-black text-blue-800 uppercase border-b border-blue-100 pb-2.5 mb-4">Hak Menu Dashboard</h4>
+                            <div id="editModuleMatrix" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+                        </div>
+
+                        <div id="approvePinContainer" class="hidden md:col-span-2 p-5 bg-orange-50 border border-orange-200 rounded-xl shadow-sm">
+                            <label class="flex items-center space-x-3 text-sm text-gray-800 font-bold">
+                                <input type="checkbox" id="editApprovePin" class="rounded text-orange-600 border-orange-300">
+                                <span class="text-base">Setujui permintaan ganti PIN</span>
+                            </label>
+                            <p class="text-[11px] text-orange-700 mt-1.5 ml-7" id="editPinReason">-</p>
+                        </div>
+
+                        <!-- Yurisdiksi. Seluruh bagian ini disembunyikan untuk System Manager,
+                             karena perannya sudah mencakup seluruh depot dan memberinya yurisdiksi
+                             hanya akan menyesatkan pembaca konsol. -->
+                        <div id="editSpvSection" class="hidden md:col-span-2 space-y-4">
+                            <div class="border-t border-gray-200 my-2"></div>
+                            <h4 class="text-sm font-black text-gray-800 uppercase">Yurisdiksi</h4>
+
+                            <div id="editAssignOscContainer" class="hidden p-5 bg-blue-50/80 border border-blue-200 rounded-xl">
+                                <label class="block text-xs font-black text-blue-800 uppercase mb-2">Supervisi OSC</label>
+                                <p class="text-[11px] text-blue-700 mb-2">Supervisor berhak atas seluruh depot milik OSC yang dipilih di sini.</p>
+                                <div class="relative">
+                                    <button type="button" onclick="toggleMultiSelect('editAssignOscDrop')" class="w-full text-left px-4 py-3 border border-blue-300 rounded-lg bg-white text-sm"><span class="font-bold text-blue-900">-- Pilih OSC --</span></button>
+                                    <div id="editAssignOscDrop" class="multiselect-dropdown p-2 text-sm shadow-xl"></div>
+                                </div>
+                            </div>
+
+                            <div id="editAssignDepotContainer" class="hidden p-5 bg-purple-50/80 border border-purple-200 rounded-xl">
+                                <label class="block text-xs font-black text-purple-800 uppercase mb-2">Assignment Depot</label>
+                                <p class="text-[11px] text-purple-700 mb-2">Dipakai untuk OSC dan Others.</p>
+                                <div class="relative">
+                                    <button type="button" onclick="toggleMultiSelect('editAssignDepotDrop')" class="w-full text-left px-4 py-3 border border-purple-300 rounded-lg bg-white text-sm"><span class="font-bold text-purple-900">-- Pilih Wilayah --</span></button>
+                                    <div id="editAssignDepotDrop" class="multiselect-dropdown p-2 text-sm shadow-xl"></div>
+                                </div>
+                            </div>
+
+                            <!-- Resource Partner: seorang admin yang ditagging ke depot lain berhak
+                                 penuh atas resource depot itu, persis seperti depot asalnya. -->
+                            <div id="editAssignRegionContainer" class="hidden p-5 bg-sky-50/80 border border-sky-200 rounded-xl">
+                                <label class="block text-xs font-black text-sky-800 uppercase mb-2">Assignment Region</label>
+                                <p class="text-[11px] text-sky-700 mb-2">Dipakai untuk Management. Pilihannya berasal dari Region pada Depot Master, sehingga depot baru pada region itu ikut dengan sendirinya.</p>
+                                <div class="relative">
+                                    <button type="button" onclick="toggleMultiSelect('editAssignRegionDrop')" class="w-full text-left px-4 py-3 border border-sky-300 rounded-lg bg-white text-sm"><span class="font-bold text-sky-900">-- Pilih Wilayah --</span></button>
+                                    <div id="editAssignRegionDrop" class="multiselect-dropdown p-2 text-sm shadow-xl"></div>
+                                </div>
+                            </div>
+
+                            <!-- Resource Partner: seorang admin yang ditagging ke depot lain berhak
+                                 penuh atas resource depot itu, persis seperti depot asalnya. -->
+                            <div id="editRpContainer" class="hidden p-5 bg-amber-50/80 border border-amber-200 rounded-xl">
+                                <label class="block text-xs font-black text-amber-800 uppercase mb-2">Resource Partner (RP)</label>
+                                <p class="text-[11px] text-amber-700 mb-2">Depot lain yang ditagging ke admin ini. Seluruh resource depot tersebut menjadi haknya juga.</p>
+                                <div class="relative">
+                                    <button type="button" onclick="toggleMultiSelect('editRpDrop')" class="w-full text-left px-4 py-3 border border-amber-300 rounded-lg bg-white text-sm"><span class="font-bold text-amber-900">-- Tanpa RP --</span></button>
+                                    <div id="editRpDrop" class="multiselect-dropdown p-2 text-sm shadow-xl"></div>
+                                </div>
+                            </div>
+
+                            <div class="p-4 bg-gray-50 border border-gray-200 rounded-xl">
+                                <p class="text-[10px] font-black text-gray-500 uppercase mb-1">Yurisdiksi yang berlaku</p>
+                                <p class="text-sm font-bold text-gray-800" id="editEffectiveDepots">-</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="p-5 bg-white border-t border-gray-100 flex justify-end space-x-3">
+                    <button onclick="closeEditModal()" class="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 font-bold rounded-xl shadow-sm hover:bg-gray-50 transition">Batal</button>
+                    <button onclick="saveUserAccess()" id="btnSaveAccess" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md flex items-center transition"><span id="btnSaveAccessText">Simpan Akses</span><div id="saveAccessLoader" class="loader hidden ml-3 w-4 h-4"></div></button>
+                </div>
+            </div>
+        </div>

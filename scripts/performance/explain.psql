@@ -1,0 +1,26 @@
+-- Run only on the attested test DB. test_user is a provisioned synthetic Auth UUID.
+\set ON_ERROR_STOP on
+begin;
+set local statement_timeout='60s';
+select set_config('request.jwt.claim.sub', :'test_user', true);
+do $$ begin
+ if not exists(select 1 from public.profiles where id=auth.uid() and user_code like 'PERF\_%' escape '\')
+    or not exists(select 1 from rc_perf.environment where project_ref<>'vvojshgcduqlugngpzkj')
+ then raise exception 'Synthetic staging user required'; end if;
+end $$;
+set local role authenticated;
+explain (analyze,buffers,settings,format json) select id,no_doc,status from public.claims where no_doc='PERF/000000001';
+explain (analyze,buffers,settings,format json) select id,no_doc,updated_at from public.claims
+ where status='not_yet' order by updated_at desc,id limit 50;
+explain (analyze,buffers,settings,format json) select id,no_doc,updated_at from public.claims
+ where status='not_yet' order by updated_at desc,id limit 50 offset 100000;
+explain (analyze,buffers,settings,format json) select c.no_doc,u.customer_name,d.depot_code,ca.campaign_code
+ from public.claims c join public.customers u on u.id=c.customer_id
+ join public.depots d on d.id=c.depot_id join public.campaigns ca on ca.id=c.campaign_id
+ where u.customer_name ilike '%Mitra%' order by c.updated_at desc,c.id limit 50;
+explain (analyze,buffers,settings,format json) select depot_id,status,count(*),sum(cb_net)
+ from public.claims group by depot_id,status;
+-- Function Scan alone cannot explain internal plans: enable auto_explain.log_nested_statements
+-- in isolated staging if available and collect nested plans, not just this wrapper's duration.
+explain (analyze,buffers,settings,format json) select public.rc_report_dashboard('{}');
+rollback;

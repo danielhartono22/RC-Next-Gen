@@ -1,0 +1,14 @@
+{
+  "checkedAt": "2026-09-22T07:23:02.101Z",
+  "project": "vvojshgcduqlugngpzkj",
+  "inventory": {
+    "claims": 2756,
+    "customers": 2067,
+    "campaigns": 100,
+    "depots": 52,
+    "profiles": 7,
+    "active_profiles": 6,
+    "public_tables": 24,
+    "migration_ledger_latest": "20260915071855"
+  }
+}

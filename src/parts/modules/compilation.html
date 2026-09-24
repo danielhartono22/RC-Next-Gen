@@ -1,0 +1,66 @@
+                <!-- MODULE: DOCUMENT CENTER -->
+                <!-- Dinamai ulang dari "Cashback Compilation" atas permintaan pemilik.
+                     Hanya labelnya yang berubah: id elemen, nama fungsi dan action tetap
+                     memakai kata compilation, supaya penggantian nama ini tidak menjadi
+                     penyuntingan besar yang menyentuh backend dan seluruh pemanggilnya. -->
+                <div id="modCompilation" class="module-section hidden">
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+                        <div class="flex gap-2 mb-5 bg-gray-50 p-1.5 rounded-xl w-fit">
+                            <button id="cmpTabCompile" onclick="switchCompilationTab('compile')"
+                                class="px-5 py-2 text-sm font-bold rounded-lg transition bg-cyan-100 text-cyan-700">Document Center</button>
+                            <button data-rc-tab="compilation.reprocess" id="cmpTabRepro" onclick="switchCompilationTab('repro')"
+                                class="px-5 py-2 text-sm font-bold rounded-lg transition text-gray-500 hover:bg-gray-100">
+                                Reprocessing Doc <span id="cmpReproBadge" class="ml-1 px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 text-[10px]">0</span></button>
+                        </div>
+                        <div id="cmpPanelCompile">
+                        <div class="mb-5 border-b border-gray-100 pb-4 flex flex-wrap justify-between items-end gap-3"><div><h2 class="text-2xl font-extrabold text-gray-800"><i class="fas fa-layer-group text-cyan-600 mr-2"></i>Document Center</h2><p class="text-gray-500 mt-1 text-sm">Pencarian terarah per campaign atau batch, maksimal 2.000 baris sekali tarik.</p></div><button onclick="toggleArchivedList()" data-rc-tab="compilation.archive" id="btnArchivedList" class="hidden px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold rounded-lg text-sm"><i class="fas fa-box-archive mr-2"></i>Lihat Arsip</button></div>
+                        <div class="flex flex-wrap gap-3 items-center mb-5"><select id="compCampaign" class="min-w-[240px] px-4 py-2.5 border border-gray-300 rounded-lg text-sm"><option value="">-- Semua Campaign --</option></select><input id="compBatch" placeholder="Nomor batch" class="px-4 py-2.5 border border-gray-300 rounded-lg text-sm w-[180px]"><select id="compStatus" class="px-4 py-2.5 border border-gray-300 rounded-lg text-sm"><option value="">Semua status</option><option value="not_yet">Not Yet</option><option value="submitted">Submitted</option><option value="approved">Approved</option><option value="released">Released</option><option value="claimed">Claimed</option><option value="done">Done</option><option value="on_hold">On Hold</option><option value="expired">Expired</option></select><input id="compSearch" placeholder="No Doc / kode / nama toko" class="flex-1 min-w-[200px] px-4 py-2.5 border border-gray-300 rounded-lg text-sm"><button onclick="loadCompilation(0)" class="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-700 text-white font-bold rounded-lg text-sm"><i class="fas fa-search mr-2"></i>Tarik Data</button></div>
+                        <div data-rc-tab="compilation.compile" class="flex flex-wrap gap-3 items-center mb-5 p-4 bg-cyan-50 border border-cyan-200 rounded-xl"><span class="font-bold text-cyan-900 text-sm"><i class="fas fa-file-import mr-2"></i>Compile Cashback</span><button onclick="downloadCompileTemplate()" class="px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold rounded-lg text-sm"><i class="fas fa-file-excel mr-2 text-green-600"></i>Template</button><label class="px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold rounded-lg text-sm cursor-pointer"><i class="fas fa-upload mr-2 text-blue-600"></i>Pilih File<input type="file" data-rc-tab="compilation.compile" id="compileFile" accept=".xlsx,.xls" class="hidden" onchange="previewCompileUpload(this)"></label><button onclick="commitCompileUpload()" id="btnCommitCompile" disabled class="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:bg-cyan-300 text-white font-bold rounded-lg text-sm">Simpan Compile</button><span class="text-xs text-cyan-800">Maksimal 2.000 baris. Semua jenis CB dimulai Not Yet dan memerlukan approval.</span></div><div id="compileResult" class="hidden mb-5 p-4 border rounded-xl text-sm"></div><div id="compSummary" class="mb-4 flex flex-wrap gap-3 text-sm"></div>
+                        <div data-rc-tab="compilation.archive" id="compArchiveBar" class="hidden mb-4 p-4 bg-red-50 border border-red-200 rounded-xl flex flex-wrap gap-3 items-center"><span class="font-bold text-red-800 text-sm"><span id="compSelectedCount">0</span> baris dipilih</span><input id="compArchiveReason" placeholder="Alasan pengarsipan (wajib)" class="flex-1 min-w-[240px] px-4 py-2 border border-red-300 rounded-lg text-sm"><button onclick="archiveCompilationRows()" id="btnArchiveComp" class="px-5 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-sm">Arsipkan</button></div>
+                        <div class="overflow-auto border border-gray-200 rounded-xl"><table class="w-full text-sm"><thead class="bg-gray-50 text-gray-600"><tr><th class="p-3 text-center font-bold"><input type="checkbox" id="compSelectAll" onchange="toggleAllCompilation(this)" class="w-4 h-4 rounded"></th><th class="p-3 text-left font-bold">No Doc</th><th class="p-3 text-center font-bold">Status</th><th class="p-3 text-left font-bold">Toko</th><th class="p-3 text-left font-bold">Campaign</th><th class="p-3 text-center font-bold">Jenis CB</th><th class="p-3 text-center font-bold">Subyek</th><th class="p-3 text-right font-bold">Cashback</th><th class="p-3 text-right font-bold">Gross Up</th><th class="p-3 text-left font-bold">Batch</th></tr></thead><tbody id="compTableBody"></tbody></table></div>
+                        <div id="compPager" class="mt-4"></div>
+                        <div id="compArchivedPanel" class="hidden mt-6 border-t border-gray-200 pt-6"><h3 class="font-black text-gray-800 mb-3"><i class="fas fa-box-archive text-gray-500 mr-2"></i>Baris Terarsip</h3><div class="overflow-auto border border-gray-200 rounded-xl"><table class="w-full text-sm"><thead class="bg-gray-50 text-gray-600"><tr><th class="p-3 text-left font-bold">No Doc</th><th class="p-3 text-left font-bold">Toko</th><th class="p-3 text-left font-bold">Campaign</th><th class="p-3 text-right font-bold">Cashback</th><th class="p-3 text-left font-bold">Alasan</th><th class="p-3 text-left font-bold">Oleh</th><th class="p-3 text-center font-bold">Aksi</th></tr></thead><tbody id="compArchivedBody"></tbody></table></div></div>
+                    </div>
+                        </div>
+
+                        <!-- TAB: REPROCESSING DOC (ON HOLD) -->
+                        <!-- Tempat dokumen yang di-On Hold mendarat. Nominalnya direvisi di
+                             Excel lalu diunggah kembali; dokumen yang berhasil langsung kembali
+                             ke Not Yet dan hilang dari daftar ini. Kunci rujukannya No Doc,
+                             bukan nomor baris, karena urutan baris dapat berubah di antara
+                             mengunduh dan mengunggah. -->
+                        <div id="cmpPanelRepro" class="hidden">
+                            <div class="flex flex-wrap gap-3 items-center mb-5">
+                                <input id="reproSearch" onkeyup="if(event.key==='Enter')loadReprocessing()"
+                                    placeholder="Cari No Doc, kode atau nama toko"
+                                    class="flex-1 min-w-[220px] px-4 py-2.5 border border-gray-300 rounded-lg text-sm">
+                                <button onclick="loadReprocessing()" class="px-5 py-2.5 bg-gray-800 hover:bg-black text-white font-bold rounded-lg text-sm"><i class="fas fa-search mr-2"></i>Cari</button>
+                                <button onclick="downloadReprocessing()" class="px-5 py-2.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold rounded-lg text-sm"><i class="fas fa-file-excel mr-2 text-green-600"></i>Unduh Terpilih</button>
+                                <label class="px-5 py-2.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold rounded-lg text-sm cursor-pointer"><i class="fas fa-upload mr-2 text-blue-600"></i>Unggah Revisi<input type="file" id="reproFile" accept=".xlsx,.xls" class="hidden" onchange="previewReprocessingUpload(this)"></label>
+                            </div>
+
+                            <div id="reproUploadInfo" class="hidden mb-4 p-4 bg-blue-50 border border-blue-200 rounded-xl text-sm">
+                                <p id="reproUploadText" class="text-blue-900 font-bold mb-3">-</p>
+                                <button onclick="commitReprocessingUpload()" id="btnCommitRepro" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-sm">Proses Revisi</button>
+                                <button onclick="cancelReprocessingUpload()" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 font-bold rounded-lg text-sm">Batal</button>
+                            </div>
+
+                            <div class="overflow-auto border border-gray-200 rounded-xl">
+                                <table class="w-full text-sm" id="reproTable">
+                                    <thead class="bg-gray-50 text-gray-600"><tr>
+                                        <th class="p-3 text-center" data-rc-no-sort="1"><input type="checkbox" id="reproSelectAll" onchange="toggleAllReprocessing()" class="rounded"></th>
+                                        <th class="p-3 text-left font-bold">No Doc</th>
+                                        <th class="p-3 text-left font-bold">Campaign</th>
+                                        <th class="p-3 text-left font-bold">Toko</th>
+                                        <th class="p-3 text-right font-bold">Total Cashback</th>
+                                        <th class="p-3 text-center font-bold">SO Date</th>
+                                        <th class="p-3 text-center font-bold">Billing Date</th>
+                                        <th class="p-3 text-left font-bold">Alasan</th>
+                                        <th class="p-3 text-center font-bold">Ditahan</th>
+                                    </tr></thead>
+                                    <tbody id="reproTableBody"></tbody>
+                                </table>
+                            </div>
+                            <p class="text-[11px] text-gray-500 mt-3" id="reproRingkas">-</p>
+                        </div>
+                </div>

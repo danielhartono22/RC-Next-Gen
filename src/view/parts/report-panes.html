@@ -1,0 +1,264 @@
+                <!-- ====================================================================
+                     PANEL REPORT - dipakai aplikasi DAN dashboard publik
+                     ====================================================================
+                     Markup ini disisipkan ke dua tempat: modul Report di dalam portal, dan
+                     halaman Claim Dashboard yang dapat dibuka tanpa login. Satu berkas, dua
+                     pemakai - bukan salinan - karena pemilik meminta keduanya sama "termasuk
+                     jika ada perubahan ke depan".
+
+                     Id di dalamnya adalah kontrak dengan view/js/20-report.js. Mengganti
+                     sebuah id berarti mengganti pemanggilnya juga; menambah diagram cukup
+                     menambah satu <canvas> di sini dan satu rtGambarChart() di sana, dan
+                     kedua halaman langsung memilikinya.
+
+                     Yang TIDAK boleh masuk ke sini: tombol atau kolom yang hanya masuk akal
+                     bila ada sesi - Muat Ulang, Excel, filter Depot - sebab halaman publik
+                     tidak mengenal siapa yang membukanya. Semua itu tinggal di report.html.
+                -->
+                    <div class="flex border-b border-gray-200 mb-0">
+                        <button onclick="switchReportTab('dashboard')" id="rtTabDashboard" class="sub-tab-btn px-6 py-3 font-bold text-sm border-b-2 border-blue-600 text-blue-600">Dashboard</button>
+                        <button onclick="switchReportTab('cc1')" id="rtTabCc1" class="sub-tab-btn px-6 py-3 font-bold text-sm border-b-2 border-transparent text-gray-500">Cost Center 1</button>
+                        <button onclick="switchReportTab('cc2')" id="rtTabCc2" class="sub-tab-btn px-6 py-3 font-bold text-sm border-b-2 border-transparent text-gray-500">Cost Center 2</button>
+                        
+                    </div>
+
+                    <div id="rtFilterBar" class="bg-gray-50 p-4 rounded-b-xl border border-t-0 border-gray-200 mb-6 flex flex-wrap gap-4 rc-filter-bar shadow-sm">
+                        <div class="w-40 flex-shrink-0">
+                            <label class="block text-xs font-bold text-gray-700 mb-1.5">Region</label>
+                            <select id="rtRegion" onchange="loadReport()" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white text-sm font-bold text-gray-700"></select>
+                        </div>
+                        <div class="w-48 flex-shrink-0">
+                            <label class="block text-xs font-bold text-gray-700 mb-1.5">Depot</label>
+                            <select id="rtDepot" onchange="loadReport()" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white text-sm font-bold text-gray-700"></select>
+                        </div>
+                        <div class="w-56 flex-shrink-0">
+                            <label class="block text-xs font-bold text-gray-700 mb-1.5">Campaign</label>
+                            <select id="rtCampaign" onchange="loadReport()" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white text-sm font-bold text-gray-700"></select>
+                        </div>
+                        <!-- Penyaring periode memakai BILLING, sesuai ketetapan pemilik
+                             ("patokan billing aja"). Tanggalnya diketik dengan bentuk resmi RC -
+                             dd-mm-yyyy dan kelimanya yang lain - bukan pemilih tanggal bawaan
+                             peramban, supaya cara mengetik tanggal di seluruh sistem tetap satu. -->
+                        <div class="w-36 flex-shrink-0">
+                            <label class="block text-xs font-bold text-gray-700 mb-1.5">Tahun Campaign</label>
+                            <select id="rtTahunCampaign" onchange="loadReport()" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white text-sm font-bold text-gray-700"></select>
+                        </div>
+                        <div class="w-40 flex-shrink-0">
+                            <label class="block text-xs font-bold text-gray-700 mb-1.5">Billing Start</label>
+                            <input id="rtBillingStart" type="text" placeholder="dd-mm-yyyy" onchange="loadReport()" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white text-sm font-bold text-gray-700">
+                        </div>
+                        <div class="w-40 flex-shrink-0">
+                            <label class="block text-xs font-bold text-gray-700 mb-1.5">Billing End</label>
+                            <input id="rtBillingEnd" type="text" placeholder="dd-mm-yyyy" onchange="loadReport()" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white text-sm font-bold text-gray-700">
+                        </div>
+                        <div class="flex items-end gap-2">
+                            <button onclick="rtKosongkanFilter()" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 text-sm font-bold py-2.5 px-4 rounded-lg shadow-sm transition"><i class="fas fa-eraser mr-1.5"></i> Kosongkan</button>
+                            <button onclick="loadReport(true)" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 text-sm font-bold py-2.5 px-4 rounded-lg shadow-sm transition"><i class="fas fa-sync mr-1.5"></i> Muat Ulang</button>
+                            <button onclick="downloadReportExcel()" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 text-sm font-bold py-2.5 px-4 rounded-lg shadow-sm transition"><i class="fas fa-file-excel mr-1.5 text-green-600"></i> Excel</button>
+                        </div>
+                        <div class="flex-1 text-right self-end">
+                            <span class="text-[11px] text-gray-400" id="rtDibuatPada">-</span>
+                        </div>
+                    </div>
+
+                    <!-- TAB: DASHBOARD -->
+                    <div id="rtPaneDashboard" class="rc-below-filter">
+                        <div id="rtKpi" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 mb-6"></div>
+
+                        <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
+                            <div id="rtCardVolume" class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm relative">
+                                <button type="button" onclick="rcToggleCardExpand('rtCardVolume')" title="Perbesar" class="rc-expand-btn absolute top-3 right-3 w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-blue-600 hover:border-blue-300 z-10"><i class="fas fa-expand"></i></button>
+                                <h3 class="font-black text-gray-700 mb-1 pr-10">Tren Volume &amp; Nilai Klaim per Bulan</h3>
+                                <p class="text-[11px] text-gray-500 mb-3">Berdasarkan tanggal proses. Baris tanpa tanggal proses tidak masuk bulan mana pun.</p>
+                                <div class="rc-expand-body"><canvas id="rtChartVolume" height="150"></canvas></div>
+                            </div>
+                            <div id="rtCardStatus" class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm relative">
+                                <button type="button" onclick="rcToggleCardExpand('rtCardStatus')" title="Perbesar" class="rc-expand-btn absolute top-3 right-3 w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-blue-600 hover:border-blue-300 z-10"><i class="fas fa-expand"></i></button>
+                                <h3 class="font-black text-gray-700 mb-1 pr-10">Distribusi Status Claim</h3>
+                                <!-- Dua cara membaca, sesuai ketetapan pemilik. Bawaannya grup pending,
+                                     karena pertanyaan yang lebih sering diajukan adalah "siapa yang
+                                     sedang ditunggu", bukan "di tahap mana persisnya". -->
+                                <div class="flex flex-wrap items-center gap-2 mb-2">
+                                    <button type="button" id="rtStatusCaraGrup" onclick="rtUbahCaraStatus('grup')" class="px-3 py-1.5 text-[11px] font-black rounded-lg border transition bg-blue-600 text-white border-blue-600">By Pending Group</button>
+                                    <button type="button" id="rtStatusCaraStage" onclick="rtUbahCaraStatus('stage')" class="px-3 py-1.5 text-[11px] font-black rounded-lg border transition bg-white text-gray-600 border-gray-300 hover:bg-gray-50">By Stage</button>
+                                </div>
+                                <p class="text-[11px] text-gray-500 mb-3" id="rtStatusKeterangan">Dikelompokkan menurut siapa yang sedang ditunggu.</p>
+                                <div class="rc-expand-body"><canvas id="rtChartStatus" height="150"></canvas></div>
+                            </div>
+                            <div id="rtCardAging" class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm relative">
+                                <button type="button" onclick="rcToggleCardExpand('rtCardAging')" title="Perbesar" class="rc-expand-btn absolute top-3 right-3 w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-blue-600 hover:border-blue-300 z-10"><i class="fas fa-expand"></i></button>
+                                <h3 class="font-black text-gray-700 mb-1 pr-10">Klaim Outstanding by Hari</h3>
+                                <p class="text-[11px] text-gray-500 mb-3">Dihitung sejak periode campaign berakhir. Dokumen tanpa tanggal acuan tidak ikut dihitung.</p>
+                                <div class="rc-expand-body"><canvas id="rtChartAging" height="150"></canvas></div>
+                            </div>
+                            <div id="rtCardRegion" class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm relative">
+                                <button type="button" onclick="rcToggleCardExpand('rtCardRegion')" title="Perbesar" class="rc-expand-btn absolute top-3 right-3 w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-blue-600 hover:border-blue-300 z-10"><i class="fas fa-expand"></i></button>
+                                <h3 class="font-black text-gray-700 mb-1 pr-10">Clearing Rate per Region</h3>
+                                <p class="text-[11px] text-gray-500 mb-3">Region diisi lewat Key Master &rarr; Depot Master.</p>
+                                <div class="rc-expand-body"><canvas id="rtChartRegion" height="150"></canvas></div>
+                            </div>
+                        </div>
+
+                        <div id="rtCardDepot" class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm relative mb-6">
+                            <button type="button" onclick="rcToggleCardExpand('rtCardDepot')" title="Perbesar" class="rc-expand-btn absolute top-3 right-3 w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-blue-600 hover:border-blue-300 z-10"><i class="fas fa-expand"></i></button>
+                            <h3 class="font-black text-gray-700 mb-1 pr-10">Top 10 Depot &mdash; Outstanding %</h3>
+                            <p class="text-[11px] text-gray-500 mb-3">Proporsional terhadap Net CB depot itu sendiri, bukan nominal. Depot kecil dengan tunggakan penuh tetap terlihat.</p>
+                            <div class="rc-expand-body"><canvas id="rtChartDepot" height="110"></canvas></div>
+                        </div>
+
+                        <!-- Ditumpuk selebar layar, bukan berdampingan dua kolom. Kedua tabel ini
+                             memuat tujuh kolom angka; dipaksa ke separuh lebar, judul kolomnya
+                             terpotong dan angkanya berdesakan. Susunannya kini sama dengan
+                             Performa per Campaign di bawahnya. -->
+                        <div class="space-y-6 mb-6">
+                            <div id="rtCardRegionTbl" class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden relative">
+                                <button type="button" onclick="rcToggleCardExpand('rtCardRegionTbl')" title="Perbesar" class="rc-expand-btn absolute top-3 right-3 w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-blue-600 hover:border-blue-300 z-20"><i class="fas fa-expand"></i></button>
+                                <div class="p-5 pb-3"><h3 class="font-black text-gray-700 pr-10">Performa per Region</h3>
+                                    <p class="text-[11px] text-gray-500 mt-1">Region diisi lewat Key Master &rarr; Depot Master.</p></div>
+                                <div class="rc-expand-body overflow-auto max-h-[460px]">
+                                    <table class="w-full text-sm" id="rtTableRegion">
+                                        <thead class="bg-gray-50 text-gray-600 sticky top-0"><tr>
+                                            <th class="p-3 text-left text-[10px] font-black uppercase">Region</th>
+                                            <th class="p-3 text-right text-[10px] font-black uppercase">Klaim</th>
+                                            <th class="p-3 text-right text-[10px] font-black uppercase">Net CB</th>
+                                            <th class="p-3 text-right text-[10px] font-black uppercase">Done</th>
+                                            <th class="p-3 text-right text-[10px] font-black uppercase">Outstanding</th>
+                                            <th class="p-3 text-right text-[10px] font-black uppercase">Clearing</th>
+                                        </tr></thead><tbody id="rtRegionBody"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div id="rtCardDepotTbl" class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden relative">
+                                <button type="button" onclick="rcToggleCardExpand('rtCardDepotTbl')" title="Perbesar" class="rc-expand-btn absolute top-3 right-3 w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-blue-600 hover:border-blue-300 z-20"><i class="fas fa-expand"></i></button>
+                                <div class="p-5 pb-3"><h3 class="font-black text-gray-700 pr-10">Performa per Depot</h3>
+                                    <p class="text-[11px] text-gray-500 mt-1">Urutan awal: clearing rate terendah di atas. Klik header untuk mengurutkan.</p></div>
+                                <div class="rc-expand-body overflow-auto max-h-[460px]">
+                                    <table class="w-full text-sm" id="rtTableDepot">
+                                        <thead class="bg-gray-50 text-gray-600 sticky top-0"><tr>
+                                            <th class="p-3 text-left text-[10px] font-black uppercase">Depot</th>
+                                            <th class="p-3 text-right text-[10px] font-black uppercase">Klaim</th>
+                                            <th class="p-3 text-right text-[10px] font-black uppercase">Net CB</th>
+                                            <th class="p-3 text-right text-[10px] font-black uppercase">Done</th>
+                                            <th class="p-3 text-right text-[10px] font-black uppercase">Outstanding</th>
+                                            <th class="p-3 text-right text-[10px] font-black uppercase">Outstanding %</th>
+                                            <th class="p-3 text-right text-[10px] font-black uppercase">Clearing</th>
+                                        </tr></thead><tbody id="rtDepotTblBody"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="rtCardPerforma" class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden relative">
+                            <button type="button" onclick="rcToggleCardExpand('rtCardPerforma')" title="Perbesar" class="rc-expand-btn absolute top-3 right-3 w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-blue-600 hover:border-blue-300 z-20"><i class="fas fa-expand"></i></button>
+                            <div class="p-5 pb-3">
+                                <h3 class="font-black text-gray-700 pr-10">Performa per Campaign</h3>
+                                <p class="text-[11px] text-gray-500 mt-1">Urutan awal: clearing rate terendah di atas. Klik header mana pun untuk mengurutkan.</p>
+                            </div>
+                            <div class="rc-expand-body overflow-auto max-h-[460px]">
+                                <table class="w-full text-sm" id="rtTablePerforma">
+                                    <thead class="bg-gray-50 text-gray-600 sticky top-0"><tr>
+                                        <th class="p-3 text-left text-[10px] font-black uppercase">Campaign</th>
+                                        <th class="p-3 text-right text-[10px] font-black uppercase">Klaim</th>
+                                        <th class="p-3 text-right text-[10px] font-black uppercase">Net CB</th>
+                                        <th class="p-3 text-right text-[10px] font-black uppercase">Done</th>
+                                        <th class="p-3 text-right text-[10px] font-black uppercase">Outstanding</th>
+                                        <th class="p-3 text-right text-[10px] font-black uppercase">Outstanding Amt</th>
+                                        <th class="p-3 text-right text-[10px] font-black uppercase">Outstanding %</th>
+                                        <th class="p-3 text-right text-[10px] font-black uppercase">Clearing Rate</th>
+                                    </tr></thead>
+                                    <tbody id="rtPerformaBody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TAB: COST CENTER 1 -->
+                    <div id="rtPaneCc1" class="hidden rc-below-filter">
+                        <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
+                            <div id="rtCc1CardDepot" class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm relative">
+                                <button type="button" onclick="rcToggleCardExpand('rtCc1CardDepot')" title="Perbesar" class="rc-expand-btn absolute top-3 right-3 w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-blue-600 hover:border-blue-300 z-10"><i class="fas fa-expand"></i></button>
+                                <h3 class="font-black text-gray-700 mb-1 pr-10">Net CB vs Net Claimed per Depot</h3>
+                                <p class="text-[11px] text-gray-500 mb-3">Selisih keduanya adalah nilai yang belum cair. Sepuluh depot dengan Net CB terbesar.</p>
+                                <div class="rc-expand-body"><canvas id="rtChartCc1Depot" height="150"></canvas></div>
+                            </div>
+                            <div id="rtCc1CardCamp" class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm relative">
+                                <button type="button" onclick="rcToggleCardExpand('rtCc1CardCamp')" title="Perbesar" class="rc-expand-btn absolute top-3 right-3 w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-blue-600 hover:border-blue-300 z-10"><i class="fas fa-expand"></i></button>
+                                <h3 class="font-black text-gray-700 mb-1 pr-10">Komposisi Nilai per Campaign</h3>
+                                <p class="text-[11px] text-gray-500 mb-3">Sepuluh campaign dengan Net CB terbesar; sisanya digabung menjadi Lainnya.</p>
+                                <div class="rc-expand-body"><canvas id="rtChartCc1Camp" height="150"></canvas></div>
+                            </div>
+                            <div id="rtCc1CardClearing" class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm relative">
+                                <button type="button" onclick="rcToggleCardExpand('rtCc1CardClearing')" title="Perbesar" class="rc-expand-btn absolute top-3 right-3 w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-blue-600 hover:border-blue-300 z-10"><i class="fas fa-expand"></i></button>
+                                <h3 class="font-black text-gray-700 mb-1 pr-10">Sebaran Clearing Rate</h3>
+                                <p class="text-[11px] text-gray-500 mb-3">Berapa banyak pasangan depot x campaign berada pada tiap rentang clearing rate.</p>
+                                <div class="rc-expand-body"><canvas id="rtChartCc1Clearing" height="150"></canvas></div>
+                            </div>
+                            <div id="rtCc1CardExpired" class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm relative">
+                                <button type="button" onclick="rcToggleCardExpand('rtCc1CardExpired')" title="Perbesar" class="rc-expand-btn absolute top-3 right-3 w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-blue-600 hover:border-blue-300 z-10"><i class="fas fa-expand"></i></button>
+                                <h3 class="font-black text-gray-700 mb-1 pr-10">Sepuluh Nilai Expired Terbesar</h3>
+                                <p class="text-[11px] text-gray-500 mb-3">Nilai yang hangus per pasangan depot x campaign.</p>
+                                <div class="rc-expand-body"><canvas id="rtChartCc1Expired" height="150"></canvas></div>
+                            </div>
+                        </div>
+                        <!-- Tabel rinciannya ikut dapat diperbesar, sama seperti grafik di atasnya:
+                             delapan kolom angka pada layar laptop menuntut ruang yang sama. -->
+                        <div id="rtCc1CardTabel" class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden relative">
+                        <button type="button" onclick="rcToggleCardExpand('rtCc1CardTabel')" title="Perbesar" class="rc-expand-btn absolute top-3 right-3 w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-blue-600 hover:border-blue-300 z-20"><i class="fas fa-expand"></i></button>
+                        <div class="rc-expand-body overflow-auto max-h-[640px]">
+                            <table class="w-full text-sm" id="rtTableCc1">
+                                <thead class="bg-gray-50 text-gray-600 sticky top-0"><tr>
+                                    <th class="p-3 text-left text-[10px] font-black uppercase">Depot</th>
+                                    <th class="p-3 text-left text-[10px] font-black uppercase">Campaign</th>
+                                    <th class="p-3 text-right text-[10px] font-black uppercase">Qty</th>
+                                    <th class="p-3 text-right text-[10px] font-black uppercase">Net CB</th>
+                                    <th class="p-3 text-right text-[10px] font-black uppercase">Net Claimed</th>
+                                    <th class="p-3 text-right text-[10px] font-black uppercase">Gross Claimed</th>
+                                    <th class="p-3 text-right text-[10px] font-black uppercase">CB Expired</th>
+                                    <th class="p-3 text-right text-[10px] font-black uppercase">Clearing</th>
+                                </tr></thead>
+                                <tbody id="rtCc1Body"></tbody>
+                            </table>
+                        </div>
+                        </div>
+                    </div>
+
+                    <!-- TAB: COST CENTER 2 -->
+                    <div id="rtPaneCc2" class="hidden rc-below-filter">
+                        <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-6 flex flex-wrap gap-4 items-end shadow-sm">
+                            <div class="w-48 flex-shrink-0">
+                                <label class="block text-xs font-bold text-gray-700 mb-1.5">Bulan</label>
+                                <select id="rtCc2Bulan" onchange="renderCc2Terfilter()" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white text-sm font-bold text-gray-700"></select>
+                            </div>
+                            <p class="text-[11px] text-gray-500 flex-1" id="rtCc2Ringkas">-</p>
+                        </div>
+                        <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
+                            <div id="rtCc2CardTren" class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm relative">
+                                <button type="button" onclick="rcToggleCardExpand('rtCc2CardTren')" title="Perbesar" class="rc-expand-btn absolute top-3 right-3 w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-blue-600 hover:border-blue-300 z-10"><i class="fas fa-expand"></i></button>
+                                <h3 class="font-black text-gray-700 mb-1 pr-10">Net dan Gross Claimed per Bulan</h3>
+                                <p class="text-[11px] text-gray-500 mb-3">Seluruh bulan ditampilkan apa pun filternya, supaya trennya tetap terbaca.</p>
+                                <div class="rc-expand-body"><canvas id="rtChartCc2Tren" height="150"></canvas></div>
+                            </div>
+                            <div id="rtCc2CardCamp" class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm relative">
+                                <button type="button" onclick="rcToggleCardExpand('rtCc2CardCamp')" title="Perbesar" class="rc-expand-btn absolute top-3 right-3 w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-blue-600 hover:border-blue-300 z-10"><i class="fas fa-expand"></i></button>
+                                <h3 class="font-black text-gray-700 mb-1 pr-10">Kontribusi Campaign pada Bulan Terpilih</h3>
+                                <p class="text-[11px] text-gray-500 mb-3">Berubah mengikuti filter bulan di atas.</p>
+                                <div class="rc-expand-body"><canvas id="rtChartCc2Camp" height="150"></canvas></div>
+                            </div>
+                        </div>
+                        <div id="rtCc2CardTabel" class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden relative">
+                        <button type="button" onclick="rcToggleCardExpand('rtCc2CardTabel')" title="Perbesar" class="rc-expand-btn absolute top-3 right-3 w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-blue-600 hover:border-blue-300 z-20"><i class="fas fa-expand"></i></button>
+                        <p class="text-[11px] text-gray-500 p-4 pb-0 pr-14" id="rtCc2Catatan">-</p>
+                        <div class="rc-expand-body overflow-auto max-h-[640px]">
+                            <table class="w-full text-sm" id="rtTableCc2">
+                                <thead class="bg-gray-50 text-gray-600 sticky top-0"><tr>
+                                    <th class="p-3 text-left text-[10px] font-black uppercase">Bulan</th>
+                                    <th class="p-3 text-left text-[10px] font-black uppercase">Campaign</th>
+                                    <th class="p-3 text-right text-[10px] font-black uppercase">Qty</th>
+                                    <th class="p-3 text-right text-[10px] font-black uppercase">Net Claimed</th>
+                                    <th class="p-3 text-right text-[10px] font-black uppercase">Gross Claimed</th>
+                                </tr></thead>
+                                <tbody id="rtCc2Body"></tbody>
+                            </table>
+                        </div>
+                        </div>
+                    </div>

@@ -1,0 +1,37 @@
+{
+  "name": "rc-next-gen",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Resource Collection claim system on Supabase, deployed as a static frontend on Vercel.",
+  "type": "module",
+  "scripts": {
+    "perf:run": "node scripts/performance/run.mjs",
+    "perf:plan:test": "node --test --test-isolation=none scripts/performance/test_plan.mjs",
+    "perf:dataset": "python scripts/performance/generate_dataset.py --out .runtime/performance/dataset-1m",
+    "perf:verify": "python scripts/performance/generate_dataset.py --out .runtime/performance/dataset-1m --verify",
+    "dev": "node scripts/dev-server.mjs",
+    "build": "node scripts/build-rc-frontend.mjs",
+    "check": "node scripts/check-template-regex.mjs && node scripts/check-grid-index.mjs && node scripts/check-call-shapes.mjs && node scripts/build-rc-frontend.mjs --check && node scripts/check-js-parse.mjs && node scripts/check-system.mjs && node scripts/check-modal.mjs && node --check scripts/rc-legacy-adapter.js",
+    "test": "node --test scripts/test_rc_legacy_adapter.mjs scripts/test_rc_client.mjs scripts/test_dev_server.mjs scripts/test_dashboard_publik.mjs scripts/test_approval_flow.mjs scripts/test_registration_sync.mjs scripts/test_rc_2309_ui.mjs",
+    "test:approval:db": "node scripts/test_rc_2309.mjs --applied",
+    "deploy": "npx --yes vercel@latest deploy --prod --scope niel17 --yes",
+    "gmail:token": "node scripts/gmail-refresh-token.mjs",
+    "baseline": "node scripts/make-structure-baseline.mjs",
+    "split": "node scripts/split-rc-source.mjs",
+    "backup": "node scripts/backup-supabase.mjs",
+    "bundle": "node scripts/make-apply-bundle.mjs --skip 20260916010000 --skip 20260917010000 --skip 20260917020000 --skip 20260918010000 --skip 20260919010000 --skip 20260920010000 --skip 20260921010000 --skip 20260922010000 --skip 20260923010000 --skip 20260924010000 --skip 20260925010000 --skip 20260926010000 --skip 20260927010000 --skip 20260928010000 --skip 20260929010000 --skip 20260930010000 --skip 20261001010000 --skip 20261002010000 --skip 20261003010000 --skip 20261004010000 --skip 20261005010000 --skip 20261006010000 --skip 20261007010000 --skip 20261008010000 --skip 20261009010000 --skip 20261010010000 --skip 20261011010000 --skip 20261012010000 --skip 20261013010000 --skip 20261014010000 --skip 20261015010000 --skip 20261016010000 --skip 20261017010000 --skip 20261018010000 --skip 20261019010000 --skip 20261020010000 --skip 20261021010000 --skip 20261022010000 --skip 20261023010000 --skip 20261024010000 --skip 20261025010000 --skip 20261026010000 --skip 20261027010000 --skip 20261028010000",
+    "diagnose": "node scripts/diagnose-auth.mjs",
+    "check:system": "node scripts/check-system.mjs --db",
+    "check:sql": "node scripts/check-sql-refs.mjs",
+    "sql": "node scripts/apply-sql.mjs",
+    "sql:check": "node scripts/apply-sql.mjs --check",
+    "test:access:db": "node scripts/test_access_registration.mjs",
+    "audit:application": "node scripts/audit-application.mjs",
+    "test:release:db": "node scripts/test_rc_2309.mjs",
+    "test:user-upload:db": "node scripts/test_user_upload.mjs",
+    "test:user-upload:http": "node scripts/test_registration_http.mjs --upload"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

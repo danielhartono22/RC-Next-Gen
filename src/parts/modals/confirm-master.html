@@ -1,0 +1,8 @@
+        <!-- MODAL CONFIRM MASTER -->
+        <div id="confirmMasterModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+                <div class="bg-orange-50 p-6 text-center border-b border-orange-100 relative"><button type="button" onclick="document.getElementById('confirmMasterModal').classList.add('hidden')" class="absolute top-4 right-4 text-orange-300 hover:text-orange-600"><i class="fas fa-times text-xl"></i></button><div class="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-3 shadow-sm border border-orange-100 text-orange-500 text-3xl"><i class="fas fa-exclamation-triangle"></i></div><h3 class="font-black text-gray-800 text-xl tracking-tight">Konfirmasi Perubahan</h3></div>
+                <div class="p-6 bg-white text-center"><p class="text-sm text-gray-600 mb-2">Terdeteksi perubahan Rekening / Bank / Nama Pemilik.</p><p class="text-sm font-bold text-red-600 mt-2">Sistem akan <b>memperbarui Master Customer</b> secara otomatis.</p></div>
+                <div class="p-4 bg-gray-50 border-t flex justify-center gap-3"><button type="button" onclick="document.getElementById('confirmMasterModal').classList.add('hidden');" class="w-1/2 py-3 bg-white border border-gray-300 text-gray-700 font-bold rounded-xl shadow-sm hover:bg-gray-100 transition">Batal</button><button type="button" onclick="confirmAndSubmitMass()" class="w-1/2 py-3 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl shadow-md transition">Ya, Posting</button></div>
+            </div>
+        </div>

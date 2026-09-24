@@ -1,0 +1,187 @@
+{
+  "checkedAt": "2026-09-22T07:30:33.878Z",
+  "project": "vvojshgcduqlugngpzkj",
+  "mode": "read-only aggregate",
+  "checks": [
+    {
+      "id": "D01",
+      "rule": "claim_status_invalid",
+      "affected": 0
+    },
+    {
+      "id": "D02",
+      "rule": "duplicate_no_doc",
+      "affected": 0
+    },
+    {
+      "id": "D03",
+      "rule": "pending_submit_not_not_yet",
+      "affected": 0
+    },
+    {
+      "id": "D04",
+      "rule": "pending_exception_already_applied",
+      "affected": 0
+    },
+    {
+      "id": "D05",
+      "rule": "active_pending_missing_requester",
+      "affected": 0
+    },
+    {
+      "id": "D06",
+      "rule": "cashback_nonpositive",
+      "affected": 52
+    },
+    {
+      "id": "D07",
+      "rule": "cashback_above_net_value_review",
+      "affected": 236
+    },
+    {
+      "id": "D08",
+      "rule": "volume_equals_currency_review",
+      "affected": 134
+    },
+    {
+      "id": "D09",
+      "rule": "workflow_missing_uploaded_at",
+      "affected": 1733
+    },
+    {
+      "id": "D10",
+      "rule": "done_missing_cleared_at",
+      "affected": 57
+    },
+    {
+      "id": "D11",
+      "rule": "done_missing_clearing_batch",
+      "affected": 592
+    },
+    {
+      "id": "D12",
+      "rule": "claim_dates_reversed",
+      "affected": 0
+    },
+    {
+      "id": "D13",
+      "rule": "customer_no_depot",
+      "affected": 637
+    },
+    {
+      "id": "D14",
+      "rule": "customer_missing_tax_identity",
+      "affected": 168
+    },
+    {
+      "id": "D15",
+      "rule": "customer_double_tax_identity",
+      "affected": 4
+    },
+    {
+      "id": "D16",
+      "rule": "open_transfer_missing_bank",
+      "affected": 318
+    },
+    {
+      "id": "D17",
+      "rule": "campaign_dates_reversed",
+      "affected": 1
+    },
+    {
+      "id": "D18",
+      "rule": "campaign_missing_period",
+      "affected": 22
+    },
+    {
+      "id": "D19",
+      "rule": "campaign_missing_tax_status",
+      "affected": 1
+    },
+    {
+      "id": "D20",
+      "rule": "active_account_without_auth",
+      "affected": 0
+    },
+    {
+      "id": "D21",
+      "rule": "pending_account_has_permissions",
+      "affected": 0
+    },
+    {
+      "id": "D22",
+      "rule": "pending_account_has_effective_access",
+      "affected": 0
+    },
+    {
+      "id": "D23",
+      "rule": "active_nonmanager_without_depot",
+      "affected": 2
+    },
+    {
+      "id": "D24",
+      "rule": "active_nonintrinsic_role_without_permissions",
+      "affected": 1
+    },
+    {
+      "id": "D25",
+      "rule": "duplicate_active_suffix",
+      "affected": 0
+    },
+    {
+      "id": "D26",
+      "rule": "materialized_depot_access_drift",
+      "affected": 0
+    },
+    {
+      "id": "D27",
+      "rule": "invalid_supervision_role",
+      "affected": 0
+    },
+    {
+      "id": "D28",
+      "rule": "region_grant_nonmanagement",
+      "affected": 0
+    },
+    {
+      "id": "D29",
+      "rule": "login_id_case_mismatch_review",
+      "affected": 6
+    },
+    {
+      "id": "D30",
+      "rule": "public_tables_rls_disabled",
+      "affected": 0
+    },
+    {
+      "id": "D31",
+      "rule": "unvalidated_foreign_keys",
+      "affected": 0
+    },
+    {
+      "id": "D32",
+      "rule": "anonymous_core_table_write_grants",
+      "affected": 0
+    },
+    {
+      "id": "D33",
+      "rule": "authenticated_direct_claim_write_grants",
+      "affected": 0
+    },
+    {
+      "id": "D34",
+      "rule": "security_definer_without_fixed_search_path",
+      "affected": 0
+    },
+    {
+      "id": "D35",
+      "rule": "email_queue_pending_over_one_day",
+      "affected": 0
+    },
+    {
+      "id": "D36",
+      "rule": "email_queue_failed",
+      "affected": 2
+    }
+  ]
+}

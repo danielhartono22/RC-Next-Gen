@@ -1,0 +1,501 @@
+{
+  "recorded_at_utc": "2026-09-14T13:56:30.800243+00:00",
+  "scope": "Local source inspection and synthetic tests only; deployed source parity not established",
+  "sources": {
+    "ResourceCollection": {
+      "bytes": 70781,
+      "lines": 1558,
+      "sha256": "f13412886da16b52fb12adc3228734faedaae1b52ba496d93b78982deb88a884"
+    },
+    "DocumentCenter": {
+      "bytes": 23281,
+      "lines": 502,
+      "sha256": "cd062c289168b729592c326d32650f9d4b4867f19ef100c100577b0729d25bd1"
+    },
+    "index (4).html": {
+      "bytes": 293699,
+      "lines": 2361,
+      "sha256": "54b7686d1b94b30ef8a0505c479a82785afaee83d1e75b3125a5491846f5437a"
+    },
+    "index (5).html": {
+      "bytes": 52215,
+      "lines": 771,
+      "sha256": "2bc8510a4029a1973191334980efa149443a2e6f9687bab7a834751073980429"
+    }
+  },
+  "configuration": {
+    "rc_env_literal": "DEV",
+    "dc_auth_equals_rc_prod_sheet_id": true,
+    "dc_upload_sheet_id_differs_from_auth": true,
+    "embedded_rc_secret_literal_present": true,
+    "secret_values": "not recorded",
+    "deployed_version": "UNVERIFIED"
+  },
+  "rc_router": {
+    "public_actions": [
+      "login",
+      "logActivity"
+    ],
+    "token_required_actions": [
+      "getLogActivity",
+      "submitData",
+      "getWorkflowData",
+      "refreshDocuments",
+      "processWorkflow",
+      "toggleOnHold",
+      "markExpired",
+      "bulkFastTrackRelease",
+      "getDashboardData",
+      "getManageableData",
+      "addAccount",
+      "updateUserAccess",
+      "requestPinChange",
+      "submitProfileUpdate",
+      "approveProfileRequest"
+    ],
+    "logout_handler_present": false
+  },
+  "dc_router": {
+    "explicit_actions": [
+      "log_print",
+      "login",
+      "previewCashback",
+      "submitCashback"
+    ],
+    "default_handler": "processLookup",
+    "application_session_validation": "not present in supplied router or handlers"
+  },
+  "functions": {
+    "ResourceCollection": [
+      {
+        "name": "jsonOut",
+        "line": 87
+      },
+      {
+        "name": "ok",
+        "line": 91
+      },
+      {
+        "name": "err",
+        "line": 92
+      },
+      {
+        "name": "warn",
+        "line": 93
+      },
+      {
+        "name": "getSpreadsheet",
+        "line": 98
+      },
+      {
+        "name": "readSheet",
+        "line": 102
+      },
+      {
+        "name": "generateToken",
+        "line": 112
+      },
+      {
+        "name": "verifyToken",
+        "line": 120
+      },
+      {
+        "name": "isValidStatusTransition",
+        "line": 140
+      },
+      {
+        "name": "normalizeMonth",
+        "line": 165
+      },
+      {
+        "name": "normalizeName",
+        "line": 189
+      },
+      {
+        "name": "normalizeCurrency",
+        "line": 194
+      },
+      {
+        "name": "normalizeRole",
+        "line": 206
+      },
+      {
+        "name": "formatDateSafe",
+        "line": 215
+      },
+      {
+        "name": "extractYear",
+        "line": 230
+      },
+      {
+        "name": "calcGrossUpCB",
+        "line": 245
+      },
+      {
+        "name": "generateSecureBatchNumber",
+        "line": 278
+      },
+      {
+        "name": "invalidateDepoMasterCache",
+        "line": 338
+      },
+      {
+        "name": "buildDepoMasterMaps",
+        "line": 342
+      },
+      {
+        "name": "buildCampaignJenisCbMap",
+        "line": 399
+      },
+      {
+        "name": "resolveManagedDepots",
+        "line": 410
+      },
+      {
+        "name": "buildDocumentsList",
+        "line": 422
+      },
+      {
+        "name": "doOptions",
+        "line": 443
+      },
+      {
+        "name": "doPost",
+        "line": 450
+      },
+      {
+        "name": "handleLogActivity",
+        "line": 500
+      },
+      {
+        "name": "handleRefreshDocuments",
+        "line": 508
+      },
+      {
+        "name": "handleGetLogActivity",
+        "line": 513
+      },
+      {
+        "name": "handleLogin",
+        "line": 524
+      },
+      {
+        "name": "handleSubmitData",
+        "line": 655
+      },
+      {
+        "name": "handleGetWorkflowData",
+        "line": 797
+      },
+      {
+        "name": "handleProcessWorkflow",
+        "line": 862
+      },
+      {
+        "name": "handleToggleOnHold",
+        "line": 979
+      },
+      {
+        "name": "handleMarkExpired",
+        "line": 1053
+      },
+      {
+        "name": "handleBulkFastTrackRelease",
+        "line": 1112
+      },
+      {
+        "name": "handleGetDashboardData",
+        "line": 1183
+      },
+      {
+        "name": "handleGetManageableData",
+        "line": 1242
+      },
+      {
+        "name": "handleAddAccount",
+        "line": 1321
+      },
+      {
+        "name": "handleUpdateUserAccess",
+        "line": 1385
+      },
+      {
+        "name": "handleRequestPinChange",
+        "line": 1450
+      },
+      {
+        "name": "handleSubmitProfileUpdate",
+        "line": 1464
+      },
+      {
+        "name": "handleApproveProfileRequest",
+        "line": 1480
+      },
+      {
+        "name": "perbaikiGrossUpSekarang",
+        "line": 1520
+      }
+    ],
+    "DocumentCenter": [
+      {
+        "name": "getSS",
+        "line": 66
+      },
+      {
+        "name": "getRealLastRow",
+        "line": 78
+      },
+      {
+        "name": "getCachedMap",
+        "line": 94
+      },
+      {
+        "name": "jsonOut",
+        "line": 105
+      },
+      {
+        "name": "doPost",
+        "line": 113
+      },
+      {
+        "name": "logActivity",
+        "line": 156
+      },
+      {
+        "name": "processLogin",
+        "line": 165
+      },
+      {
+        "name": "processLookup",
+        "line": 193
+      },
+      {
+        "name": "getCampaignMap",
+        "line": 236
+      },
+      {
+        "name": "getDepotMap",
+        "line": 245
+      },
+      {
+        "name": "processPreviewCashback",
+        "line": 257
+      },
+      {
+        "name": "loadExistingKeysIndex",
+        "line": 280
+      },
+      {
+        "name": "saveExistingKeysIndex",
+        "line": 308
+      },
+      {
+        "name": "getExistingKeysForDedup",
+        "line": 334
+      },
+      {
+        "name": "processSubmitCashback",
+        "line": 369
+      }
+    ]
+  },
+  "compile_mapping_from_code_only": [
+    {
+      "name": "NO_DOC",
+      "array_index": 1,
+      "sheet_column": "B"
+    },
+    {
+      "name": "CODE_CAMPAIGN",
+      "array_index": 2,
+      "sheet_column": "C"
+    },
+    {
+      "name": "CAMPAIGN_NAME",
+      "array_index": 3,
+      "sheet_column": "D"
+    },
+    {
+      "name": "DC_CODE",
+      "array_index": 4,
+      "sheet_column": "E"
+    },
+    {
+      "name": "DEPOT_NAME",
+      "array_index": 5,
+      "sheet_column": "F"
+    },
+    {
+      "name": "CUST_CODE",
+      "array_index": 6,
+      "sheet_column": "G"
+    },
+    {
+      "name": "CUST_NAME",
+      "array_index": 7,
+      "sheet_column": "H"
+    },
+    {
+      "name": "NET_VALUE",
+      "array_index": 8,
+      "sheet_column": "I"
+    },
+    {
+      "name": "VOLUME",
+      "array_index": 9,
+      "sheet_column": "J"
+    },
+    {
+      "name": "CB_NET",
+      "array_index": 10,
+      "sheet_column": "K"
+    },
+    {
+      "name": "PERIOD_START",
+      "array_index": 11,
+      "sheet_column": "L"
+    },
+    {
+      "name": "CAMPAIGN_END",
+      "array_index": 12,
+      "sheet_column": "M"
+    },
+    {
+      "name": "JENIS_CB",
+      "array_index": 13,
+      "sheet_column": "N"
+    },
+    {
+      "name": "KTP",
+      "array_index": 14,
+      "sheet_column": "O"
+    },
+    {
+      "name": "NPWP",
+      "array_index": 15,
+      "sheet_column": "P"
+    },
+    {
+      "name": "STATUS_PAJAK_CAMP",
+      "array_index": 16,
+      "sheet_column": "Q"
+    },
+    {
+      "name": "TGL_LUNAS",
+      "array_index": 17,
+      "sheet_column": "R"
+    },
+    {
+      "name": "TOP",
+      "array_index": 18,
+      "sheet_column": "S"
+    },
+    {
+      "name": "APPROVAL",
+      "array_index": 19,
+      "sheet_column": "T"
+    },
+    {
+      "name": "BLN_TAGIH_1",
+      "array_index": 20,
+      "sheet_column": "U"
+    },
+    {
+      "name": "BLN_TAGIH_2",
+      "array_index": 21,
+      "sheet_column": "V"
+    },
+    {
+      "name": "BLN_TAGIH_3",
+      "array_index": 22,
+      "sheet_column": "W"
+    },
+    {
+      "name": "BLN_TAGIH_4",
+      "array_index": 23,
+      "sheet_column": "X"
+    },
+    {
+      "name": "TOT_TAGIH",
+      "array_index": 24,
+      "sheet_column": "Y"
+    },
+    {
+      "name": "SUBYEK_PAJAK",
+      "array_index": 25,
+      "sheet_column": "Z"
+    },
+    {
+      "name": "STATUS",
+      "array_index": 26,
+      "sheet_column": "AA"
+    },
+    {
+      "name": "TGL_UPLOAD",
+      "array_index": 27,
+      "sheet_column": "AB"
+    },
+    {
+      "name": "TGL_RELEASE",
+      "array_index": 28,
+      "sheet_column": "AC"
+    },
+    {
+      "name": "TGL_CLAIM",
+      "array_index": 29,
+      "sheet_column": "AD"
+    },
+    {
+      "name": "TGL_CLEARING",
+      "array_index": 30,
+      "sheet_column": "AE"
+    },
+    {
+      "name": "BATCH_UPLOAD",
+      "array_index": 31,
+      "sheet_column": "AF"
+    },
+    {
+      "name": "BATCH_RELEASE",
+      "array_index": 32,
+      "sheet_column": "AG"
+    },
+    {
+      "name": "BATCH_CLAIM",
+      "array_index": 33,
+      "sheet_column": "AH"
+    },
+    {
+      "name": "BATCH_CLEARING",
+      "array_index": 34,
+      "sheet_column": "AI"
+    },
+    {
+      "name": "PREV_STATUS",
+      "array_index": 35,
+      "sheet_column": "AJ"
+    },
+    {
+      "name": "GROSS_UP",
+      "array_index": 36,
+      "sheet_column": "AK"
+    },
+    {
+      "name": "NO_REKENING",
+      "array_index": 39,
+      "sheet_column": "AN"
+    },
+    {
+      "name": "NAMA_REKENING",
+      "array_index": 40,
+      "sheet_column": "AO"
+    },
+    {
+      "name": "BANK",
+      "array_index": 41,
+      "sheet_column": "AP"
+    }
+  ],
+  "sheet_headers_status": "UNVERIFIED; field names are code labels, not actual production headers",
+  "sync_job_status": "NOT_FOUND_IN_SUPPLIED_FILES; external jobs/triggers/formulas not inventoried"
+}

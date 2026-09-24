@@ -1,0 +1,63 @@
+        <!-- MODAL DETAIL HISTORY -->
+        <div id="detailHistoryModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[70] p-4 transition-opacity">
+            <div id="detailModalPanel" class="bg-white rounded-2xl shadow-2xl w-full max-w-6xl overflow-hidden flex flex-col max-h-[90vh] transform transition-all">
+                <div class="p-5 border-b border-gray-100 bg-white flex justify-between items-center sticky top-0 z-20">
+                    <div><h3 class="font-black text-gray-800 text-xl tracking-tight" id="detailModalTitle">Catatan Realisasi Detail</h3><p class="text-xs font-bold text-blue-600 mt-0.5 bg-blue-50 px-2 py-0.5 inline-block rounded whitespace-normal break-words leading-snug" id="detailModalSubtitle">-</p></div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="downloadDetailModalExcel()" id="btnDownloadDetailExcel" class="text-gray-500 hover:text-green-600 bg-gray-50 hover:bg-green-50 w-9 h-9 rounded-full flex items-center justify-center transition" title="Download Excel"><i class="fas fa-file-excel"></i></button>
+                        <button onclick="closeDetailModal()" class="text-gray-400 hover:text-red-500 bg-gray-50 hover:bg-red-50 w-8 h-8 rounded-full flex items-center justify-center transition"><i class="fas fa-times"></i></button>
+                    </div>
+                </div>
+                <div class="p-6 overflow-auto flex-1 bg-slate-50/50">
+                    <div id="detailContentRow" class="flex flex-col lg:flex-row gap-6">
+                        <div id="detailSidebarCard" class="lg:w-1/3 flex flex-col items-center justify-start bg-white border border-gray-200 rounded-xl shadow-sm h-full relative overflow-hidden">
+                            <div class="absolute top-0 w-full h-1 bg-gradient-to-r from-blue-400 to-emerald-400"></div>
+                            <div id="detailMetricsDialog" class="w-full bg-blue-50/50 p-5 border-b border-gray-100 flex flex-col gap-3 relative z-10"></div>
+                            <button type="button" onclick="rcToggleCardExpand('detailSidebarCard')" title="Perbesar" class="rc-expand-btn absolute top-3 right-3 w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-blue-600 hover:border-blue-300 z-20"><i class="fas fa-expand"></i></button>
+                            <div class="p-6 w-full flex flex-col items-center justify-center flex-1">
+                                <h3 class="font-black text-gray-700 mb-4 text-sm text-center w-full uppercase tracking-wider pr-10">Proporsi Status Pencairan</h3>
+                                <div class="rc-expand-body relative w-full h-[200px] px-4"><canvas id="detailPieChart"></canvas></div>
+                            </div>
+                        </div>
+                        <div id="detailTableWrap" class="lg:w-2/3 border border-gray-200 rounded-xl bg-white shadow-sm relative">
+                            <button type="button" onclick="rcToggleCardExpand('detailTableWrap')" title="Perbesar" class="rc-expand-btn absolute top-3 right-3 w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-blue-600 hover:border-blue-300 z-20"><i class="fas fa-expand"></i></button>
+                            <h3 class="font-black text-gray-700 p-4 pb-2 text-sm uppercase tracking-wider pr-12">Rincian per Baris</h3>
+                            <div class="rc-expand-body table-container overflow-auto">
+                            <table class="w-full text-left whitespace-nowrap text-xs excel-table"><thead id="detailModalHead" class="bg-gray-100 border-b border-gray-200"></thead><tbody id="detailModalBody" class="divide-y divide-gray-100"></tbody></table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-4 border-t border-gray-100 bg-white flex justify-end shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.02)]">
+                    <button onclick="closeDetailModal()" class="px-6 py-2.5 bg-gray-800 hover:bg-gray-900 text-white font-bold rounded-xl transition duration-200 shadow-sm">Tutup Rincian</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="loadingOverlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex justify-center items-center z-[100] hidden">
+            <div class="bg-white p-6 rounded-2xl shadow-2xl flex flex-col items-center gap-4 max-w-xs w-full mx-4 transform transition-all scale-100">
+                <div class="loader w-12 h-12 border-[5px] border-t-red-600 border-gray-200"></div><span class="font-black text-gray-800 text-lg tracking-tight" id="loadingOverlayText">Sinkronisasi...</span><p class="text-xs text-gray-500 font-medium text-center">Menghubungkan ke Single Source Database</p>
+            </div>
+        </div>
+
+        <!--#include view/parts/notifikasi.html-->
+
+        <script src="assets/rc-env.js"></script>
+        <script src="assets/rc-legacy-adapter.js"></script>
+        <!-- MODAL PERBESAR KARTU -->
+        <!--#include view/parts/card-expand.html-->
+        <!-- DIALOG UMUM -->
+        <!-- Dibuat karena showActionResult() bukan dialog umum: ia menuntut daftar hasil
+             eksekusi sebagai argumen kedua dan memanggil .map() atasnya. Mengirimkan HTML
+             biasa ke sana membuatnya melempar TypeError, dan layar hanya diam - tidak ada
+             dialog, tidak ada pesan. Itulah sebab tombol Ubah pada Depot Master terasa
+             tidak melakukan apa-apa. -->
+        <div id="rcDialogModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[80] p-4">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[92vh]">
+                <div class="p-4 border-b border-gray-100 flex justify-between items-center">
+                    <h3 class="font-black text-gray-800 text-lg tracking-tight" id="rcDialogTitle">-</h3>
+                    <button onclick="rcTutupDialog()" class="text-gray-400 hover:text-red-500 bg-gray-50 w-9 h-9 rounded-full"><i class="fas fa-times"></i></button>
+                </div>
+                <div id="rcDialogBody" class="flex-1 overflow-auto p-5"></div>
+            </div>
+        </div>

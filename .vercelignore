@@ -1,0 +1,20 @@
+# Never upload source data or operator material to the build. data-rc holds customer
+# exports, and the only files the build actually needs are the legacy page, the adapter,
+# the environment config and the build script itself.
+data-rc/
+.runtime/
+docs/
+supabase/
+.vscode/
+__pycache__/
+*.pyc
+*.csv
+.env
+.env.*
+DocumentCenter
+ResourceCollection
+read.md
+System-Instruction-Migrasi-Claim-System-ke-Supabase.md
+index (5).html
+rc-auth-dev.html
+rc-supabase.html

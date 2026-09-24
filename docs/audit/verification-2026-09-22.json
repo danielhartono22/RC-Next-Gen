@@ -1,0 +1,429 @@
+{
+  "capturedAt": "2026-09-22T07:30:33.326Z",
+  "nodeTests": {
+    "command": "npm test",
+    "passed": 63,
+    "failed": 0
+  },
+  "access": {
+    "testedAt": "2026-09-22T07:29:51.165Z",
+    "passed": 34,
+    "rolledBack": true,
+    "scenarios": [
+      {
+        "scenario": "Plan validates fields without retaining passwords",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Auth trigger creates active profile with PIN gate and depot",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Managed account mapping materialized atomically",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Module permissions require explicit assignment",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Registration retry returns original profile",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Changed payload cannot reuse request ID",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Viewer cannot create account",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Supervisor cannot create System Manager",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Supervisor cannot grant outside depot",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Supervisor cannot grant outside region",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Supervisor cannot adopt outside OSC",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Managed registration supports role osc",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Managed registration supports role others",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Managed registration supports role finance",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Managed registration supports role depot head",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Managed registration supports role management",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Managed registration supports role supervisor",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Managed registration supports role system manager",
+        "status": "PASS"
+      },
+      {
+        "scenario": "User metadata cannot self-activate or assign scope",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Scoped self-registration approval synchronizes identity and depot",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Approval permission survives access save",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Identity-only edit preserves activation and permissions",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Access edit rejects outside depot",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Access edit rejects outside target",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Access response returns assigned regions",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Role change removes stale region and retains Finance scope",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Viewer can read Access Management without editing",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Viewer cannot read outside account",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Server returns all eight role choices",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Allocated suffixes do not collide",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Admin metadata UPDATE completes pending profile atomically",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Managed creation does not leave a false pending-registration event",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Invalid post-insert metadata rolls back Auth and profile together",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Browser cannot call duplicate-bypass internal validator",
+        "status": "PASS"
+      }
+    ]
+  },
+  "approval": {
+    "testedAt": "2026-09-22T07:28:22.074Z",
+    "passed": 41,
+    "rolledBack": true,
+    "scenarios": [
+      {
+        "scenario": "Blank and null normalize to Not Yet",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Denied approve: Invalid status transition",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Submit keeps Not Yet and records pending request",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Retry same request is idempotent",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Pending submit appears in approval queue",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Pending submission absent from Release and selectable Open claims",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Denied submit: menunggu approval",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Denied release: menunggu approval",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Denied bulk_rebate: menunggu approval",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Denied approve: Access denied",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Denied approve: Document changed",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Reject submit keeps Not Yet and permits resubmit",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Approval applies Approved with actor",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Denied approve: Invalid status transition",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Approved claim completes normal workflow",
+        "status": "PASS"
+      },
+      {
+        "scenario": "RA07 waits for approval",
+        "status": "PASS"
+      },
+      {
+        "scenario": "RA07 completes after approval",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Hold request keeps status and effective periods unchanged",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Denied approve_hold: Access denied",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Denied approve_hold: Document changed",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Approve hold applies status and requested periods atomically",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Denied reject_hold: Invalid status transition",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Partial exception returns only successfully requested documents",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Upload Expired keeps Not Yet without clearing batch",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Exception queue separates effective status from requested status",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Reject expiry keeps original status",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Approve upload expiry applies Expired and batch",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Rejected expiry preserves previously approved hold and its approval trace",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Denied expire_claim_process: Access denied",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Direct expiry retry is idempotent for released",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Claim Process released expires immediately without approval",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Denied approve_hold: Invalid status transition",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Denied expire_claim_process: Access denied",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Direct expiry retry is idempotent for claimed",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Claim Process claimed expires immediately without approval",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Denied approve_hold: Invalid status transition",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Denied expire_claim_process: Invalid status transition",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Denied expire_claim_process: Depot access denied",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Mixed exception approval issues clearing batch only for Expired",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Claim Process expiry and decided requests are absent from approval queue",
+        "status": "PASS"
+      },
+      {
+        "scenario": "All resolved dummy submissions leave normal approval queue",
+        "status": "PASS"
+      }
+    ]
+  },
+  "http": {
+    "testedAt": "2026-09-22T07:29:50.396Z",
+    "passed": 15,
+    "cleanup": true,
+    "scenarios": [
+      {
+        "scenario": "Native Auth login for dummy manager",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Anonymous caller denied",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Concurrent registration returns success (201,200)",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Concurrent duplicate returns the same account",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Auth/profile/role/department persisted",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Depot assigned with least privilege and initial PIN gate",
+        "status": "PASS"
+      },
+      {
+        "scenario": "One ledger entry and one creation audit event",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Created account immediately visible in Access Management",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Managed account can login through native Auth",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Business bootstrap denied before initial PIN change",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Managed account can change initial PIN",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Password-change trigger clears initial PIN gate",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Non-manager denied account provisioning over HTTP",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Auth Admin rejects invalid assignment during metadata update",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Actual Auth Admin transaction leaves no orphan after trigger rejection",
+        "status": "PASS"
+      }
+    ]
+  },
+  "edge": {
+    "checkedAt": "2026-09-22T07:13:21.364Z",
+    "bundleOnly": false,
+    "id": "229021b4-3e21-4468-b6a4-fcb59d9765fe",
+    "slug": "rc-admin",
+    "status": "ACTIVE",
+    "version": 4,
+    "verify_jwt": true,
+    "sha256": "84a82a58be8ef81021f6fb7f1d3465726dbe514982bf80917ba075593cd7ef2e"
+  },
+  "migrations": [
+    {
+      "appliedAt": "2026-09-22T07:11:08.265Z",
+      "project": "vvojshgcduqlugngpzkj",
+      "file": "supabase/migrations/20261151010000_access_registration_sync.sql",
+      "sha256": "d7b3ce7bcc12adfd20a4b39360055437fccf475913b7e3907b4b1e6744249e63",
+      "status": "committed"
+    },
+    {
+      "appliedAt": "2026-09-22T07:16:51.823Z",
+      "file": "supabase/migrations/20261151020000_registration_auth_metadata.sql",
+      "sha256": "65e9d20f9b97894f9ff102b44e7a10481424d55399c4ef84d1e77ef1f618c78c",
+      "status": "committed"
+    },
+    {
+      "appliedAt": "2026-09-22T07:29:08.936Z",
+      "file": "supabase/migrations/20261151030000_registration_request_lock.sql",
+      "sha256": "3ed7a37b0b438399f70dda4c3d56dec003d5470458e81a46f52f7853d4e667e2",
+      "status": "committed"
+    }
+  ],
+  "frontend": {
+    "productionDeployedInThisAudit": false,
+    "indexSha256": "93db7716fd9dac2a26ee0261519074e1726e3e5d60eca5898ee29002e71b284f"
+  },
+  "limits": {
+    "loadTestPerformed": false,
+    "browserVisualUatPerformed": false,
+    "stagingAvailable": false
+  }
+}

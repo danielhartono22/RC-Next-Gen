@@ -1,0 +1,212 @@
+                <!-- MODULE: KELOLA AKSES -->
+                <div id="modManage" class="module-section hidden">
+                    <!-- Modul ini hanya dapat DIUBAH Supervisor dan System Manager. Peran lain
+                         yang diberi aksesnya tetap melihat isinya - mengetahui siapa memegang
+                         apa adalah bagian dari pekerjaan mereka - tetapi tombolnya beku. -->
+                    <p id="mViewerCatatan" class="hidden mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-800 font-bold">
+                        Anda dapat melihat Access Management, tetapi perubahannya ditetapkan Supervisor atau System Manager.
+                    </p>
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                        <div class="flex flex-col sm:flex-row items-center justify-between border-b border-gray-200 p-4 gap-4 bg-gray-50">
+                            <div class="flex flex-wrap gap-1 bg-gray-200/70 p-1 rounded-xl w-full sm:w-auto shadow-inner">
+                                <button onclick="switchManageTab('list')" id="mTabList" class="flex-1 sm:w-32 py-2 px-3 text-xs md:text-sm font-black bg-white shadow-sm rounded-lg text-blue-600 transition">List Akun</button>
+                                <button onclick="switchManageTab('add')" id="mTabAdd" class="flex-1 sm:w-32 py-2 px-3 text-xs md:text-sm font-bold text-gray-500 hover:text-gray-800 transition rounded-lg">Registrasi</button>
+                                <button onclick="switchManageTab('req')" id="mTabReq" class="flex-1 sm:w-32 py-2 px-3 text-xs md:text-sm font-bold text-gray-500 hover:text-gray-800 transition rounded-lg relative">Approval Request <span class="absolute top-1.5 right-1.5 flex h-2.5 w-2.5 hidden"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span></span></button>
+                            <button onclick="switchManageTab('email')" id="mTabEmail" class="py-2 px-3 text-xs md:text-sm font-bold text-gray-500 hover:text-gray-800 transition rounded-lg whitespace-nowrap">Email Otomatis</button><button onclick="switchManageTab('exclude')" id="mTabExclude" class="py-2 px-3 text-xs md:text-sm font-bold text-gray-500 hover:text-gray-800 transition rounded-lg whitespace-nowrap">Exclude Campaign</button><button onclick="switchManageTab('arsip')" id="mTabArsip" class="py-2 px-3 text-xs md:text-sm font-bold text-gray-500 hover:text-gray-800 transition rounded-lg whitespace-nowrap">Arsip Hapus</button><button onclick="switchManageTab('grade')" id="mTabGrade" class="py-2 px-3 text-xs md:text-sm font-bold text-gray-500 hover:text-gray-800 transition rounded-lg whitespace-nowrap">Grade Depot</button></div>
+                            <button data-rc-baca="1" onclick="fetchManageableData()" class="bg-white border border-gray-300 text-gray-600 hover:bg-blue-50 hover:text-blue-600 text-sm font-bold py-2 px-5 rounded-xl shadow-sm transition flex items-center"><i class="fas fa-sync-alt mr-2"></i> Segarkan Data</button>
+                        </div>
+
+                        <!-- TAB CONTENT: LIST AKUN (TABLE VIEW) -->
+                        <div id="mContentList" class="p-6 md:p-8 bg-gray-50/50 min-h-[400px]">
+                            <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+                                <div><h2 class="text-2xl font-bold text-gray-800"><i class="fas fa-users-cog text-blue-600 mr-2"></i>Access Management Pengguna</h2><p class="text-sm text-gray-500 mt-1">Sentral otorisasi pengguna berbasis peran (RBAC).</p></div>
+                                <div class="relative w-full sm:w-80"><i class="fas fa-search absolute left-4 top-3 text-gray-400"></i><input type="text" id="manageSearch" data-rc-baca="1" oninput="debounceSearch(() => renderManageAccessCards())" class="w-full pl-11 pr-4 py-2.5 border border-gray-300 rounded-xl text-sm bg-white shadow-sm" placeholder="Cari ID, Nama, atau Depot..."></div>
+                            </div>
+                            <div class="table-container shadow-sm border border-gray-200 rounded-xl bg-white">
+                                <table class="w-full text-left whitespace-nowrap text-xs excel-table">
+                                    <thead class="bg-gray-100 border-b border-gray-200">
+                                        <tr><th class="p-3 text-center">Aksi</th><th class="p-3">User ID</th><th class="p-3">Nama Lengkap</th><th class="p-3 text-center">Role</th><th class="p-3">Email</th><th class="p-3">Depot</th><th class="p-3 text-center">Status</th></tr>
+                                    </thead>
+                                    <tbody id="manageGridBody" class="divide-y divide-gray-100 text-sm"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- TAB CONTENT: TAMBAH AKUN -->
+                        <div id="mContentAdd" class="hidden p-6 md:p-8 bg-white min-h-[400px]">
+                            <div class="max-w-3xl mx-auto">
+                                <div class="mb-6 text-center"><div class="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-3 text-2xl shadow-sm"><i class="fas fa-user-plus"></i></div><h3 class="text-xl font-black text-gray-800">Pendaftaran Identitas Baru</h3><p class="text-sm text-gray-500 mt-1">Buat kredensial login untuk tim internal atau admin depot.</p></div>
+                                <div class="mb-6 border rounded-xl p-4 bg-blue-50"><h4 class="font-bold text-sm mb-2">Upload User</h4><div class="flex flex-wrap gap-2"><button data-rc-baca="1" type="button" onclick="rcDownloadUserTemplate()" class="px-3 py-2 bg-white border rounded-lg text-xs font-bold">Template Upload User</button><label class="px-3 py-2 bg-white border rounded-lg text-xs font-bold cursor-pointer">Pilih File<input id="rcUserUploadFile" type="file" accept=".xlsx,.xls" onchange="rcPreviewUserUpload(this)" class="hidden"></label><button id="rcCommitUsers" type="button" disabled onclick="rcCommitUserUpload()" class="px-3 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold disabled:bg-gray-400">Ajukan Approval / Retry Gagal</button></div><p class="text-xs text-gray-500 mt-2">Template 7 kolom. Resource Partner / Area diisi kode depot, pisahkan dengan koma. Semua upload masuk Approval Request sebelum aktif; suffix otomatis setelah disetujui.</p><div id="rcUserUploadPreview" class="mt-3"></div></div><form id="addAccountForm" onsubmit="event.preventDefault(); submitAddAccount();" class="space-y-5 border border-gray-100 p-6 rounded-2xl shadow-sm bg-gray-50/50">
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                        <div class="col-span-1 md:col-span-2"><label class="block text-xs font-bold text-gray-700 uppercase mb-1.5 ml-1">Nama Lengkap Sesuai ID</label><input type="text" id="addName" required class="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white shadow-sm" placeholder="Ketik nama..."></div>
+                                        <div><label class="block text-xs font-bold text-gray-700 uppercase mb-1.5 ml-1">User ID Unik</label><div class="relative"><i class="fas fa-at absolute left-3.5 top-3 text-gray-400"></i><input type="text" id="addUserId" required class="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl bg-white shadow-sm" placeholder="Contoh: budi.s"></div></div>
+                                        <div><label class="block text-xs font-bold text-gray-700 uppercase mb-1.5 ml-1">PIN Rahasia (Awal)</label><div class="relative"><i class="fas fa-lock absolute left-3.5 top-3 text-gray-400"></i><input type="password" id="addPin" required minlength="8" autocomplete="new-password" class="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl bg-white shadow-sm" placeholder="Minimal 8 karakter"></div></div>
+                                        <div class="col-span-1 md:col-span-2"><label class="block text-xs font-bold text-gray-700 uppercase mb-1.5 ml-1">Alamat Email Korespondensi</label><div class="relative"><i class="fas fa-envelope absolute left-3.5 top-3 text-gray-400"></i><input type="email" id="addEmail" required class="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl bg-white shadow-sm" placeholder="nama@perusahaan.com"></div></div>
+                                    </div>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5 border-t border-gray-200 pt-4">
+                                        <div class="col-span-1 md:col-span-2 bg-blue-50 p-4 rounded-xl border border-blue-100"><label class="block text-xs font-black text-blue-800 uppercase mb-2">Tingkat Otorisasi (Role)</label><select id="addRole" onchange="handleAddRoleChange()" required class="w-full px-4 py-2.5 border border-blue-300 rounded-xl font-bold text-blue-900"></select></div>
+                                        <div id="addDepotContainer" class="col-span-1 md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 bg-gray-100 p-4 rounded-xl border border-gray-200">
+                                            <div><label class="block text-[10px] font-bold text-gray-500 uppercase mb-1.5 ml-1">Assign ke Kode Depot</label><select id="addDepotCode" onchange="updateAddDepotName()" required class="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white disabled:bg-gray-200 font-medium"></select></div>
+                                            <div><label class="block text-[10px] font-bold text-gray-500 uppercase mb-1.5 ml-1">Validasi Nama Depot</label><input type="text" id="addDepotNameDisplay" readonly class="w-full px-3 py-2.5 border border-transparent rounded-lg bg-gray-200 font-bold cursor-not-allowed text-gray-600"></div>
+                                        </div>
+                                    </div>
+                                    <div id="addDeptContainer" class="hidden p-4 bg-white border border-gray-300 rounded-xl shadow-sm"><label class="block text-xs font-bold text-gray-700 uppercase mb-2">Spesifikasi Departemen</label><select id="addDeptName" onchange="toggleDeptManual()" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white font-medium"><option value="Finance">Finance</option><option value="Sales">Sales</option><option value="Marketing">Marketing</option><option value="Management">Management</option><option value="Lainnya">Lainnya...</option></select><input type="text" id="addDeptManual" class="hidden w-full mt-3 px-4 py-2.5 border border-gray-300 rounded-lg bg-gray-50"></div>
+                                    <div id="assignOscContainer" class="hidden p-5 bg-blue-50/80 border border-blue-200 rounded-xl shadow-sm"><label class="block text-xs font-black text-blue-800 uppercase mb-1"><i class="fas fa-link mr-2"></i> Mapping OSC</label><div class="relative"><button type="button" onclick="toggleMultiSelect('addAssignOscDrop')" class="w-full text-left px-4 py-2.5 border border-blue-300 rounded-lg bg-white text-sm flex justify-between items-center"><span class="truncate font-bold text-blue-900">-- Pilih OSC --</span><i class="fas fa-chevron-down text-blue-400"></i></button><div id="addAssignOscDrop" class="multiselect-dropdown p-2 text-sm border-blue-100 shadow-lg"></div></div></div>
+                                    <div id="assignAdminContainer" class="hidden p-5 bg-purple-50/80 border border-purple-200 rounded-xl shadow-sm"><label class="block text-xs font-black text-purple-800 uppercase mb-1"><i class="fas fa-network-wired mr-2"></i> Mapping Depot</label><div class="relative"><button type="button" onclick="toggleMultiSelect('addAssignAdminDrop')" class="w-full text-left px-4 py-2.5 border border-purple-300 rounded-lg bg-white text-sm flex justify-between items-center"><span class="truncate font-bold text-purple-900">-- Pilih Depot --</span><i class="fas fa-chevron-down text-purple-400"></i></button><div id="addAssignAdminDrop" class="multiselect-dropdown p-2 text-sm border-purple-100 shadow-lg"></div></div></div>
+                                    <div class="pt-4 mt-2"><button type="submit" id="btnAddAccountSubmit" class="w-full bg-green-500 hover:bg-green-600 text-white font-black py-3.5 px-4 rounded-xl flex justify-center items-center shadow-md border border-green-700 transition"><span id="btnAddAccountText">Posting Registrasi</span><div id="addAccountLoader" class="loader hidden ml-3 w-5 h-5"></div></button></div>
+                                </form>
+                            </div>
+                        </div>
+                        <!-- Approval Request memuat dua antrean sekaligus atas permintaan pemilik:
+                             perubahan data pengguna dan pengajuan profil depot. Keduanya sama-sama
+                             "sesuatu menunggu persetujuan saya", dan memisahkannya ke dua tab hanya
+                             membuat satu di antaranya terlupakan. -->
+                        <div id="mContentReq" class="hidden p-6 md:p-8 bg-white min-h-[400px] space-y-8">
+                            <div id="mReqProfil"></div>
+                            <div id="mReqDepot"></div>
+                        </div>
+                        <!-- TAB CONTENT: EMAIL OTOMATIS -->
+                        <!-- Dipindahkan dari modul Report atas permintaan pemilik. Pengaturannya
+                             memang bersifat administratif - siapa yang menerima apa - bukan bagian
+                             dari laporan yang dibaca sehari-hari. -->
+                        <div id="mContentEmail" class="hidden p-6 md:p-8 bg-gray-50/50 min-h-[400px] space-y-6">
+                            <div class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
+                                <div class="flex justify-between items-start mb-4">
+                                    <div>
+                                        <h3 class="font-black text-gray-700">Jadwal Email</h3>
+                                        <p class="text-[11px] text-gray-500 mt-1">Seluruh jadwal nonaktif sejak awal. Tidak ada email terkirim sebelum dinyalakan. Hari yang tidak dicentang tidak akan dikirimi; mengosongkan seluruh centang berarti tiap hari.</p>
+                                    </div>
+                                    <button onclick="ujiKoneksiEmail()" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 text-sm font-bold py-2 px-4 rounded-lg shadow-sm"><i class="fas fa-plug mr-2 text-blue-600"></i>Uji Koneksi</button>
+                                </div>
+                                <div id="rtEmailKoneksi" class="hidden mb-4 p-3 rounded-lg text-sm"></div>
+                                <div id="rtEmailJadwal" class="space-y-3"></div>
+                                <div class="mt-5 flex flex-wrap gap-3">
+                                    <button onclick="simpanJadwalEmail()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-5 rounded-xl shadow-md text-sm">Simpan Jadwal</button>
+                                    <button onclick="pratinjauEmail('daily')" class="bg-white border border-gray-300 text-gray-700 font-bold py-2.5 px-5 rounded-xl text-sm">Pratinjau Daily</button>
+                                    <button onclick="pratinjauEmail('weekly')" class="bg-white border border-gray-300 text-gray-700 font-bold py-2.5 px-5 rounded-xl text-sm">Pratinjau Weekly</button>
+                                    <button onclick="pratinjauEmail('timetable')" class="bg-white border border-gray-300 text-gray-700 font-bold py-2.5 px-5 rounded-xl text-sm">Pratinjau Timetable</button>
+                                </div>
+                            </div>
+
+                            <!-- Kirim uji ke satu alamat. Pemetaan penerima depot sengaja diabaikan
+                                 di jalur ini, supaya menguji isi email tidak pernah berisiko
+                                 mengirim ke 51 depot karena satu tombol tertekan. -->
+                            <div class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
+                                <h3 class="font-black text-gray-700 mb-1">Test Email</h3>
+                                <p class="text-[11px] text-gray-500 mb-4">Email <b>langsung dikirim</b> begitu tombol ditekan, dan <b>hanya</b> ke alamat yang Anda isi di sini; penerima depot tidak dilibatkan. Subjeknya diberi awalan [UJI].</p>
+                                <div class="flex flex-col md:flex-row gap-3">
+                                    <input type="email" id="rtEmailUjiAlamat" placeholder="nama@perusahaan.co.id" class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-sm">
+                                    <select id="rtEmailUjiJenis" class="w-full md:w-48 px-3 py-2.5 border border-gray-300 rounded-lg bg-white text-sm font-bold text-gray-700">
+                                        <option value="daily">Daily</option>
+                                        <option value="weekly">Weekly</option>
+                                        <option value="timetable">Timetable</option>
+                                    </select>
+                                    <button onclick="kirimEmailUji()" id="btnKirimEmailUji" class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md text-sm whitespace-nowrap"><i class="fas fa-paper-plane mr-2"></i>Test Email</button>
+                                </div>
+                            </div>
+
+                            <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+                                <h3 class="font-black text-gray-700 p-5 pb-3">Antrean Pengiriman</h3>
+                                <p class="text-[11px] text-gray-500 px-5 pb-3" id="rtEmailRingkas">-</p>
+                                <div class="overflow-auto max-h-[380px]">
+                                    <table class="w-full text-sm" id="rtTableEmail">
+                                        <thead class="bg-gray-50 text-gray-600 sticky top-0"><tr>
+                                            <th class="p-3 text-left text-[10px] font-black uppercase">Dibuat</th>
+                                            <th class="p-3 text-left text-[10px] font-black uppercase">Jenis</th>
+                                            <th class="p-3 text-left text-[10px] font-black uppercase">Subjek</th>
+                                            <th class="p-3 text-center text-[10px] font-black uppercase">Penerima</th>
+                                            <th class="p-3 text-center text-[10px] font-black uppercase">Status</th>
+                                            <th class="p-3 text-left text-[10px] font-black uppercase">Keterangan</th><th class="p-3 text-center text-[10px] font-black uppercase">Aksi</th>
+                                        </tr></thead>
+                                        <tbody id="rtEmailBody"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- TAB CONTENT: EXCLUDE CAMPAIGN -->
+                        <!-- Dipindahkan dari modul Timetable. Campaign yang dikecualikan tidak
+                             ikut dihitung di Report maupun Timetable - satu keputusan yang
+                             mengubah seluruh angka laporan, jadi tempatnya di sini. -->
+                        <div id="mContentExclude" class="hidden p-6 md:p-8 bg-gray-50/50 min-h-[400px]">
+                            <div class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
+                                <h3 class="font-black text-gray-700 mb-1">Exclude Campaign</h3>
+                                <p class="text-[11px] text-gray-500 mb-4">Campaign yang dikecualikan <b>tidak masuk ke Report maupun Timetable</b>, termasuk email otomatis. Angka laporan ikut berubah seketika.</p>
+                                <div class="flex flex-wrap gap-3 items-center mb-4">
+                                    <input id="kaExcludeCari" onkeyup="renderExcludeCampaign()" placeholder="Cari kode atau nama campaign" class="flex-1 min-w-[220px] px-4 py-2.5 border border-gray-300 rounded-lg text-sm">
+                                    <label class="flex items-center gap-2 text-sm font-bold text-gray-700"><input type="checkbox" id="kaExcludeHanyaDikecualikan" onchange="renderExcludeCampaign()" class="w-4 h-4 rounded">Hanya yang dikecualikan</label>
+                                </div>
+                                <div class="flex flex-wrap gap-3 items-center mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                                    <span class="text-sm font-bold text-amber-900"><span id="kaExcludeCount">0</span> campaign dipilih</span>
+                                    <button onclick="kaSetExclude(true)" id="btnKaExclude" disabled class="px-5 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-gray-300 text-white font-bold rounded-lg text-sm">Exclude</button>
+                                    <button onclick="kaSetExclude(false)" id="btnKaRestore" disabled class="px-5 py-2 bg-white border border-gray-300 disabled:opacity-40 text-gray-700 font-bold rounded-lg text-sm">Restore</button>
+                                </div>
+                                <div class="overflow-auto border border-gray-200 rounded-xl max-h-[520px]">
+                                    <table class="w-full text-sm">
+                                        <thead class="bg-gray-50 text-gray-600 sticky top-0"><tr>
+                                            <th class="p-3 text-center w-10"><input type="checkbox" id="kaExcludeAll" onchange="kaToggleSemuaExclude(this)" class="w-4 h-4 rounded"></th>
+                                            <th class="p-3 text-left text-[10px] font-black uppercase">Kode</th>
+                                            <th class="p-3 text-left text-[10px] font-black uppercase">Nama Campaign</th>
+                                            <th class="p-3 text-center text-[10px] font-black uppercase">Status Campaign</th>
+                                            <th class="p-3 text-center text-[10px] font-black uppercase">Di Report</th>
+                                        </tr></thead>
+                                        <tbody id="kaExcludeBody"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- TAB CONTENT: ARSIP HAPUS -->
+                        <div id="mContentArsip" class="hidden p-6 md:p-8 bg-gray-50/50 min-h-[400px]">
+                            <div class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
+                                <div class="flex flex-wrap justify-between items-start gap-3 mb-4">
+                                    <div>
+                                        <h3 class="font-black text-gray-700">Arsip Hapus</h3>
+                                        <p class="text-[11px] text-gray-500 mt-1">Akun yang dihapus tidak benar-benar hilang: login-nya dimatikan dan seluruh izinnya dilepas, tetapi jejak pekerjaannya pada dokumen tetap atas namanya. Dapat diaktifkan kembali kapan saja &mdash; izin dan depotnya harus diberikan lagi.</p>
+                                    </div>
+                                    <button onclick="muatArsipAkun()" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 text-xs font-bold py-2 px-4 rounded-lg shadow-sm"><i class="fas fa-sync-alt mr-2 text-blue-600"></i>Muat Ulang</button>
+                                </div>
+                                <div class="overflow-auto border border-gray-200 rounded-xl max-h-[560px]">
+                                    <table class="w-full text-sm">
+                                        <thead class="bg-gray-50 text-gray-600 sticky top-0"><tr>
+                                            <th class="p-3 text-left text-[10px] font-black uppercase">User ID</th>
+                                            <th class="p-3 text-left text-[10px] font-black uppercase">Nama</th>
+                                            <th class="p-3 text-center text-[10px] font-black uppercase">Peran</th>
+                                            <th class="p-3 text-center text-[10px] font-black uppercase">Diarsipkan</th>
+                                            <th class="p-3 text-left text-[10px] font-black uppercase">Catatan</th>
+                                            <th class="p-3 text-center text-[10px] font-black uppercase">Aksi</th>
+                                        </tr></thead>
+                                        <tbody id="mArsipBody"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- TAB CONTENT: GRADE DEPOT -->
+                        <div id="mContentGrade" class="hidden p-6 md:p-8 bg-gray-50/50 min-h-[400px]">
+                            <div class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
+                                <div class="flex flex-wrap justify-between items-start gap-3 mb-4">
+                                    <div>
+                                        <h3 class="font-black text-gray-700">Grade Depot</h3>
+                                        <p class="text-[11px] text-gray-500 mt-1">Hanya System Manager yang dapat mengubah Grade. Nilainya tidak ikut jalur persetujuan depot.</p>
+                                    </div>
+                                    <button onclick="simpanGradeDepot()" id="btnSimpanGrade" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-5 rounded-lg text-sm shadow-md">Simpan Perubahan</button>
+                                </div>
+                                <div class="overflow-auto border border-gray-200 rounded-xl max-h-[560px]">
+                                    <table class="w-full text-sm">
+                                        <thead class="bg-gray-50 text-gray-600 sticky top-0"><tr>
+                                            <th class="p-3 text-left text-[10px] font-black uppercase">Kode</th>
+                                            <th class="p-3 text-left text-[10px] font-black uppercase">Depot</th>
+                                            <th class="p-3 text-center text-[10px] font-black uppercase">Region</th>
+                                            <th class="p-3 text-center text-[10px] font-black uppercase">Grade</th>
+                                            <th class="p-3 text-center text-[10px] font-black uppercase">Tipe Depot</th>
+                                        </tr></thead>
+                                        <tbody id="kaGradeBody"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>

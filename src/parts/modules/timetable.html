@@ -1,0 +1,165 @@
+                <!-- MODULE: TIMETABLE -->
+                <!-- Susunannya mengikuti TimetableDashboard.html pada RC_Reporting_AppsScript:
+                     tujuh kartu KPI, Proporsi Progres, Top 10 Depot Not Yet, Progres per Region,
+                     Progres per Campaign, Progres per Depot, lalu matrix Depot x Campaign.
+                     Aturan statusnya diputuskan di server: record Expired DIABAIKAN, dan data
+                     aktual selalu mengungguli tanda Not Achieved. -->
+                <div id="modTimetable" class="module-section hidden max-w-7xl mx-auto px-4">
+                    <div class="flex justify-between items-center border-b border-gray-100 pb-4 mb-5">
+                        <div>
+                            <h2 class="text-xl font-bold text-gray-800"><i class="fas fa-table-cells text-amber-600 mr-2"></i>Timetable</h2>
+                            <p class="text-xs text-gray-500 mt-1" id="ttRingkas">-</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="loadTimetable()" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 text-sm font-bold py-2 px-4 rounded-lg shadow-sm"><i class="fas fa-sync mr-1.5"></i> Muat Ulang</button>
+                            <button onclick="downloadTimetableExcel()" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 text-sm font-bold py-2 px-4 rounded-lg shadow-sm"><i class="fas fa-file-excel mr-1.5 text-green-600"></i> Excel</button>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-5 flex flex-wrap gap-4 rc-filter-bar shadow-sm">
+                        <div class="w-40 flex-shrink-0">
+                            <label class="block text-xs font-bold text-gray-700 mb-1.5">Region</label>
+                            <select id="ttRegion" onchange="loadTimetable()" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white text-sm font-bold text-gray-700"></select>
+                        </div>
+                        <div class="w-48 flex-shrink-0">
+                            <label class="block text-xs font-bold text-gray-700 mb-1.5">Depot</label>
+                            <select id="ttDepot" onchange="loadTimetable()" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white text-sm font-bold text-gray-700"></select>
+                        </div>
+                        <div class="w-40 flex-shrink-0">
+                            <label class="block text-xs font-bold text-gray-700 mb-1.5">Tanggal Acuan</label>
+                            <input type="date" id="ttTanggal" onchange="loadTimetable()" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white text-sm font-bold text-gray-700">
+                        </div>
+                        <div class="flex items-end">
+                            <label class="flex items-center gap-2 text-sm font-bold text-gray-700 pb-2.5">
+                                <input type="checkbox" id="ttHanyaBelum" onchange="renderTimetable()" class="rounded text-amber-600 border-gray-300">
+                                Hanya depot yang belum selesai
+                            </label>
+                        </div>
+                    </div>
+
+                    <div id="ttKpi" class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3 mb-6"></div>
+
+                    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
+                        <div id="ttCardSplit" class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm relative">
+                            <button type="button" onclick="rcToggleCardExpand('ttCardSplit')" title="Perbesar" class="rc-expand-btn absolute top-3 right-3 w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-blue-600 hover:border-blue-300 z-10"><i class="fas fa-expand"></i></button>
+                            <h3 class="font-black text-gray-700 mb-1 pr-10">Proporsi Progres</h3>
+                            <p class="text-[11px] text-gray-500 mb-3">Cleared = Completed + Not Achieved.</p>
+                            <div class="rc-expand-body"><canvas id="ttChartSplit" height="150"></canvas></div>
+                        </div>
+                        <div id="ttCardNotYet" class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm relative">
+                            <button type="button" onclick="rcToggleCardExpand('ttCardNotYet')" title="Perbesar" class="rc-expand-btn absolute top-3 right-3 w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-blue-600 hover:border-blue-300 z-10"><i class="fas fa-expand"></i></button>
+                            <h3 class="font-black text-gray-700 mb-1 pr-10">Top 10 Depot dengan Not Yet Terbanyak</h3>
+                            <p class="text-[11px] text-gray-500 mb-3">Dihitung dari seluruh data, sengaja tidak mengikuti filter, karena prioritas ditentukan lintas wilayah.</p>
+                            <div class="rc-expand-body"><canvas id="ttChartNotYet" height="150"></canvas></div>
+                        </div>
+                        <div id="ttCardRegion" class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm relative">
+                            <button type="button" onclick="rcToggleCardExpand('ttCardRegion')" title="Perbesar" class="rc-expand-btn absolute top-3 right-3 w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-blue-600 hover:border-blue-300 z-10"><i class="fas fa-expand"></i></button>
+                            <h3 class="font-black text-gray-700 mb-1 pr-10">Progres per Region</h3>
+                            <p class="text-[11px] text-gray-500 mb-3">Region diisi lewat Key Master &rarr; Depot Master.</p>
+                            <div class="rc-expand-body"><canvas id="ttChartRegion" height="150"></canvas></div>
+                        </div>
+                        <div id="ttCardCampaign" class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm relative">
+                            <button type="button" onclick="rcToggleCardExpand('ttCardCampaign')" title="Perbesar" class="rc-expand-btn absolute top-3 right-3 w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-blue-600 hover:border-blue-300 z-10"><i class="fas fa-expand"></i></button>
+                            <h3 class="font-black text-gray-700 mb-1 pr-10">Progres per Campaign</h3>
+                            <p class="text-[11px] text-gray-500 mb-3">Hanya campaign aktif pada tanggal acuan.</p>
+                            <div class="rc-expand-body"><canvas id="ttChartCampaign" height="150"></canvas></div>
+                        </div>
+                    </div>
+
+                    <!-- Tabel Progres per Campaign.
+                         Pengguna depot hanya melihat kartu ini: Progres per Depot dan matrix
+                         depot x campaign memuat depot lain, yang bukan urusannya. Dari sini pula
+                         admin menandai Not Achieved untuk depotnya sendiri. -->
+                    <div id="ttCardCampaignTabel" class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden relative mb-6">
+                        <button type="button" onclick="rcToggleCardExpand('ttCardCampaignTabel')" title="Perbesar" class="rc-expand-btn absolute top-3 right-3 w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-blue-600 hover:border-blue-300 z-20"><i class="fas fa-expand"></i></button>
+                        <div class="p-5 pb-3">
+                            <h3 class="font-black text-gray-700 pr-10">Progres per Campaign</h3>
+                            <p class="text-[11px] text-gray-500 mt-1" id="ttCampaignTabelCatatan">Hanya campaign aktif pada tanggal acuan.</p>
+                        </div>
+                        <div class="rc-expand-body overflow-auto max-h-[460px]">
+                            <table class="w-full text-sm" id="ttTableCampaign">
+                                <thead class="bg-gray-50 text-gray-600 sticky top-0"><tr>
+                                    <th class="p-3 text-left text-[10px] font-black uppercase">Campaign</th>
+                                    <th class="p-3 text-right text-[10px] font-black uppercase">Completed</th>
+                                    <th class="p-3 text-right text-[10px] font-black uppercase">Compiled</th>
+                                    <th class="p-3 text-right text-[10px] font-black uppercase">Not Yet</th>
+                                    <th class="p-3 text-right text-[10px] font-black uppercase">Not Achieved</th>
+                                    <th class="p-3 text-right text-[10px] font-black uppercase">Completed %</th>
+                                    <th class="p-3 text-center text-[10px] font-black uppercase">Aksi</th>
+                                </tr></thead>
+                                <tbody id="ttCampaignBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Detail Not Achieved. Pembatalan tanda hanya untuk OSC ke atas; bagi yang
+                         lain kartu ini tetap terlihat sebagai keterangan, karena tandanya memang
+                         menghalangi compile dan upload mereka. -->
+                    <div id="ttCardNotAchieved" class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden relative mb-6">
+                        <div class="p-5 pb-3 flex flex-wrap justify-between items-start gap-3">
+                            <div>
+                                <h3 class="font-black text-gray-700">Detail Not Achieved</h3>
+                                <p class="text-[11px] text-gray-500 mt-1" id="ttNaCatatan">Pasangan depot x campaign yang ditandai tidak dapat di-compile maupun di-upload sampai tandanya dibatalkan.</p>
+                            </div>
+                            <button type="button" onclick="muatDetailNotAchieved()" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 text-xs font-bold py-2 px-4 rounded-lg shadow-sm"><i class="fas fa-sync-alt mr-2 text-blue-600"></i>Muat Ulang</button>
+                        </div>
+                        <div class="overflow-auto max-h-[420px]">
+                            <table class="w-full text-sm" id="ttTableNa">
+                                <thead class="bg-gray-50 text-gray-600 sticky top-0"><tr>
+                                    <th class="p-3 text-left text-[10px] font-black uppercase">Depot</th>
+                                    <th class="p-3 text-left text-[10px] font-black uppercase">Campaign</th>
+                                    <th class="p-3 text-left text-[10px] font-black uppercase">Ditandai Oleh</th>
+                                    <th class="p-3 text-center text-[10px] font-black uppercase">Ditandai Pada</th>
+                                    <th class="p-3 text-left text-[10px] font-black uppercase">Catatan</th>
+                                    <th class="p-3 text-center text-[10px] font-black uppercase">Aksi</th>
+                                </tr></thead>
+                                <tbody id="ttNaBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div id="ttCardDepot" class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden relative mb-6">
+                        <button type="button" onclick="rcToggleCardExpand('ttCardDepot')" title="Perbesar" class="rc-expand-btn absolute top-3 right-3 w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-blue-600 hover:border-blue-300 z-20"><i class="fas fa-expand"></i></button>
+                        <div class="p-5 pb-3">
+                            <h3 class="font-black text-gray-700 pr-10">Progres per Depot</h3>
+                            <p class="text-[11px] text-gray-500 mt-1">Klik header mana pun untuk mengurutkan.</p>
+                        </div>
+                        <div class="rc-expand-body overflow-auto max-h-[420px]">
+                            <table class="w-full text-sm" id="ttTableDepot">
+                                <thead class="bg-gray-50 text-gray-600 sticky top-0"><tr>
+                                    <th class="p-3 text-left text-[10px] font-black uppercase">Depot</th>
+                                    <th class="p-3 text-left text-[10px] font-black uppercase">Region</th>
+                                    <th class="p-3 text-right text-[10px] font-black uppercase">Completed</th>
+                                    <th class="p-3 text-right text-[10px] font-black uppercase">Not Achieved</th>
+                                    <th class="p-3 text-right text-[10px] font-black uppercase">Compiled</th>
+                                    <th class="p-3 text-right text-[10px] font-black uppercase">Not Yet</th>
+                                    <th class="p-3 text-right text-[10px] font-black uppercase">Compile %</th>
+                                    <th class="p-3 text-right text-[10px] font-black uppercase">Completed %</th>
+                                </tr></thead>
+                                <tbody id="ttDepotBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Matrix depot x campaign pindah ke modal atas permintaan pemilik.
+                         Di layar utama ia memakan tinggi besar dan jarang dibuka; di modal ia
+                         mendapat seluruh lebar layar, yang memang dibutuhkan tabel selebar ini. -->
+                    <div id="ttLegenda" class="flex flex-wrap gap-4 items-center mb-6 bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
+                        <button type="button" onclick="ttBukaMatrix()" class="px-5 py-2.5 bg-gray-800 hover:bg-black text-white font-bold rounded-xl text-sm shadow-md"><i class="fas fa-table-cells mr-2"></i>Buka Timetable Detail</button>
+                        <span class="text-[11px] text-gray-500">Matrix seluruh depot &times; campaign, dibuka sebagai dialog.</span>
+                        <div class="flex-1"></div>
+                        <div class="flex flex-wrap gap-4 text-xs font-bold">
+                            <span class="flex items-center gap-1.5"><span class="w-4 h-4 rounded bg-red-500 inline-block"></span> Not Yet</span>
+                            <span class="flex items-center gap-1.5"><span class="w-4 h-4 rounded bg-orange-400 inline-block"></span> Compiled</span>
+                            <span class="flex items-center gap-1.5"><span class="w-4 h-4 rounded bg-green-500 inline-block"></span> Completed</span>
+                            <span class="flex items-center gap-1.5"><span class="w-4 h-4 rounded bg-white border border-gray-300 inline-block"></span> Not Achieved</span>
+                        </div>
+                    </div>
+
+                    <!-- Panel "Tandai Not Achieved" massal dihapus. Ia meminta pengguna memilih
+                         depot dan campaign dari dua kotak daftar terpisah tanpa memperlihatkan
+                         status pasangan yang sedang dipilih, sehingga pasangan yang sudah
+                         Completed pun bisa ikut tertandai tanpa disadari. Penggantinya: klik
+                         campaign (atau depot), lihat lawannya beserta statusnya di modal, lalu
+                         tandai per pasangan dari sana. -->
+                </div>

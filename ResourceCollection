@@ -1,0 +1,1558 @@
+// =========================================================================
+// ENVIRONMENT & CONFIGURATIONS
+// =========================================================================
+const ENV = "DEV"; // DEV atau PROD
+
+const CONFIG = {
+  DEV: {
+    SPREADSHEET_ID: "1nmZ5LowJexnjHHGNB4OulKr972_Aoy25O1J_IS6pLSM"
+  },
+  PROD: {
+    SPREADSHEET_ID: "1JCWt3gvaxz_77DgU82ePdq_axnDCmjC2kpcvB2z6YmI"
+  }
+};
+
+// =========================================================================
+// KONFIGURASI NAMA SHEET & SECURITY
+// =========================================================================
+const SHEET_AUTHORITY     = "Authority";
+const SHEET_COMPILE       = "Compile";
+const SHEET_LIST_CAMPAIGN = "ListCampaign";
+const SHEET_CUSTOMER_DB   = "ListCust";
+const SHEET_ACTIVITY_LOG  = "LogActivity";
+const SHEET_REQ_PROFILE   = "ReqProfile";
+const SPREADSHEET_ID      = "";
+
+// SECRET KEY untuk Token Generate (Ubah di Production)
+const SECRET_KEY = "CLAIM_SYSTEM_SECURE_KEY_2026_!@#";
+
+// =========================================================================
+// CONSTANTS: COLUMN & STATUS MAPPING
+// =========================================================================
+const COL_COMPILE = {
+  NO_DOC: 1,
+  CODE_CAMPAIGN: 2,
+  CAMPAIGN_NAME: 3,
+  DC_CODE: 4,
+  DEPOT_NAME: 5,
+  CUST_CODE: 6,
+  CUST_NAME: 7,
+  NET_VALUE: 8,
+  VOLUME: 9,
+  CB_NET: 10,
+  PERIOD_START: 11,
+  CAMPAIGN_END: 12,
+  JENIS_CB: 13,
+  KTP: 14,
+  NPWP: 15,
+  STATUS_PAJAK_CAMP: 16,
+  TGL_LUNAS: 17,
+  TOP: 18,
+  APPROVAL: 19,
+  BLN_TAGIH_1: 20,
+  BLN_TAGIH_2: 21,
+  BLN_TAGIH_3: 22,
+  BLN_TAGIH_4: 23,
+  TOT_TAGIH: 24,
+  SUBYEK_PAJAK: 25,
+  STATUS: 26,
+  TGL_UPLOAD: 27,
+  TGL_RELEASE: 28,
+  TGL_CLAIM: 29,
+  TGL_CLEARING: 30,
+  BATCH_UPLOAD: 31,
+  BATCH_RELEASE: 32,
+  BATCH_CLAIM: 33,
+  BATCH_CLEARING: 34,
+  PREV_STATUS: 35,
+  GROSS_UP: 36,
+  NO_REKENING: 39,
+  NAMA_REKENING: 40,
+  BANK: 41
+};
+
+const WORKFLOW_STATUS = {
+  NOT_YET: "Not Yet",
+  SUBMITTED: "Submitted",
+  RELEASED: "Released",
+  CLAIMED: "Claimed",
+  DONE: "Done",
+  ON_HOLD: "On Hold",
+  EXPIRED: "Expired"
+};
+
+// =========================================================================
+// RESPONSE HELPER
+// =========================================================================
+function jsonOut(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+function ok(extra)  { return jsonOut(Object.assign({ status: "success" }, extra)); }
+function err(msg)   { return jsonOut({ status: "error", message: msg }); }
+function warn(msg, extra) { return jsonOut(Object.assign({ status: "warning", message: msg }, extra)); }
+
+// =========================================================================
+// SPREADSHEET HELPER
+// =========================================================================
+function getSpreadsheet() {
+  return SpreadsheetApp.openById(CONFIG[ENV].SPREADSHEET_ID);
+}
+
+function readSheet(ss, name) {
+  var sh = ss.getSheetByName(name);
+  if (!sh || sh.getLastRow() < 2) return { sheet: sh, data: [] };
+  var data = sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).getValues();
+  return { sheet: sh, data: data };
+}
+
+// =========================================================================
+// SECURITY & AUTHENTICATION (STATELESS TOKEN)
+// =========================================================================
+function generateToken(userId, role, suffixNum) {
+  var header = Utilities.base64EncodeWebSafe(JSON.stringify({alg: "HS256", typ: "JWT"}));
+  var exp = new Date().getTime() + (12 * 60 * 60 * 1000); // 12 Hours
+  var payload = Utilities.base64EncodeWebSafe(JSON.stringify({ userId: userId, role: role, suffixNum: suffixNum, exp: exp }));
+  var signature = Utilities.computeHmacSha256Signature(header + "." + payload, SECRET_KEY);
+  return header + "." + payload + "." + Utilities.base64EncodeWebSafe(signature);
+}
+
+function verifyToken(token) {
+  if (!token) return null;
+  try {
+    var parts = token.split('.');
+    if (parts.length !== 3) return null;
+    var signature = Utilities.computeHmacSha256Signature(parts[0] + "." + parts[1], SECRET_KEY);
+    if (Utilities.base64EncodeWebSafe(signature) !== parts[2]) return null;
+
+    var payloadStr = Utilities.newBlob(Utilities.base64DecodeWebSafe(parts[1])).getDataAsString();
+    var payload = JSON.parse(payloadStr);
+    if (new Date().getTime() > payload.exp) return null; // Expired
+    return payload;
+  } catch (e) {
+    return null;
+  }
+}
+
+// =========================================================================
+// STATE MACHINE VALIDATOR
+// =========================================================================
+function isValidStatusTransition(currentStatus, targetStatus) {
+  var cur = (currentStatus || WORKFLOW_STATUS.NOT_YET).trim().toLowerCase();
+  var tar = (targetStatus || "").trim().toLowerCase();
+
+  if (cur === "expired") return false; // TERMINAL STATE. Kunci absolut.
+
+  var transitions = {
+    "not yet": ["submitted", "on hold", "expired"],
+    "submitted": ["released", "on hold", "expired", "done"],
+    "released": ["claimed", "expired", "submitted"], // submitted = jika reject_release
+    "claimed": ["done", "expired", "released"],      // released = jika reject_claim
+    "on hold": ["not yet", "submitted"]
+  };
+
+  // Override untuk action reject
+  if (tar === "reject_release") return cur === "submitted";
+  if (tar === "reject_claim") return cur === "released";
+  if (tar === "reject_clearing") return cur === "claimed";
+
+  return transitions[cur] && transitions[cur].indexOf(tar) !== -1;
+}
+
+// =========================================================================
+// HELPER FUNCTIONS
+// =========================================================================
+function normalizeMonth(input) {
+  if (!input) return "";
+  var str = String(input).trim().toLowerCase();
+  var dateMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if (dateMatch) {
+    var m = parseInt(dateMatch[2], 10);
+    var y = dateMatch[3].length === 4 ? dateMatch[3].substring(2) : dateMatch[3];
+    var mn = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    if (m >= 1 && m <= 12) return mn[m-1] + "-" + y;
+  }
+  var map = { jan:'Jan',peb:'Feb',feb:'Feb',mar:'Mar',apr:'Apr',mei:'May',may:'May',
+              jun:'Jun',jul:'Jul',agu:'Aug',ags:'Aug',sep:'Sep',okt:'Oct',oct:'Oct',
+              nov:'Nov',des:'Dec',dec:'Dec' };
+  str = str.replace(/\s+/g, '-');
+  var parts = str.split("-");
+  if (parts.length === 2) {
+    var mText = parts[0].replace(/[^a-z]/g, '');
+    var resolved = map[mText] || parts[0];
+    var y2 = parts[1].length === 4 ? parts[1].substring(2) : parts[1];
+    return resolved.charAt(0).toUpperCase() + resolved.slice(1) + "-" + y2;
+  }
+  return input;
+}
+
+function normalizeName(name) {
+  if (!name) return "";
+  return String(name).trim().replace(/jatiasih/gi, "Bekasi");
+}
+
+function normalizeCurrency(input) {
+  if (!input) return 0;
+  var str = String(input).trim();
+  if (str.indexOf('.') !== -1 && str.indexOf(',') !== -1) {
+    str = str.replace(/\./g, '').replace(',', '.');
+  } else if (str.indexOf(',') !== -1) {
+    var p = str.split(',');
+    str = p[p.length-1].length <= 2 ? str.replace(/,/g, '.') : str.replace(/,/g, '');
+  }
+  return parseFloat(str) || 0;
+}
+
+function normalizeRole(r) {
+  r = r ? String(r).trim().toLowerCase() : '';
+  if (r === 'system manager') return 'system manager';
+  if (r === 'supervisor')     return 'supervisor';
+  if (r === 'osc')            return 'osc';
+  if (r === 'admin' || r === 'kepala depot') return 'admin';
+  return 'non-osc';
+}
+
+function formatDateSafe(val) {
+  if (!val) return "";
+  if (val instanceof Date) return Utilities.formatDate(val, "Asia/Jakarta", "dd-MM-yyyy");
+  var str = String(val).trim();
+  var datePart = str.split(" ")[0];
+  if (/^\d{1,2}-[A-Za-z]{3}-\d{4}$/.test(datePart)) return datePart;
+  var m = datePart.match(/^(\d{1,2})[\/\-\.\s]+(\d{1,2})[\/\-\.\s]+(\d{2,4})$/);
+  if (m) {
+    var y = m[3].length === 2 ? "20" + m[3] : m[3];
+    return ("0"+m[1]).slice(-2) + "-" + ("0"+m[2]).slice(-2) + "-" + y;
+  }
+  var d = new Date(val);
+  return isNaN(d.getTime()) ? str : Utilities.formatDate(d, "Asia/Jakarta", "dd-MM-yyyy");
+}
+
+function extractYear(val) {
+  if (!val) return "Lainnya";
+  if (val instanceof Date) return String(val.getFullYear());
+  var str = String(val).trim();
+  var m1 = str.match(/\d{2}-[A-Za-z]{3}-(\d{4})/);
+  if (m1) return m1[1];
+  var m2 = str.match(/^(\d{4})[\/\-]/);
+  if (m2) return m2[1];
+  var d = new Date(str);
+  return isNaN(d.getTime()) ? "Lainnya" : String(d.getFullYear());
+}
+
+// =========================================================================
+// GROSS UP ENGINE (DIVISOR METHOD - BEFORE TAX) - REVISI ALL STATUS PAJAK
+// =========================================================================
+function calcGrossUpCB(netCB, subyekPajak, statusPajakCampaign) {
+  var net = Number(netCB) || 0;
+  if (net <= 0) return 0;
+
+  var sp = String(subyekPajak || '').trim().toLowerCase();
+
+  // Keterangan: Pengecualian (Bypass) untuk PT Nipsea / Ditanggung Perusahaan TELAH DIHAPUS.
+  // Sekarang semua campaign dihitung Gross Up-nya berdasarkan entitas Badan/Pribadi.
+
+  // Badan = Flat 15%. Formula Gross Up: Net / (1 - 0.15)
+  if (sp === 'badan') {
+    return net / 0.85;
+  } else {
+    // Perorangan/Pribadi (Layering Before Tax progresif)
+    var gross = 0;
+    if (net <= 57000000) { // Limit Gross 60jt (Tax 5% = 3jt, Net = 57jt)
+      gross = net / 0.95;
+    } else if (net <= 218500000) { // Limit Gross 250jt (Tax 15% = 28.5jt + 3jt)
+      gross = 60000000 + ((net - 57000000) / 0.85);
+    } else if (net <= 406000000) { // Limit Gross 500jt (Tax 25%)
+      gross = 250000000 + ((net - 218500000) / 0.75);
+    } else if (net <= 3556000000) { // Limit Gross 5M (Tax 30%)
+      gross = 500000000 + ((net - 406000000) / 0.70);
+    } else { // > 5M (Tax 35%)
+      gross = 5000000000 + ((net - 3556000000) / 0.65);
+    }
+    return gross;
+  }
+}
+
+// =========================================================================
+// BATCH NUMBER GENERATOR
+// =========================================================================
+function generateSecureBatchNumber(stageCode, suffixNum) {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var ss = getSpreadsheet();
+    var logSheet = ss.getSheetByName("BatchLog");
+    if (!logSheet) {
+      logSheet = ss.insertSheet("BatchLog");
+      logSheet.appendRow(["Batch Number", "Stage", "Timestamp"]);
+    }
+    var today   = new Date();
+    var dateStr = Utilities.formatDate(today, "Asia/Jakarta", "ddMMyy");
+    var safeSfx = ("000" + (suffixNum || "000")).slice(-3);
+    var prefix  = stageCode + safeSfx + dateStr;
+
+    // Counter harian per stage di-cache (ScriptCache, TTL 6 jam) supaya tidak perlu scan ulang
+    // SELURUH histori BatchLog (yang terus membesar tanpa batas) di setiap pembuatan nomor batch -
+    // scan penuh itu berjalan di dalam LockService yang dipakai bersama submitData/processWorkflow/
+    // bulkFastTrackRelease, jadi makin besar BatchLog makin lama lock ditahan dan makin sering
+    // request lain timeout menunggu lock. Kalau cache kosong/kedaluwarsa, fallback ke scan sheet
+    // seperti semula (logika identik) sehingga nomor batch tidak akan pernah salah/duplikat.
+    var cache    = CacheService.getScriptCache();
+    var cacheKey = "batchCtr_" + stageCode + "_" + dateStr;
+    var maxCtr   = parseInt(cache.get(cacheKey), 10);
+
+    if (isNaN(maxCtr)) {
+      maxCtr = 0;
+      var lastRow = logSheet.getLastRow();
+      if (lastRow > 1) {
+        var data = logSheet.getRange(2, 1, lastRow - 1, 1).getValues();
+        for (var i = 0; i < data.length; i++) {
+          var b = String(data[i][0]).trim();
+          if (b.length >= 15 && b.substring(0,2) === stageCode && b.substring(5,11) === dateStr) {
+            var ctr = parseInt(b.slice(-4), 10);
+            if (!isNaN(ctr) && ctr > maxCtr) maxCtr = ctr;
+          }
+        }
+      }
+    }
+
+    var nextCtr  = maxCtr + 1;
+    var newBatch = prefix + ("0000" + nextCtr).slice(-4);
+    logSheet.appendRow([newBatch, stageCode, Utilities.formatDate(today, "Asia/Jakarta", "dd-MMM-yyyy HH:mm:ss")]);
+    cache.put(cacheKey, String(nextCtr), 21600);
+    return newBatch;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// =========================================================================
+// DEPOMASTER HELPER
+// =========================================================================
+// DepoMaster jarang berubah (hanya lewat addAccount/updateUserAccess/approveProfileRequest) tapi
+// dibaca penuh di HAMPIR SETIAP request (login, workflow, dashboard, manageable data, dst) - di-cache
+// 5 menit lewat ScriptCache supaya tidak scan ulang sheet ini terus-menerus. Invalidasi otomatis
+// (invalidateDepoMasterCache) dipanggil setelah sheet ditulis, jadi perubahan tetap terlihat langsung.
+var DEPOMASTER_CACHE_KEY = "depoMasterMapsV1";
+var DEPOMASTER_CACHE_TTL = 300; // detik
+
+function invalidateDepoMasterCache() {
+  try { CacheService.getScriptCache().remove(DEPOMASTER_CACHE_KEY); } catch (e) {}
+}
+
+function buildDepoMasterMaps(ss) {
+  var cache = CacheService.getScriptCache();
+  try {
+    var cached = cache.get(DEPOMASTER_CACHE_KEY);
+    if (cached) return JSON.parse(cached);
+  } catch (e) {}
+
+  var res = readSheet(ss, "DepoMaster");
+  var dm = res.data;
+  var codeToIdx = {}, picMap = {}, nameMap = {}, subTagsMap = {};
+  var oscMap = {}, nonOscMap = {}, oscDepotMap = {}, nonOscDepotMap = {};
+
+  for (var i = 0; i < dm.length; i++) {
+    var kode = String(dm[i][1] || "").trim();
+    if (!kode) continue;
+    codeToIdx[kode] = i;
+    nameMap[kode]   = normalizeName(String(dm[i][2] || ""));
+    picMap[kode]    = String(dm[i][10] || "").trim();
+
+    var sub = String(dm[i][13] || "").trim();
+    if (sub) subTagsMap[kode] = sub.split(",").map(function(s){ return s.trim().toUpperCase(); });
+
+    var oscStr    = String(dm[i][10] || "");
+    var nonOscStr = String(dm[i][11] || "");
+    oscMap[kode]    = oscStr;
+    nonOscMap[kode] = nonOscStr;
+
+    oscStr.split(",").forEach(function(u) {
+      u = u.trim(); if (!u) return;
+      if (!oscDepotMap[u]) oscDepotMap[u] = [];
+      oscDepotMap[u].push(kode);
+    });
+    nonOscStr.split(",").forEach(function(u) {
+      u = u.trim(); if (!u) return;
+      if (!nonOscDepotMap[u]) nonOscDepotMap[u] = [];
+      nonOscDepotMap[u].push(kode);
+    });
+  }
+
+  var result = { data: dm, codeToIdx: codeToIdx,
+           picMap: picMap, nameMap: nameMap, subTagsMap: subTagsMap,
+           oscMap: oscMap, nonOscMap: nonOscMap,
+           oscDepotMap: oscDepotMap, nonOscDepotMap: nonOscDepotMap };
+
+  // `sheet` (objek Sheet) sengaja tidak ikut di-cache karena tidak bisa di-serialize JSON dan
+  // memang tidak dipakai oleh pemanggil manapun (semua handler ambil DepoMaster sheet sendiri
+  // lewat ss.getSheetByName saat perlu menulis).
+  try { cache.put(DEPOMASTER_CACHE_KEY, JSON.stringify(result), DEPOMASTER_CACHE_TTL); } catch (e) {}
+
+  return result;
+}
+
+// Sumber kebenaran Jenis CB adalah master campaign (sheet ListCampaign, kolom G), bukan kolom
+// JENIS_CB per-baris di Compile - kolom itu cuma snapshot yang ditulis sekali saat dokumen
+// pertama kali di-upload, jadi dokumen lama tidak otomatis ikut ter-update kalau Jenis CB
+// campaignnya baru diubah/ditambahkan jadi "Rebate" belakangan. Dipakai oleh handleGetWorkflowData
+// dan handleBulkFastTrackRelease supaya keduanya konsisten memakai sumber yang sama.
+function buildCampaignJenisCbMap(ss) {
+  var campRes = readSheet(ss, SHEET_LIST_CAMPAIGN);
+  var map = {};
+  campRes.data.forEach(function(r) {
+    var code = String(r[0] || "").trim().toUpperCase();
+    if (!code) return;
+    map[code] = String(r[6] || "").trim();
+  });
+  return map;
+}
+
+function resolveManagedDepots(explicitDepots, subTagsMap) {
+  var result = [];
+  explicitDepots.forEach(function(d) {
+    if (result.indexOf(d) === -1) result.push(d);
+    var subs = subTagsMap[d] || [];
+    subs.forEach(function(s) { if (result.indexOf(s) === -1) result.push(s); });
+  });
+  return result;
+}
+
+// Dipakai bersama oleh handleLogin (data awal) dan handleRefreshDocuments (tombol Refresh Data
+// di modul Claim Upload) supaya frontend bisa menyegarkan globalDocuments tanpa perlu logout/login ulang.
+function buildDocumentsList(compRes) {
+  return compRes.data
+    .filter(function(r){ return String(r[COL_COMPILE.NO_DOC]||"").trim() !== ""; })
+    .map(function(r){
+      return {
+        noDoc: String(r[COL_COMPILE.NO_DOC]||"").trim(), codeCampaign: String(r[COL_COMPILE.CODE_CAMPAIGN]||"").trim(),
+        campaignName: String(r[COL_COMPILE.CAMPAIGN_NAME]||"").trim(), dcCode: String(r[COL_COMPILE.DC_CODE]||"").trim().toUpperCase(),
+        depotName: normalizeName(String(r[COL_COMPILE.DEPOT_NAME]||"")), custCode: String(r[COL_COMPILE.CUST_CODE]||"").trim(),
+        custName: normalizeName(String(r[COL_COMPILE.CUST_NAME]||"")), netValue: r[COL_COMPILE.NET_VALUE], volume: r[COL_COMPILE.VOLUME], cbNet: r[COL_COMPILE.CB_NET],
+        status: String(r[COL_COMPILE.STATUS]||"").trim(), tglLunas: formatDateSafe(r[COL_COMPILE.TGL_LUNAS]),
+        top: String(r[COL_COMPILE.TOP]||""), approval: String(r[COL_COMPILE.APPROVAL]||""),
+        totTagih: r[COL_COMPILE.TOT_TAGIH] ? normalizeCurrency(r[COL_COMPILE.TOT_TAGIH]) : 0,
+        batchUpload:   String(r[COL_COMPILE.BATCH_UPLOAD]||""), batchRelease:  String(r[COL_COMPILE.BATCH_RELEASE]||""),
+        batchClaim:    String(r[COL_COMPILE.BATCH_CLAIM]||""), batchClearing: String(r[COL_COMPILE.BATCH_CLEARING]||"")
+      };
+    });
+}
+
+// =========================================================================
+// CORS
+// =========================================================================
+function doOptions(e) {
+  return ContentService.createTextOutput("OK");
+}
+
+// =========================================================================
+// MAIN ROUTER doPost
+// =========================================================================
+function doPost(e) {
+  try {
+    var ss = getSpreadsheet();
+    var requestData = JSON.parse(e.postData.contents);
+    var action = requestData.action;
+
+    // 1. PUBLIC ROUTES (No Token Required)
+    if (action === "login") return handleLogin(ss, requestData);
+    if (action === "logActivity") return handleLogActivity(ss, requestData);
+
+    // 2. AUTHENTICATION & SERVER-SIDE AUTHORIZATION
+    var clientToken = requestData.token || (requestData.userData && requestData.userData.token);
+    var authSession = verifyToken(clientToken);
+
+    if (!authSession) {
+      return err("Akses ditolak. Sesi tidak valid atau telah berakhir. Silakan login kembali.");
+    }
+
+    // Inject secure auth payload into request
+    requestData.serverAuth = authSession;
+
+    // 3. ROUTE TO HANDLER
+    switch (action) {
+      case "getLogActivity":       return handleGetLogActivity(ss, requestData);
+      case "submitData":           return handleSubmitData(ss, requestData);
+      case "getWorkflowData":      return handleGetWorkflowData(ss, requestData);
+      case "refreshDocuments":     return handleRefreshDocuments(ss, requestData);
+      case "processWorkflow":      return handleProcessWorkflow(ss, requestData);
+      case "toggleOnHold":         return handleToggleOnHold(ss, requestData);
+      case "markExpired":          return handleMarkExpired(ss, requestData);
+      case "bulkFastTrackRelease": return handleBulkFastTrackRelease(ss, requestData);
+      case "getDashboardData":     return handleGetDashboardData(ss, requestData);
+      case "getManageableData":    return handleGetManageableData(ss, requestData);
+      case "addAccount":           return handleAddAccount(ss, requestData);
+      case "updateUserAccess":     return handleUpdateUserAccess(ss, requestData);
+      case "requestPinChange":     return handleRequestPinChange(ss, requestData);
+      case "submitProfileUpdate":  return handleSubmitProfileUpdate(ss, requestData);
+      case "approveProfileRequest":return handleApproveProfileRequest(ss, requestData);
+      default:                     return err("Action router tidak dikenal: " + action);
+    }
+  } catch (error) {
+    Logger.log("ERROR doPost: " + error.toString() + "\n" + error.stack);
+    return jsonOut({ status: "error", message: "Terjadi kesalahan sistem saat memproses request." });
+  }
+}
+
+// =========================================================================
+// HANDLERS
+// =========================================================================
+
+function handleLogActivity(ss, requestData) {
+  var sh = ss.getSheetByName(SHEET_ACTIVITY_LOG);
+  if (sh) sh.appendRow([requestData.timestamp, requestData.userId, requestData.role, requestData.detail]);
+  return ok();
+}
+
+// Refresh ringan khusus daftar dokumen (Compile) - dipanggil dari tombol "Refresh Data" di modul
+// Claim Upload, supaya frontend bisa menyegarkan globalDocuments tanpa perlu logout/login ulang.
+function handleRefreshDocuments(ss, requestData) {
+  var compRes = readSheet(ss, SHEET_COMPILE);
+  return ok({ documents: buildDocumentsList(compRes) });
+}
+
+function handleGetLogActivity(ss, requestData) {
+  var r = readSheet(ss, SHEET_ACTIVITY_LOG);
+  var logs = r.data
+    .filter(function(row){ return !!row[0]; })
+    .map(function(row){
+      return { timestamp: formatDateSafe(row[0]), userId: String(row[1]||""),
+               role: String(row[2]||""), detail: String(row[3]||"") };
+    }).reverse();
+  return ok({ logs: logs });
+}
+
+function handleLogin(ss, requestData) {
+  var userId = String(requestData.userId || requestData.userid || "").trim();
+  var pin    = String(requestData.pin    || "").trim();
+  if (!userId || !pin) return err("User ID dan PIN wajib diisi.");
+
+  var authRes  = readSheet(ss, SHEET_AUTHORITY);
+  var authData = authRes.data;
+
+  var loginSuccess = false;
+  var userData = {};
+  var allDepotsList = [];
+
+  for (var i = 0; i < authData.length; i++) {
+    if (String(authData[i][4]||"").trim() !== userId) continue;
+    if (String(authData[i][5]||"").trim() !== pin)    continue;
+
+    var actRaw  = String(authData[i][8]||"").trim().toLowerCase();
+    var userRole= String(authData[i][7]||"").trim() || "admin";
+    var sysRole = normalizeRole(userRole);
+
+    if (actRaw !== "approved" && actRaw !== "ok" && actRaw !== "active") break;
+
+    loginSuccess = true;
+    var depotNameAuth  = normalizeName(String(authData[i][3]||""));
+    var regAuto        = String(authData[i][0]||"");
+    var kodeDepotAuto  = String(authData[i][2]||"").trim();
+    var isSysMgr       = (sysRole === 'system manager');
+
+    var dmo = buildDepoMasterMaps(ss);
+    var dm  = dmo.data;
+    var explicitDepots = [];
+    var depotDetailObj = null;
+
+    for (var d = 0; d < dm.length; d++) {
+      var dKode = String(dm[d][1]||"").trim();
+      if (!dKode) continue;
+      var oscArr    = String(dm[d][10]||"").split(",").map(function(u){return u.trim();});
+      var nonOscArr = String(dm[d][11]||"").split(",").map(function(u){return u.trim();});
+      var adm1=String(dm[d][7]||"").trim(), adm2=String(dm[d][8]||"").trim(), adm3=String(dm[d][9]||"").trim();
+
+      var hasAccess = (sysRole === "supervisor" || sysRole === "system manager" || oscArr.indexOf(userId) !== -1 || nonOscArr.indexOf(userId) !== -1);
+
+      if (sysRole === "admin" && (adm1===userId||adm2===userId||adm3===userId||dKode===kodeDepotAuto)) {
+        hasAccess = true;
+        if (dKode === kodeDepotAuto) {
+          regAuto = String(dm[d][0]||"");
+          depotNameAuth = dmo.nameMap[dKode];
+          depotDetailObj = {
+            region: String(dm[d][0]||"").trim(), kode: dKode, nama: dmo.nameMap[dKode],
+            kepalaDepot: String(dm[d][3]||"").trim(), kepalaAdmin: String(dm[d][4]||"").trim(),
+            users: [adm1,adm2,adm3].filter(Boolean), picOsc: String(dm[d][10]||"").trim(),
+            masterLink: String(dm[d][12]||"").trim()
+          };
+        }
+      }
+      if (hasAccess) explicitDepots.push(dKode.toUpperCase());
+    }
+
+    var managedDepots = resolveManagedDepots(explicitDepots, dmo.subTagsMap);
+
+    for (var d2 = 0; d2 < dm.length; d2++) {
+      var dc = String(dm[d2][1]||"").trim().toUpperCase();
+      if (!dc) continue;
+      if (isSysMgr || managedDepots.indexOf(dc) !== -1) {
+        allDepotsList.push({ kode: dc, nama: normalizeName(String(dm[d2][2]||"")), link: String(dm[d2][12]||"").trim() });
+      }
+    }
+
+    if (sysRole !== "admin") { depotNameAuth = "Head Office"; regAuto = "0"; kodeDepotAuto = "0"; }
+
+    var sfx = ("000" + String(authData[i][17]||"000")).slice(-3);
+
+    // Server Generated Token (Replace Base64)
+    var secureToken = generateToken(userId, sysRole, sfx);
+
+    userData = {
+      userId: String(authData[i][4]||""), namaLengkap: String(authData[i][1]||""),
+      role: userRole, sysRole: sysRole, depot: depotNameAuth,
+      kodeDepot: kodeDepotAuto, regional: regAuto, activation: actRaw, suffixNum: sfx,
+      auth: {
+        j: String(authData[i][9] ||"") || (isSysMgr?"Yes":"Hidden"),
+        k: String(authData[i][10]||"") || (isSysMgr?"Yes":"No"),
+        l: String(authData[i][11]||"") || (isSysMgr?"Yes":"No"),
+        m: String(authData[i][12]||"") || (isSysMgr?"Yes":"No"),
+        n: String(authData[i][13]||"") || (isSysMgr?"Yes":"No"),
+        p: String(authData[i][15]||"") || (isSysMgr?"Yes":"No"),
+        q: String(authData[i][16]||"") || (isSysMgr?"Yes":"No"),
+        s: String(authData[i][18]||"") || (isSysMgr?"Yes":"No")
+      },
+      managedDepots: managedDepots, depotDetail: depotDetailObj,
+      token: secureToken
+    };
+    break;
+  }
+
+  if (!loginSuccess) return err("Kredensial tidak valid atau akun dinonaktifkan.");
+
+  var compRes  = readSheet(ss, SHEET_COMPILE);
+  var campRes  = readSheet(ss, SHEET_LIST_CAMPAIGN);
+  var custRes  = readSheet(ss, SHEET_CUSTOMER_DB);
+
+  var listCompile = buildDocumentsList(compRes);
+
+  // Master Code (kolom V) & Master Code Name (kolom W) dipakai FE khusus untuk grouping
+  // reporting di Analytics (Summary Chart/Executive Summary) - Jenis CB & campaign code individual
+  // (kolom A) tetap dipakai apa adanya untuk Claim Upload/Posting, tidak berubah.
+  var listCampaign = campRes.data
+    .filter(function(r){ return String(r[0]||"").trim() !== ""; })
+    .map(function(r){
+      return {
+        codeCampaign: String(r[0]||"").trim(), campaignName: String(r[1]||"").trim(),
+        periodStart: formatDateSafe(r[2]), periodEnd: formatDateSafe(r[3]),
+        statusPajak: String(r[5]||"").trim(), jenisCb: String(r[6]||"").trim(),
+        masterCode: String(r[21]||"").trim(), masterCodeName: String(r[22]||"").trim()
+      };
+    });
+
+  var listCust = custRes.data
+    .filter(function(r){ return String(r[1]||"").trim() !== ""; })
+    .map(function(r){
+      return {
+        custCode: String(r[1]||"").trim(), noRek: String(r[3]||"").trim(),
+        namaRek: String(r[4]||"").trim(), bank: String(r[5]||"").trim(),
+        npwp: String(r[6]||"").trim(), ktp: String(r[7]||"").trim(),
+        subyekPajak: String(r[8]||"").trim(), top: String(r[10]||"").trim()
+      };
+    });
+
+  return ok({ data: userData, documents: listCompile, campaigns: listCampaign, customers: listCust, depots: allDepotsList });
+}
+
+function handleSubmitData(ss, requestData) {
+  var payloadData = Array.isArray(requestData.data) ? requestData.data : [requestData.data];
+  if (payloadData.length === 0) return err("Tidak ada data diproses.");
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+
+  try {
+    var tsUpload = Utilities.formatDate(new Date(), "Asia/Jakarta", "dd-MMM-yyyy HH:mm:ss");
+    var compRes = readSheet(ss, SHEET_COMPILE);
+    var custRes = readSheet(ss, SHEET_CUSTOMER_DB);
+    var compileSheet = compRes.sheet;
+    var custSheet = custRes.sheet;
+
+    var docMap = {};
+    compRes.data.forEach(function(r, idx){
+      var d = String(r[COL_COMPILE.NO_DOC]||"").trim().toUpperCase();
+      if (d) docMap[d] = idx;
+    });
+
+    var custMap = {};
+    custRes.data.forEach(function(r, idx){
+      var c = String(r[1]||"").trim();
+      if (c) custMap[c] = idx;
+    });
+
+    var safeBatchUpload = generateSecureBatchNumber("01", requestData.serverAuth.suffixNum || "000");
+    var successCount = 0, errors = [], successfulDocs = [], grossUpMap = {}, custWrites = {};
+
+    for (var k = 0; k < payloadData.length; k++) {
+      var d = payloadData[k];
+      var docUp = String(d.noDoc||"").trim().toUpperCase();
+      var rowIdx = docMap[docUp];
+      if (rowIdx === undefined) { errors.push("No Doc tidak ditemukan: " + docUp); continue; }
+
+      var curStat = String(compRes.data[rowIdx][COL_COMPILE.STATUS]||"").trim();
+
+      // SECURITY: dokumen berstatus On Hold TIDAK BOLEH diupload/di-claim ulang secara langsung -
+      // perubahan statusnya hanya lewat Posting Exception (toggleOnHold/markExpired). Expired sudah
+      // terkunci permanen lewat isValidStatusTransition (cur === "expired" => false).
+      if (curStat.trim().toLowerCase() === "on hold") {
+        errors.push("Dokumen " + docUp + " sedang berstatus On Hold dan tidak dapat diupload. Batalkan On Hold terlebih dahulu lewat Posting Exception.");
+        continue;
+      }
+
+      // SERVER-SIDE STATE VALIDATION
+      if (!isValidStatusTransition(curStat, WORKFLOW_STATUS.SUBMITTED)) {
+        errors.push("Dokumen " + docUp + " berstatus '" + curStat + "' dan tidak dapat di-upload.");
+        continue;
+      }
+
+      var cIdx = custMap[d.custCode];
+      if (cIdx !== undefined) {
+        var cr = custRes.data[cIdx];
+        var changed = false;
+        var inNoRek = String(d.noRekening||"").trim(), inNamaRek = String(d.pemilikRekening||"").trim(), inBank = String(d.bankCust||"").trim();
+        var inNpwp = String(d.npwp||"").trim(), inKtp = String(d.ktp||"").trim(), inSubyek = String(d.subyekPajak||"").trim(), inTop = String(d.top||"").trim();
+
+        if (inNoRek && inNoRek !== String(cr[3]||"").trim()) { cr[3] = inNoRek; changed = true; }
+        if (inNamaRek && inNamaRek !== String(cr[4]||"").trim()) { cr[4] = inNamaRek; changed = true; }
+        if (inBank && inBank !== String(cr[5]||"").trim()) { cr[5] = inBank; changed = true; }
+        if (inNpwp && inNpwp !== String(cr[6]||"").trim()) { cr[6] = inNpwp; changed = true; }
+        if (inKtp && inKtp !== String(cr[7]||"").trim()) { cr[7] = inKtp; changed = true; }
+        if (inSubyek && inSubyek !== String(cr[8]||"").trim()) { cr[8] = inSubyek; changed = true; }
+        if (inTop && parseFloat(inTop) > 0 && inTop !== String(cr[10]||"").trim()) { cr[10] = inTop; changed = true; }
+
+        if (changed) custWrites[cIdx + 2] = [cr[3],cr[4],cr[5],cr[6],cr[7],cr[8],cr[9],cr[10]];
+      }
+
+      var totTagih = (d.totTagih !== undefined && d.totTagih !== "") ? normalizeCurrency(d.totTagih) : 0;
+      var vals = [
+        d.periodStart, d.campaignEnd, d.jenisCashback, d.ktp, d.npwp, d.statusPajakCampaign, d.tglLunas, d.top, d.approval,
+        normalizeMonth(d.blnTagih1), normalizeMonth(d.blnTagih2), normalizeMonth(d.blnTagih3), normalizeMonth(d.blnTagih4),
+        totTagih, d.subyekPajak, WORKFLOW_STATUS.SUBMITTED, tsUpload, "", "", "", safeBatchUpload, "", "", ""
+      ];
+
+      for (var v = 0; v < vals.length; v++) compRes.data[rowIdx][11 + v] = vals[v];
+
+      // HITUNG GROSS UP SINKRON
+      var netCbForGrossUp = compRes.data[rowIdx][COL_COMPILE.CB_NET];
+      var grossUpVal = calcGrossUpCB(netCbForGrossUp, d.subyekPajak, d.statusPajakCampaign);
+      compRes.data[rowIdx][COL_COMPILE.GROSS_UP] = grossUpVal;
+      grossUpMap[docUp] = grossUpVal;
+
+      compRes.data[rowIdx][COL_COMPILE.NO_REKENING] = String(d.noRekening || "").trim();
+      compRes.data[rowIdx][COL_COMPILE.NAMA_REKENING] = String(d.pemilikRekening || "").trim();
+      compRes.data[rowIdx][COL_COMPILE.BANK] = String(d.bankCust || "").trim();
+
+      successCount++;
+      successfulDocs.push(docUp);
+    }
+
+    if (successCount > 0) {
+      var updatedRows = successfulDocs.map(function(doc){ return docMap[doc]; }).sort(function(a,b){return a-b;});
+      var blocks = []; var blk = [updatedRows[0]];
+      for (var u = 1; u < updatedRows.length; u++) {
+        if (updatedRows[u] === blk[blk.length-1] + 1) { blk.push(updatedRows[u]); }
+        else { blocks.push(blk); blk = [updatedRows[u]]; }
+      }
+      blocks.push(blk);
+
+      blocks.forEach(function(block) {
+        var startRow = block[0] + 2;
+        var writeData = block.map(function(ri){ return compRes.data[ri].slice(11, 35); });
+        compileSheet.getRange(startRow, 15, block.length, 2).setNumberFormat("@");
+        compileSheet.getRange(startRow, 12, block.length, 24).setValues(writeData);
+      });
+
+      blocks.forEach(function(block) {
+        var startRow = block[0] + 2;
+        var grossUpVals = block.map(function(ri){ return [compRes.data[ri][COL_COMPILE.GROSS_UP]]; });
+        compileSheet.getRange(startRow, COL_COMPILE.GROSS_UP + 1, block.length, 1).setValues(grossUpVals);
+      });
+
+      blocks.forEach(function(block) {
+        var startRow = block[0] + 2;
+        var rekVals = block.map(function(ri){ return [compRes.data[ri][COL_COMPILE.NO_REKENING], compRes.data[ri][COL_COMPILE.NAMA_REKENING], compRes.data[ri][COL_COMPILE.BANK]]; });
+        compileSheet.getRange(startRow, COL_COMPILE.NO_REKENING + 1, block.length, 1).setNumberFormat("@");
+        compileSheet.getRange(startRow, COL_COMPILE.NO_REKENING + 1, block.length, 3).setValues(rekVals);
+      });
+    }
+
+    Object.keys(custWrites).forEach(function(sheetRow) {
+      if (custSheet) {
+        var rowNum = parseInt(sheetRow);
+        custSheet.getRange(rowNum, 4, 1, 1).setNumberFormat("@");
+        custSheet.getRange(rowNum, 7, 1, 1).setNumberFormat("@");
+        custSheet.getRange(rowNum, 8, 1, 1).setNumberFormat("@");
+        custSheet.getRange(rowNum, 4, 1, 8).setValues([custWrites[sheetRow]]);
+      }
+    });
+
+    var msg = "Berhasil memproses data.";
+    var summary = { successCount: successCount, successfulDocs: successfulDocs, batchNum: safeBatchUpload, grossUpMap: grossUpMap };
+    if (errors.length > 0) return warn(msg + " Peringatan: " + errors.join(" | "), { summary: summary });
+    return successCount > 0 ? ok({ message: msg, summary: summary }) : err("Tidak ada data valid yang diproses.");
+
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function handleGetWorkflowData(ss, requestData) {
+  var reqId   = requestData.requesterId;
+  var sysRole = normalizeRole(requestData.requesterRole);
+  var managed = requestData.managedDepots || [];
+
+  var dmo     = buildDepoMasterMaps(ss);
+  var compRes = readSheet(ss, SHEET_COMPILE);
+  var campJenisCbMap = buildCampaignJenisCbMap(ss);
+
+  var releaseData = [], claimFinData = [], clearingData = [], bulkRebateData = [];
+
+  compRes.data.forEach(function(r) {
+    var noDoc  = String(r[COL_COMPILE.NO_DOC]||"").trim(); if (!noDoc) return;
+    var status = String(r[COL_COMPILE.STATUS]||"").trim();
+    var kd     = String(r[COL_COMPILE.DC_CODE]||"").trim().toUpperCase();
+    var picOsc = dmo.picMap[kd] || "";
+    var depot  = dmo.nameMap[kd] || normalizeName(String(r[COL_COMPILE.DEPOT_NAME]||""));
+    // Jenis CB diambil dari master ListCampaign (live), bukan snapshot kolom JENIS_CB di Compile -
+    // supaya dokumen lama juga ikut terdeteksi Rebate begitu campaign-nya diset "Rebate" di master,
+    // tanpa perlu re-upload. Fallback ke kolom Compile kalau campaign-nya tidak ketemu di master.
+    var codeCampUp = String(r[COL_COMPILE.CODE_CAMPAIGN]||"").trim().toUpperCase();
+    var jenisCb = campJenisCbMap[codeCampUp] || String(r[COL_COMPILE.JENIS_CB]||"").trim();
+    var isRebate = jenisCb.toLowerCase() === "rebate";
+
+    var allowed = (sysRole==='supervisor'||sysRole==='system manager')
+      || (sysRole==='osc' && (picOsc===reqId || managed.indexOf(kd)!==-1))
+      || managed.indexOf(kd) !== -1;
+
+    if (!(status==="Submitted" || status==="Released" || status==="Claimed")) return;
+
+    // Jenis CB "Rebate" tidak lagi lewat Release/Claim to Finance/Clearing satu-per-satu -
+    // semua tahap (Submitted/Released/Claimed) dikumpulkan ke bulkRebateData untuk diproses
+    // langsung ke Done lewat modul Bulk Process. Dibatasi scope depot/authority user (allowed).
+    if (isRebate) { if (!allowed) return; }
+    else if (!((allowed && status==="Submitted") || status==="Released" || status==="Claimed")) return;
+
+    var row = {
+      noDoc: noDoc, depot: depot, kodeDepot: kd,
+      codeCampaign: String(r[COL_COMPILE.CODE_CAMPAIGN]||""), campaignName: String(r[COL_COMPILE.CAMPAIGN_NAME]||""),
+      kodeToko: String(r[COL_COMPILE.CUST_CODE]||""), namaToko: normalizeName(String(r[COL_COMPILE.CUST_NAME]||"")),
+      periode: formatDateSafe(r[COL_COMPILE.PERIOD_START]) + " s/d " + formatDateSafe(r[COL_COMPILE.CAMPAIGN_END]),
+      periodeStart: formatDateSafe(r[COL_COMPILE.PERIOD_START]), periodeEnd: formatDateSafe(r[COL_COMPILE.CAMPAIGN_END]),
+      cbNet: r[COL_COMPILE.CB_NET], grossUpCb: r[COL_COMPILE.GROSS_UP] || 0, totTagih: r[COL_COMPILE.TOT_TAGIH] ? normalizeCurrency(r[COL_COMPILE.TOT_TAGIH]) : 0,
+      ktp: String(r[COL_COMPILE.KTP]||""), npwp: String(r[COL_COMPILE.NPWP]||""),
+      noRekening: String(r[COL_COMPILE.NO_REKENING]||""), namaRekening: String(r[COL_COMPILE.NAMA_REKENING]||""), bank: String(r[COL_COMPILE.BANK]||""),
+      statusPajakCamp: String(r[COL_COMPILE.STATUS_PAJAK_CAMP]||""), tglLunas: formatDateSafe(r[COL_COMPILE.TGL_LUNAS]),
+      top: String(r[COL_COMPILE.TOP]||""), approval: String(r[COL_COMPILE.APPROVAL]||""),
+      statusPajakCust: String(r[COL_COMPILE.SUBYEK_PAJAK]||""), jenisCb: jenisCb,
+      tglUpload:   formatDateSafe(r[COL_COMPILE.TGL_UPLOAD]), tglRelease:  formatDateSafe(r[COL_COMPILE.TGL_RELEASE]),
+      tglClaim:    formatDateSafe(r[COL_COMPILE.TGL_CLAIM]), tglClearing: formatDateSafe(r[COL_COMPILE.TGL_CLEARING]),
+      batchUpload:   String(r[COL_COMPILE.BATCH_UPLOAD]||""), batchRelease:  String(r[COL_COMPILE.BATCH_RELEASE]||""),
+      batchClaim:    String(r[COL_COMPILE.BATCH_CLAIM]||""), batchClearing: String(r[COL_COMPILE.BATCH_CLEARING]||""),
+      status: status
+    };
+
+    if (isRebate) { bulkRebateData.push(row); return; }
+
+    if (status==="Submitted" && allowed) releaseData.push(row);
+    else if (status==="Released") claimFinData.push(row);
+    else if (status==="Claimed")  clearingData.push(row);
+  });
+
+  return ok({ releaseData: releaseData, claimFinData: claimFinData, clearingData: clearingData, bulkRebateData: bulkRebateData });
+}
+
+function handleProcessWorkflow(ss, requestData) {
+  var docsToProcess = requestData.docsToProcess;
+  var workflowType  = requestData.workflowType;
+  var actionType    = requestData.actionType || "approve";
+
+  if (!docsToProcess || docsToProcess.length === 0) return err("Data tidak lengkap.");
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+
+  try {
+    var tglProses = requestData.tglProses || Utilities.formatDate(new Date(), "Asia/Jakarta", "dd-MMM-yyyy HH:mm:ss");
+    var safeWorkflowBatch = "";
+    if (actionType === "approve") {
+      var sc = workflowType==="release" ? "02" : workflowType==="claim" ? "03" : "04";
+      safeWorkflowBatch = generateSecureBatchNumber(sc, requestData.serverAuth.suffixNum || "000");
+    }
+
+    var expectStatus = { release:"Submitted", claim:"Released", clearing:"Claimed" };
+    var newStatus    = { release:"Released",  claim:"Claimed",  clearing:"Done"    };
+    var rejectStatus = { release:"Not Yet",   claim:"Submitted",clearing:"Released" };
+
+    var docSet = {};
+    docsToProcess.forEach(function(d){ docSet[d] = true; });
+
+    var compRes      = readSheet(ss, SHEET_COMPILE);
+    var compileSheet = compRes.sheet;
+    var compData     = compRes.data;
+
+    var colCfg = {
+      release:  { tglCol: COL_COMPILE.TGL_RELEASE, batchCol: COL_COMPILE.BATCH_RELEASE },
+      claim:    { tglCol: COL_COMPILE.TGL_CLAIM, batchCol: COL_COMPILE.BATCH_CLAIM },
+      clearing: { tglCol: COL_COMPILE.TGL_CLEARING, batchCol: COL_COMPILE.BATCH_CLEARING }
+    };
+    var rejectClear = {
+      release:  { tglCol: COL_COMPILE.TGL_UPLOAD, batchCol: COL_COMPILE.BATCH_UPLOAD },
+      claim:    { tglCol: COL_COMPILE.TGL_RELEASE, batchCol: COL_COMPILE.BATCH_RELEASE },
+      clearing: { tglCol: COL_COMPILE.TGL_CLAIM, batchCol: COL_COMPILE.BATCH_CLAIM }
+    };
+
+    var cfg  = colCfg[workflowType];
+    var rcfg = rejectClear[workflowType];
+    var processedCount = 0;
+    var successfulDocs = [];
+    var writes = {};
+
+    for (var r = 0; r < compData.length; r++) {
+      var doc = String(compData[r][COL_COMPILE.NO_DOC]||"").trim();
+      if (!doc || !docSet[doc]) continue;
+
+      var curStat = String(compData[r][COL_COMPILE.STATUS]||"").trim();
+
+      var targetState = "";
+      if (actionType === "approve") targetState = newStatus[workflowType];
+      else if (actionType === "reject") targetState = "reject_" + workflowType; // helper for state machine
+      else if (actionType === "expired") targetState = WORKFLOW_STATUS.EXPIRED;
+
+      // Validate Transition
+      if (!isValidStatusTransition(curStat, targetState)) continue;
+
+      if (actionType === "approve") {
+        writes[r] = writes[r] || {};
+        writes[r][COL_COMPILE.STATUS] = newStatus[workflowType];
+        writes[r][cfg.tglCol]   = tglProses;
+        writes[r][cfg.batchCol] = safeWorkflowBatch;
+      } else if (actionType === "reject") {
+        writes[r] = writes[r] || {};
+        writes[r][COL_COMPILE.STATUS] = rejectStatus[workflowType];
+        writes[r][rcfg.tglCol]   = "";
+        writes[r][rcfg.batchCol] = "";
+      } else if (actionType === "expired") {
+        writes[r] = writes[r] || {};
+        writes[r][COL_COMPILE.STATUS] = WORKFLOW_STATUS.EXPIRED;
+      }
+
+      processedCount++;
+      successfulDocs.push(doc);
+    }
+
+    if (processedCount > 0) {
+      var byCol = {};
+      Object.keys(writes).forEach(function(ri) {
+        ri = parseInt(ri);
+        Object.keys(writes[ri]).forEach(function(ci) {
+          ci = parseInt(ci);
+          compData[ri][ci] = writes[ri][ci];
+          if (!byCol[ci]) byCol[ci] = [];
+          byCol[ci].push(ri);
+        });
+      });
+
+      Object.keys(byCol).forEach(function(ci) {
+        ci = parseInt(ci);
+        var rows = byCol[ci].sort(function(a,b){return a-b;});
+        var blocks = []; var blk = [rows[0]];
+        for (var x = 1; x < rows.length; x++) {
+          if (rows[x] === blk[blk.length-1] + 1) blk.push(rows[x]);
+          else { blocks.push(blk); blk = [rows[x]]; }
+        }
+        blocks.push(blk);
+
+        var sheetCol = ci + 1;
+        blocks.forEach(function(block) {
+          var startRow = block[0] + 2;
+          var vals = block.map(function(ri){ return [compData[ri][ci]]; });
+          compileSheet.getRange(startRow, sheetCol, block.length, 1).setValues(vals);
+        });
+      });
+    }
+
+    return ok({ message: processedCount + " dokumen berhasil diproses.",
+                summary: { successCount: processedCount, successfulDocs: successfulDocs, batchNum: safeWorkflowBatch } });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function handleToggleOnHold(ss, requestData) {
+  var docsToProcess = requestData.docsToProcess;
+  var holdAction    = requestData.holdAction;
+  if (!docsToProcess || docsToProcess.length === 0) return err("Data tidak lengkap.");
+  if (holdAction !== "hold" && holdAction !== "unhold") return err("holdAction tidak valid.");
+
+  var docSet = {};
+  docsToProcess.forEach(function(d){ docSet[d] = true; });
+
+  // Lock ditambahkan supaya konsisten dengan submitData/processWorkflow/bulkFastTrackRelease -
+  // tanpa lock, aksi Hold/Unhold yang jalan bersamaan dengan handler lain yang menulis ke sheet
+  // Compile bisa saling menimpa perubahan satu sama lain (race condition pada baris yang sama).
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var compRes      = readSheet(ss, SHEET_COMPILE);
+    var compileSheet = compRes.sheet;
+    var compData     = compRes.data;
+
+    var processedCount = 0;
+    var successfulDocs = [];
+    var writesStatus = {};
+    var writesPrev   = {};
+
+    for (var r = 0; r < compData.length; r++) {
+      var doc = String(compData[r][COL_COMPILE.NO_DOC]||"").trim();
+      if (!doc || !docSet[doc]) continue;
+
+      var curStat = String(compData[r][COL_COMPILE.STATUS]||"").trim();
+      var curStatLow = curStat.toLowerCase();
+
+      if (holdAction === "hold") {
+        // Posting Exception: dokumen boleh ditahan (On Hold) dari status apa pun di sepanjang
+        // alur Upload->Release->Claim->Clearing, ASALKAN belum final (Done/Expired). Dicek langsung
+        // di sini (bukan lewat isValidStatusTransition) karena Hold adalah aksi override di luar
+        // alur normal, bukan bagian dari state machine approve/reject standar.
+        if (curStatLow === "done" || curStatLow === "expired" || curStatLow === "on hold") continue;
+        writesStatus[r] = WORKFLOW_STATUS.ON_HOLD;
+        writesPrev[r]   = curStat || WORKFLOW_STATUS.NOT_YET;
+      } else {
+        if (curStatLow !== "on hold") continue;
+        var prevStat = String(compData[r][COL_COMPILE.PREV_STATUS]||"").trim() || WORKFLOW_STATUS.NOT_YET;
+        writesStatus[r] = prevStat;
+        writesPrev[r]   = "";
+      }
+
+      processedCount++;
+      successfulDocs.push(doc);
+    }
+
+    if (processedCount > 0) {
+      var rows = Object.keys(writesStatus).map(function(x){ return parseInt(x); }).sort(function(a,b){return a-b;});
+      var blocks = []; var blk = [rows[0]];
+      for (var x = 1; x < rows.length; x++) {
+        if (rows[x] === blk[blk.length-1] + 1) blk.push(rows[x]);
+        else { blocks.push(blk); blk = [rows[x]]; }
+      }
+      blocks.push(blk);
+
+      blocks.forEach(function(block) {
+        var startRow = block[0] + 2;
+        var statusVals = block.map(function(ri){ return [writesStatus[ri]]; });
+        compileSheet.getRange(startRow, COL_COMPILE.STATUS + 1, block.length, 1).setValues(statusVals);
+        var prevVals = block.map(function(ri){ return [writesPrev[ri]]; });
+        compileSheet.getRange(startRow, COL_COMPILE.PREV_STATUS + 1, block.length, 1).setValues(prevVals);
+      });
+    }
+    var msg = processedCount + " dokumen berhasil " + (holdAction==="hold" ? "ditahan (On Hold)." : "dibatalkan status On Hold-nya.");
+    return ok({ message: msg, summary: { successCount: processedCount, successfulDocs: successfulDocs } });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function handleMarkExpired(ss, requestData) {
+  var docsToProcess = requestData.docsToProcess;
+  if (!docsToProcess || docsToProcess.length === 0) return err("Data tidak lengkap.");
+
+  var docSet = {};
+  docsToProcess.forEach(function(d){ docSet[d] = true; });
+
+  // Lock ditambahkan supaya konsisten dengan submitData/processWorkflow/bulkFastTrackRelease -
+  // tanpa lock, aksi markExpired yang jalan bersamaan dengan handler lain yang menulis ke sheet
+  // Compile bisa saling menimpa perubahan satu sama lain (race condition pada baris yang sama).
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var compRes      = readSheet(ss, SHEET_COMPILE);
+    var compileSheet = compRes.sheet;
+    var compData     = compRes.data;
+
+    var processedCount = 0;
+    var successfulDocs = [];
+    var rowsToUpdate   = [];
+
+    for (var r = 0; r < compData.length; r++) {
+      var doc = String(compData[r][COL_COMPILE.NO_DOC]||"").trim();
+      if (!doc || !docSet[doc]) continue;
+
+      var curStat = String(compData[r][COL_COMPILE.STATUS]||"").trim().toLowerCase();
+
+      // Posting Exception: Expired bisa ditandai dari status apa pun (termasuk On Hold) selama belum
+      // Done atau sudah Expired sebelumnya - dicek langsung, bukan lewat isValidStatusTransition,
+      // karena ini aksi override di luar alur approve/reject standar.
+      if (curStat === "done" || curStat === "expired") continue;
+
+      rowsToUpdate.push(r);
+      processedCount++;
+      successfulDocs.push(doc);
+    }
+
+    if (processedCount > 0) {
+      rowsToUpdate.sort(function(a,b){return a-b;});
+      var blocks = []; var blk = [rowsToUpdate[0]];
+      for (var u = 1; u < rowsToUpdate.length; u++) {
+        if (rowsToUpdate[u] === blk[blk.length-1] + 1) blk.push(rowsToUpdate[u]);
+        else { blocks.push(blk); blk = [rowsToUpdate[u]]; }
+      }
+      blocks.push(blk);
+      blocks.forEach(function(block) {
+        var startRow = block[0] + 2;
+        var vals = block.map(function(){ return [WORKFLOW_STATUS.EXPIRED]; });
+        compileSheet.getRange(startRow, COL_COMPILE.STATUS + 1, block.length, 1).setValues(vals);
+      });
+    }
+
+    return ok({ message: processedCount + " dokumen ditandai Expired (permanen).",
+                summary: { successCount: processedCount, successfulDocs: successfulDocs } });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function handleBulkFastTrackRelease(ss, requestData) {
+  var docsToProcess = requestData.docsToProcess;
+  if (!docsToProcess || docsToProcess.length === 0) return err("Data tidak lengkap.");
+
+  var docSet = {};
+  docsToProcess.forEach(function(d){ docSet[d] = true; });
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+
+  try {
+    var compRes      = readSheet(ss, SHEET_COMPILE);
+    var compileSheet = compRes.sheet;
+    var compData     = compRes.data;
+    var campJenisCbMap = buildCampaignJenisCbMap(ss);
+
+    var safeBatch = generateSecureBatchNumber("02", requestData.serverAuth.suffixNum || "000");
+
+    var processedCount = 0, successfulDocs = [], skippedNonRebate = [], rowsToUpdate = [];
+
+    for (var r = 0; r < compData.length; r++) {
+      var doc = String(compData[r][COL_COMPILE.NO_DOC]||"").trim();
+      if (!doc || !docSet[doc]) continue;
+
+      var curStat = String(compData[r][COL_COMPILE.STATUS]||"").trim().toLowerCase();
+      // Bulk Process meng-copy scope Release tapi bypass langsung ke Done - berlaku untuk dokumen
+      // Rebate di TIGA tahap sekaligus (Submitted/Released/Claimed), bukan cuma Submitted. Dicek
+      // langsung (bukan lewat isValidStatusTransition) karena "released"->"done" bukan transisi
+      // normal di state machine approve/reject standar.
+      if (curStat !== "submitted" && curStat !== "released" && curStat !== "claimed") continue;
+
+      // Jenis CB dicek dari master ListCampaign (sama seperti handleGetWorkflowData) supaya
+      // dokumen yang tampil di tabel Bulk Process (frontend) selalu konsisten bisa dieksekusi di sini -
+      // fallback ke kolom Compile kalau campaign-nya tidak ketemu di master.
+      var codeCampUp = String(compData[r][COL_COMPILE.CODE_CAMPAIGN]||"").trim().toUpperCase();
+      var jenisCb = (campJenisCbMap[codeCampUp] || String(compData[r][COL_COMPILE.JENIS_CB]||"")).trim().toLowerCase();
+      if (jenisCb !== "rebate") { skippedNonRebate.push(doc); continue; }
+
+      rowsToUpdate.push(r);
+      processedCount++;
+      successfulDocs.push(doc);
+    }
+
+    if (processedCount > 0) {
+      rowsToUpdate.sort(function(a,b){return a-b;});
+      var blocks = []; var blk = [rowsToUpdate[0]];
+      for (var u = 1; u < rowsToUpdate.length; u++) {
+        if (rowsToUpdate[u] === blk[blk.length-1] + 1) blk.push(rowsToUpdate[u]);
+        else { blocks.push(blk); blk = [rowsToUpdate[u]]; }
+      }
+      blocks.push(blk);
+
+      blocks.forEach(function(block) {
+        var startRow = block[0] + 2;
+        compileSheet.getRange(startRow, COL_COMPILE.STATUS + 1, block.length, 1).setValues(block.map(function(){ return [WORKFLOW_STATUS.DONE]; }));
+        compileSheet.getRange(startRow, COL_COMPILE.TGL_RELEASE + 1, block.length, 1).setValues(block.map(function(){ return ["x"]; }));
+        compileSheet.getRange(startRow, COL_COMPILE.BATCH_RELEASE + 1, block.length, 1).setValues(block.map(function(){ return [safeBatch]; }));
+        compileSheet.getRange(startRow, COL_COMPILE.TGL_CLAIM + 1, block.length, 1).setValues(block.map(function(){ return ["x"]; }));
+        compileSheet.getRange(startRow, COL_COMPILE.BATCH_CLAIM + 1, block.length, 1).setValues(block.map(function(){ return ["x"]; }));
+        compileSheet.getRange(startRow, COL_COMPILE.TGL_CLEARING + 1, block.length, 1).setValues(block.map(function(){ return ["x"]; }));
+        compileSheet.getRange(startRow, COL_COMPILE.BATCH_CLEARING + 1, block.length, 1).setValues(block.map(function(){ return ["x"]; }));
+      });
+    }
+
+    return ok({ message: processedCount + " dokumen berhasil diproses langsung ke Done.",
+                summary: { successCount: processedCount, successfulDocs: successfulDocs, batchNum: safeBatch, skippedNonRebate: skippedNonRebate } });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function handleGetDashboardData(ss, requestData) {
+  var reqId   = requestData.requesterId;
+  var sysRole = normalizeRole(requestData.requesterRole);
+  var managed = requestData.managedDepots || [];
+
+  var dmo     = buildDepoMasterMaps(ss);
+  var compRes = readSheet(ss, SHEET_COMPILE);
+
+  var history = [], compileData = [];
+
+  compRes.data.forEach(function(r) {
+    var noDoc  = String(r[COL_COMPILE.NO_DOC]||"").trim(); if (!noDoc) return;
+    var kd     = String(r[COL_COMPILE.DC_CODE]||"").trim().toUpperCase();
+    var depot  = dmo.nameMap[kd] || normalizeName(String(r[COL_COMPILE.DEPOT_NAME]||""));
+    if (!depot) return;
+
+    var picOsc = dmo.picMap[kd] || "";
+    var allowed= (sysRole==='supervisor'||sysRole==='system manager')
+      || (sysRole==='osc' && (picOsc===reqId || managed.indexOf(kd)!==-1))
+      || managed.indexOf(kd) !== -1;
+    if (!allowed) return;
+
+    var statRaw = String(r[COL_COMPILE.STATUS]||"").trim();
+    var statLow = statRaw.toLowerCase();
+    // RA07/RA7 = rebate yang sudah diproses manual, diperlakukan sebagai "Done" di Analytics.
+    var histStatus = (statRaw === "Done" || statLow === "ra07" || statLow === "ra7") ? "Done"
+      : (statRaw==="Submitted"||statRaw==="Released"||statRaw==="Claimed") ? "Submitted"
+      : statRaw === "On Hold" ? "On Hold"
+      : statRaw === "Expired" ? "Expired"
+      : "Not Yet";
+
+    var year = extractYear(r[COL_COMPILE.TGL_UPLOAD] || r[COL_COMPILE.TGL_RELEASE] || r[COL_COMPILE.TGL_CLAIM] || r[COL_COMPILE.TGL_CLEARING]);
+
+    history.push({
+      noDoc: noDoc, kodeToko: String(r[COL_COMPILE.CUST_CODE]||"").trim(),
+      namaToko: normalizeName(String(r[COL_COMPILE.CUST_NAME]||"")),
+      codeCampaign: String(r[COL_COMPILE.CODE_CAMPAIGN]||"").trim(), campaign: String(r[COL_COMPILE.CAMPAIGN_NAME]||"").trim(),
+      periode: formatDateSafe(r[COL_COMPILE.PERIOD_START]) + " s/d " + formatDateSafe(r[COL_COMPILE.CAMPAIGN_END]),
+      totalClaim: r[COL_COMPILE.CB_NET] || 0, grossUpCb: r[COL_COMPILE.GROSS_UP] || 0, status: histStatus,
+      tglProses: statRaw==="Done" ? formatDateSafe(r[COL_COMPILE.TGL_CLEARING]) : "-",
+      tglUpload:   formatDateSafe(r[COL_COMPILE.TGL_UPLOAD]), tglRelease:  formatDateSafe(r[COL_COMPILE.TGL_RELEASE]),
+      tglClaimFin: formatDateSafe(r[COL_COMPILE.TGL_CLAIM]), tglClearing: formatDateSafe(r[COL_COMPILE.TGL_CLEARING]),
+      batchUpload:   String(r[COL_COMPILE.BATCH_UPLOAD]||""), batchRelease:  String(r[COL_COMPILE.BATCH_RELEASE]||""),
+      batchClaim:    String(r[COL_COMPILE.BATCH_CLAIM]||""), batchClearing: String(r[COL_COMPILE.BATCH_CLEARING]||""),
+      osc: picOsc, depot: depot, kodeDepot: kd,
+      subyekPajak: String(r[COL_COMPILE.SUBYEK_PAJAK]||"").trim(), statusPajak: String(r[COL_COMPILE.STATUS_PAJAK_CAMP]||"").trim(),
+      campaignYear: year
+    });
+
+    compileData.push({
+      depotCode: kd, depotName: depot,
+      codeCampaign: String(r[COL_COMPILE.CODE_CAMPAIGN]||"").trim(), campaign: String(r[COL_COMPILE.CAMPAIGN_NAME]||"").trim(),
+      reward: r[COL_COMPILE.CB_NET] || 0, campaignYear: year
+    });
+  });
+
+  return ok({ history: history, compileData: compileData });
+}
+
+function handleGetManageableData(ss, requestData) {
+  var requesterId = requestData.requesterId;
+  var sysRole     = normalizeRole(requestData.requesterRole);
+
+  var dmo     = buildDepoMasterMaps(ss);
+  var authRes = readSheet(ss, SHEET_AUTHORITY);
+
+  var explicitDepots = [];
+  dmo.data.forEach(function(dm) {
+    var kode = String(dm[1]||"").trim().toUpperCase(); if (!kode) return;
+    var oscArr    = String(dm[10]||"").split(",").map(function(u){return u.trim();});
+    var nonOscArr = String(dm[11]||"").split(",").map(function(u){return u.trim();});
+    if (sysRole==="supervisor"||sysRole==="system manager"
+       ||oscArr.indexOf(requesterId)!==-1||nonOscArr.indexOf(requesterId)!==-1)
+      explicitDepots.push(kode);
+  });
+
+  var managedDepots = resolveManagedDepots(explicitDepots, dmo.subTagsMap);
+  var allDepots = [];
+
+  dmo.data.forEach(function(dm) {
+    var dc = String(dm[1]||"").trim().toUpperCase(); if (!dc) return;
+    if (sysRole==="system manager" || managedDepots.indexOf(dc)!==-1)
+      allDepots.push({ kode: dc, nama: normalizeName(String(dm[2]||"")),
+                       link: String(dm[12]||"").trim() });
+  });
+
+  var manageableUsers = authRes.data
+    .filter(function(a) {
+      var uid = String(a[4]||"").trim();
+      if (uid === requesterId) return false;
+      var uSysRole = normalizeRole(String(a[7]||""));
+      if (sysRole==="system manager") return true;
+      if (sysRole==="supervisor")
+        return uSysRole==="osc"||uSysRole==="non-osc"||uSysRole==="admin";
+      return false;
+    })
+    .map(function(a) {
+      var uid   = String(a[4]||"").trim();
+      var uRole = String(a[7]||"").trim() || "admin";
+      var uSys  = normalizeRole(uRole);
+      var kd    = String(a[2]||"").trim();
+      return {
+        userId: uid, namaLengkap: String(a[1]||""), email: String(a[6]||""),
+        depotName: normalizeName(String(a[3]||"")), kodeDepot: kd,
+        role: uRole, sysRole: uSys,
+        activation: String(a[8]||"denied"),
+        auth: {
+          i: String(a[8] ||"") || "Inactive", j: String(a[9] ||"") || "Hidden",
+          k: String(a[10]||"") || "No",        l: String(a[11]||"") || "No",
+          m: String(a[12]||"") || "No",        n: String(a[13]||"") || "No",
+          p: String(a[15]||"") || "No",        q: String(a[16]||"") || "No",
+          s: String(a[18]||"") || "No"
+        },
+        pinStatus: a[14] ? "pending" : "",
+        assignedOsc:    uSys==="osc"     ? (dmo.oscDepotMap[uid]    || []) : (dmo.oscMap[kd] || ""),
+        assignedDepots: uSys==="non-osc" ? (dmo.nonOscDepotMap[uid] || []) : []
+      };
+    });
+
+  var reqRes  = readSheet(ss, SHEET_REQ_PROFILE);
+  var requests = [];
+  if (sysRole==="supervisor"||sysRole==="system manager") {
+    reqRes.data.forEach(function(r, idx) {
+      if (String(r[6]||"") !== "PENDING") return;
+      var ch = {};
+      try { ch = JSON.parse(r[5]||"{}"); } catch(e){}
+      requests.push({
+        id: idx+2, tglRequest: formatDateSafe(r[0]), role: String(r[1]||""),
+        kodeDepot: String(r[2]||""), namaDepot: String(r[3]||""),
+        requesterId: String(r[4]||""), changes: ch
+      });
+    });
+  }
+
+  return ok({ users: manageableUsers, managedDepots: managedDepots,
+              allDepots: allDepots, profileRequests: requests });
+}
+
+function handleAddAccount(ss, requestData) {
+  var reqData = requestData.data;
+  if (!reqData || !reqData.userId || !reqData.pin) return err("Data akun tidak lengkap.");
+
+  var authRes  = readSheet(ss, SHEET_AUTHORITY);
+  var authSheet= authRes.sheet || ss.getSheetByName(SHEET_AUTHORITY);
+
+  var exists = authRes.data.some(function(a){ return String(a[4]).trim() === String(reqData.userId).trim(); });
+  if (exists) return err("User ID sudah terdaftar! Gunakan ID lain.");
+
+  var dmo       = buildDepoMasterMaps(ss);
+  var dm        = dmo.data;
+  var dmoSheet  = ss.getSheetByName("DepoMaster");
+  var roleCheck = (reqData.role||"").toLowerCase();
+  var isAdmin   = (roleCheck==="admin"||roleCheck==="kepala depot");
+  var isOscNon  = (!isAdmin && roleCheck!=="supervisor" && roleCheck!=="system manager");
+
+  var regAuto = "0", kodeDepotAuto = "0", inputDepotName = reqData.depotName || "Head Office";
+
+  if (isAdmin) {
+    var tIdx = dmo.codeToIdx[reqData.depotCode];
+    if (tIdx === undefined) return err("Kode Depot tidak ditemukan di Master!");
+    regAuto = String(dm[tIdx][0]); kodeDepotAuto = String(dm[tIdx][1]);
+    inputDepotName = dmo.nameMap[kodeDepotAuto];
+
+    var slotCol = -1;
+    for (var col = 7; col <= 9; col++) {
+      if (!String(dm[tIdx][col]||"").trim()) { slotCol = col; break; }
+    }
+    if (slotCol === -1) return err("Gagal: Slot User Admin di depot ini sudah penuh!");
+    dmoSheet.getRange(tIdx + 2, slotCol + 1).setValue(reqData.userId);
+
+    if (reqData.assignOsc) {
+      var curOsc = String(dmoSheet.getRange(tIdx+2, 11).getValue()||"");
+      if (curOsc.indexOf(reqData.assignOsc) === -1)
+        dmoSheet.getRange(tIdx+2, 11).setValue(curOsc ? curOsc+", "+reqData.assignOsc : reqData.assignOsc);
+    }
+  } else if (isOscNon && reqData.assignAdmin) {
+    var targets = reqData.assignAdmin.split(",").map(function(s){return s.trim();});
+    var allFlag = targets.indexOf("ALL_DEPOT")!==-1 || targets.indexOf("ALL")!==-1;
+    var colU    = (roleCheck==="osc") ? 11 : 12;
+
+    var dmWrites = {};
+    dm.forEach(function(row, ri) {
+      var dc = String(row[1]||"").trim(); if (!dc) return;
+      if (!allFlag && targets.indexOf(dc)===-1) return;
+      var cur = String(row[colU-1]||"").trim();
+      if (cur.indexOf(reqData.userId)===-1)
+        dmWrites[ri] = cur ? cur+", "+reqData.userId : reqData.userId;
+    });
+    Object.keys(dmWrites).forEach(function(ri){
+      dmoSheet.getRange(parseInt(ri)+2, colU).setValue(dmWrites[ri]);
+    });
+  }
+
+  var newRow = ["","","","","","","","","Yes","Yes","Yes","Yes","Yes","Hidden","","No","","000"];
+  newRow[0]=regAuto; newRow[1]=reqData.nama; newRow[2]=kodeDepotAuto;
+  newRow[3]=inputDepotName; newRow[4]=reqData.userId; newRow[5]=reqData.pin;
+  newRow[6]=reqData.email||""; newRow[7]=reqData.role; newRow[8]="active";
+  authSheet.appendRow(newRow);
+  invalidateDepoMasterCache();
+  return ok({ message: "Berhasil memproses akun." });
+}
+
+function handleUpdateUserAccess(ss, requestData) {
+  var reqData = requestData.data;
+  if (!reqData || !reqData.targetUserId) return err("targetUserId tidak ada.");
+
+  var authRes  = readSheet(ss, SHEET_AUTHORITY);
+  var authSheet= authRes.sheet;
+  var tRow     = -1;
+
+  for (var u = 0; u < authRes.data.length; u++) {
+    if (String(authRes.data[u][4]).trim() === String(reqData.targetUserId).trim()) { tRow = u; break; }
+  }
+  if (tRow === -1) return err("User tidak ditemukan.");
+
+  var rv = authRes.data[tRow].slice();
+  if (reqData.auth) {
+    if (reqData.auth.i !== undefined) rv[8]  = reqData.auth.i;
+    if (reqData.auth.j !== undefined) rv[9]  = reqData.auth.j;
+    if (reqData.auth.k !== undefined) rv[10] = reqData.auth.k;
+    if (reqData.auth.l !== undefined) rv[11] = reqData.auth.l;
+    if (reqData.auth.m !== undefined) rv[12] = reqData.auth.m;
+    if (reqData.auth.n !== undefined) rv[13] = reqData.auth.n;
+    if (reqData.auth.p !== undefined) rv[15] = reqData.auth.p;
+    if (reqData.auth.s !== undefined) rv[18] = reqData.auth.s;
+  }
+
+  if (reqData.q !== undefined) rv[16] = reqData.q;
+  if (reqData.approvePin && rv[14]) { rv[5] = rv[14]; rv[14] = ""; }
+
+  var sheetRow = tRow + 2;
+  authSheet.getRange(sheetRow, 1, 1, rv.length).setValues([rv]);
+
+  var reqSysRole = normalizeRole(requestData.requesterRole);
+  if (reqSysRole==="supervisor"||reqSysRole==="system manager") {
+    var uRole = String(authRes.data[tRow][7]||"").trim().toLowerCase();
+    var dmo   = buildDepoMasterMaps(ss);
+    var dmoSheet = ss.getSheetByName("DepoMaster");
+
+    if (uRole==="admin" && reqData.assignOsc !== undefined) {
+      var kd2 = String(authRes.data[tRow][2]).trim();
+      var di  = dmo.codeToIdx[kd2];
+      if (di !== undefined) dmoSheet.getRange(di+2, 11).setValue(reqData.assignOsc);
+
+    } else if (uRole!=="admin"&&uRole!=="supervisor"&&uRole!=="system manager"
+               && reqData.assignDepots !== undefined) {
+      var targets = Array.isArray(reqData.assignDepots)
+        ? reqData.assignDepots
+        : String(reqData.assignDepots).split(",").map(function(s){return s.trim();});
+      var allFlag = targets.indexOf("ALL_DEPOT")!==-1||targets.indexOf("ALL")!==-1;
+      var colU    = (uRole==="osc") ? 11 : 12;
+
+      dmo.data.forEach(function(row, ri) {
+        var dc = String(row[1]||"").trim(); if (!dc) return;
+        var cur = String(row[colU-1]||"").trim();
+        var arr = cur ? cur.split(",").map(function(s){return s.trim();}) : [];
+        var idx = arr.indexOf(reqData.targetUserId);
+        var want= allFlag || targets.indexOf(dc)!==-1;
+        if (want && idx===-1)       { arr.push(reqData.targetUserId); dmoSheet.getRange(ri+2,colU).setValue(arr.join(", ")); }
+        else if (!want && idx!==-1) { arr.splice(idx,1); dmoSheet.getRange(ri+2,colU).setValue(arr.join(", ")); }
+      });
+    }
+  }
+  invalidateDepoMasterCache();
+  return ok({ message: "Hak akses matriks berhasil diperbarui." });
+}
+
+function handleRequestPinChange(ss, requestData) {
+  if (!requestData.newPin || String(requestData.newPin).trim()==="")
+    return err("PIN baru tidak boleh kosong.");
+  var authRes  = readSheet(ss, SHEET_AUTHORITY);
+  var authSheet= authRes.sheet;
+  for (var u = 0; u < authRes.data.length; u++) {
+    if (String(authRes.data[u][4]||"").trim() === String(requestData.userId||"").trim()) {
+      authSheet.getRange(u+2, 15).setValue(requestData.newPin);
+      return ok({ message: "Permintaan ganti PIN berhasil." });
+    }
+  }
+  return err("User tidak ditemukan.");
+}
+
+function handleSubmitProfileUpdate(ss, requestData) {
+  var pData = requestData.data;
+  if (!pData) return err("Data profil tidak ada.");
+  var reqSheet = ss.getSheetByName(SHEET_REQ_PROFILE);
+  if (!reqSheet) {
+    reqSheet = ss.insertSheet(SHEET_REQ_PROFILE);
+    reqSheet.appendRow(["Timestamp","Role Requester","Kode Depot","Nama Depot","Requester ID","Payload JSON","Status"]);
+  }
+  reqSheet.appendRow([
+    Utilities.formatDate(new Date(),"Asia/Jakarta","dd-MMM-yyyy HH:mm:ss"),
+    pData.sysRole||"", pData.kodeDepot||"", pData.namaDepot||"",
+    pData.requesterId||"", JSON.stringify(pData.changes||{}), "PENDING"
+  ]);
+  return ok({ message: "Request profil disubmit ke OSC/Manager." });
+}
+
+function handleApproveProfileRequest(ss, requestData) {
+  var rId      = requestData.reqId;
+  var statAct  = String(requestData.status||"").toUpperCase();
+  if (!rId || !statAct) return err("reqId dan status wajib diisi.");
+
+  var reqSheet = ss.getSheetByName(SHEET_REQ_PROFILE);
+  if (!reqSheet) return err("Sheet ReqProfile tidak ditemukan.");
+
+  reqSheet.getRange(rId, 7).setValue(statAct);
+
+  if (statAct === "APPROVED") {
+    var row = reqSheet.getRange(rId, 1, 1, 7).getValues()[0];
+    var targetKode = String(row[2]||"");
+    var changes = {};
+    try { changes = JSON.parse(row[5]||"{}"); } catch(e){}
+
+    if (targetKode) {
+      var dmo = buildDepoMasterMaps(ss);
+      var di  = dmo.codeToIdx[targetKode];
+      if (di !== undefined) {
+        var dmoSheet = ss.getSheetByName("DepoMaster");
+        var dmRow    = dmoSheet.getRange(di+2, 1, 1, dmoSheet.getLastColumn()).getValues()[0];
+        if (changes.kepalaDepot !== undefined) dmRow[3]  = changes.kepalaDepot;
+        if (changes.kepalaAdmin !== undefined) dmRow[4]  = changes.kepalaAdmin;
+        if (changes.alamat      !== undefined) dmRow[12] = changes.alamat;
+        if (changes.sales       !== undefined) dmRow[17] = changes.sales;
+        if (changes.admin       !== undefined) dmRow[18] = changes.admin;
+        if (changes.fg          !== undefined) dmRow[19] = changes.fg;
+        if (changes.pcc         !== undefined) dmRow[20] = changes.pcc;
+        if (changes.teknisi     !== undefined) dmRow[21] = changes.teknisi;
+        if (changes.driver      !== undefined) dmRow[22] = changes.driver;
+        if (changes.lainnya     !== undefined) dmRow[23] = changes.lainnya;
+        dmoSheet.getRange(di+2, 1, 1, dmRow.length).setValues([dmRow]);
+      }
+    }
+  }
+  invalidateDepoMasterCache();
+  return ok({ message: "Profil request telah di-" + statAct });
+}
+
+function perbaikiGrossUpSekarang() {
+  var ss = getSpreadsheet();
+  var sheet = ss.getSheetByName("Compile");
+  if (!sheet) return;
+
+  // Baca data mulai dari baris ke-2 sampai akhir
+  var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+  var grossUpUpdates = [];
+
+  // Fungsi pembersih karakter uang
+  function bersihkanAngka(val) {
+    if (typeof val === 'number') return val;
+    if (!val) return 0;
+    var str = String(val).replace(/[^0-9,-]/g, '');
+    str = str.replace(',', '.');
+    return parseFloat(str) || 0;
+  }
+
+  for (var i = 0; i < data.length; i++) {
+    var row = data[i];
+
+    // MENGGUNAKAN INDEKS DINAMIS DARI KONSTANTA AGAR TIDAK SALAH KOLOM
+    // Pastikan COL_COMPILE.CB_NET Anda sudah sesuai dengan kolom Net Cashback di Sheet
+    var netCB = bersihkanAngka(row[COL_COMPILE.CB_NET]);
+    var statusPajakCamp = row[COL_COMPILE.STATUS_PAJAK_CAMP];
+    var subyekPajak = row[COL_COMPILE.SUBYEK_PAJAK];
+
+    // Hitung Before Tax
+    var newGrossUp = calcGrossUpCB(netCB, subyekPajak, statusPajakCamp);
+    grossUpUpdates.push([newGrossUp]);
+  }
+
+  // Timpa ke Kolom Gross Up sesuai letak kolomnya di konstanta
+  if (grossUpUpdates.length > 0) {
+    sheet.getRange(2, COL_COMPILE.GROSS_UP + 1, grossUpUpdates.length, 1).setValues(grossUpUpdates);
+  }
+
+  Logger.log("Koreksi Selesai! Menggunakan data Net CB dari kolom indeks: " + COL_COMPILE.CB_NET);
+}

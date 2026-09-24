@@ -1,0 +1,19 @@
+<div id="modPeople" class="module-section hidden">
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 md:p-8">
+        <div class="flex flex-wrap justify-between items-center gap-3 border-b border-gray-100 pb-4 mb-5">
+            <div><h2 class="text-2xl font-extrabold text-gray-800"><i class="fas fa-users text-indigo-600 mr-2"></i>People Performance</h2><p id="peopleScope" class="text-sm text-gray-500 mt-1">Handling depot, timetable dan pending claim.</p></div>
+            <button onclick="loadPeoplePerformance()" class="px-4 py-2 border rounded-lg text-sm font-bold"><i class="fas fa-sync-alt text-blue-500 mr-2"></i>Segarkan</button>
+        </div>
+        <div class="flex gap-2 p-1 bg-gray-50 rounded-xl mb-5">
+            <button id="peopleTabOsc" onclick="switchPeopleTab('osc')" class="px-5 py-2 text-sm font-bold rounded-lg">OSC</button>
+            <button id="peopleTabSupervisor" onclick="switchPeopleTab('supervisor')" class="px-5 py-2 text-sm font-bold rounded-lg">Supervisor</button>
+        </div>
+        <div id="peopleKpis" class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5"></div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
+            <div class="border rounded-xl p-4"><h3 class="text-sm font-black text-gray-700 mb-3">Pending Claim per User</h3><div class="relative h-72"><canvas id="peopleClaimChart" role="img" aria-label="Diagram pending claim per user"></canvas></div></div>
+            <div class="border rounded-xl p-4"><h3 class="text-sm font-black text-gray-700 mb-3">Status Timetable — Depot Unik</h3><div class="relative h-72"><canvas id="peopleTimetableChart" role="img" aria-label="Diagram status timetable"></canvas></div></div>
+        </div>
+        <div class="table-container border rounded-xl"><table class="w-full text-left text-xs"><thead class="bg-gray-50"><tr><th class="p-3">User / Relasi</th><th class="p-3">Depot</th><th class="p-3">Timetable</th><th class="p-3">Pending Depot</th><th class="p-3">Pending OSC</th><th class="p-3">Pending Finance</th><th class="p-3">Done</th><th class="p-3">Report</th></tr></thead><tbody id="peopleRows"></tbody></table></div>
+        <p class="text-xs text-gray-400 mt-3">Persentase claim memakai total dokumen dalam yurisdiksi user. Satu depot dapat ditangani beberapa user; ringkasan memakai depot unik.</p>
+    </div>
+</div>

@@ -1,0 +1,252 @@
+{
+  "inspected_at_utc": "2026-09-14 09:29:52 UTC",
+  "project_ref": "vvojshgcduqlugngpzkj",
+  "environment": "PROD",
+  "environment_evidence": "Confirmed by owner in this conversation on 2026-09-14",
+  "project_url": "https://vvojshgcduqlugngpzkj.supabase.co",
+  "mcp_server_name": "supabase",
+  "mcp_configured_url": "https://mcp.supabase.com/mcp?project_ref=vvojshgcduqlugngpzkj",
+  "scope": "Metadata SELECTs and read-only inventory/advisor tools only. No application rows, auth accounts, keys or secrets retrieved. No production writes.",
+  "public_tables": {
+    "tool": "list_tables",
+    "arguments": {
+      "schemas": [
+        "public"
+      ],
+      "verbose": true
+    },
+    "tables": []
+  },
+  "migrations": {
+    "tool": "list_migrations",
+    "migrations": []
+  },
+  "edge_functions": {
+    "tool": "list_edge_functions",
+    "functions": []
+  },
+  "database_metadata": [
+    {
+      "database_name": "postgres",
+      "database_size_bytes": 10431635,
+      "postgres_version": "17.6",
+      "database_timezone": "UTC"
+    }
+  ],
+  "non_platform_relations": [],
+  "security_advisors": {
+    "lints": [
+      {
+        "name": "anon_security_definer_function_executable",
+        "title": "Public Can Execute SECURITY DEFINER Function",
+        "level": "WARN",
+        "facing": "EXTERNAL",
+        "categories": [
+          "SECURITY"
+        ],
+        "description": "Detects `SECURITY DEFINER` functions that are callable without signing in. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if it is not meant to be public.",
+        "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable",
+        "count": 1,
+        "findings": [
+          {
+            "detail": "Function `public.rls_auto_enable()` can be executed by the `anon` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/rls_auto_enable`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
+            "metadata": {
+              "name": "rls_auto_enable",
+              "schema": "public",
+              "language": "plpgsql",
+              "arguments": "",
+              "security_definer": true
+            },
+            "observed_at": "2026-09-14T09:28:47.572Z"
+          }
+        ]
+      },
+      {
+        "name": "authenticated_security_definer_function_executable",
+        "title": "Signed-In Users Can Execute SECURITY DEFINER Function",
+        "level": "WARN",
+        "facing": "EXTERNAL",
+        "categories": [
+          "SECURITY"
+        ],
+        "description": "Detects `SECURITY DEFINER` functions that are callable by signed-in users. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if signed-in users should not call it.",
+        "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable",
+        "count": 1,
+        "findings": [
+          {
+            "detail": "Function `public.rls_auto_enable()` can be executed by the `authenticated` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/rls_auto_enable`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
+            "metadata": {
+              "name": "rls_auto_enable",
+              "schema": "public",
+              "language": "plpgsql",
+              "arguments": "",
+              "security_definer": true
+            },
+            "observed_at": "2026-09-14T09:28:47.572Z"
+          }
+        ]
+      }
+    ]
+  },
+  "performance_advisors": {
+    "lints": []
+  },
+  "public_functions": [
+    {
+      "function_signature": "rls_auto_enable()",
+      "return_type": "event_trigger",
+      "function_kind": "f",
+      "security_definer": true,
+      "owner_role": "postgres",
+      "function_settings": [
+        "search_path=pg_catalog"
+      ],
+      "explicit_acl": "{=X/postgres,postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+      "anon_can_execute": true,
+      "authenticated_can_execute": true,
+      "function_definition": "CREATE OR REPLACE FUNCTION public.rls_auto_enable()\n RETURNS event_trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\nDECLARE\n  cmd record;\nBEGIN\n  FOR cmd IN\n    SELECT *\n    FROM pg_event_trigger_ddl_commands()\n    WHERE command_tag IN ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO')\n      AND object_type IN ('table','partitioned table')\n  LOOP\n     IF cmd.schema_name IS NOT NULL AND cmd.schema_name IN ('public') AND cmd.schema_name NOT IN ('pg_catalog','information_schema') AND cmd.schema_name NOT LIKE 'pg_toast%' AND cmd.schema_name NOT LIKE 'pg_temp%' THEN\n      BEGIN\n        EXECUTE format('alter table if exists %s enable row level security', cmd.object_identity);\n        RAISE LOG 'rls_auto_enable: enabled RLS on %', cmd.object_identity;\n      EXCEPTION\n        WHEN OTHERS THEN\n          RAISE LOG 'rls_auto_enable: failed to enable RLS on %', cmd.object_identity;\n      END;\n     ELSE\n        RAISE LOG 'rls_auto_enable: skip % (either system schema or not in enforced list: %.)', cmd.object_identity, cmd.schema_name;\n     END IF;\n  END LOOP;\nEND;\n$function$\n"
+    }
+  ],
+  "event_triggers": [
+    {
+      "trigger_name": "ensure_rls",
+      "event_name": "ddl_command_end",
+      "enabled_state": "O",
+      "tags": [
+        "CREATE TABLE",
+        "CREATE TABLE AS",
+        "SELECT INTO"
+      ],
+      "function_signature": "rls_auto_enable()"
+    },
+    {
+      "trigger_name": "issue_graphql_placeholder",
+      "event_name": "sql_drop",
+      "enabled_state": "O",
+      "tags": [
+        "DROP EXTENSION"
+      ],
+      "function_signature": "set_graphql_placeholder()"
+    },
+    {
+      "trigger_name": "issue_pg_cron_access",
+      "event_name": "ddl_command_end",
+      "enabled_state": "O",
+      "tags": [
+        "CREATE EXTENSION"
+      ],
+      "function_signature": "grant_pg_cron_access()"
+    },
+    {
+      "trigger_name": "issue_pg_graphql_access",
+      "event_name": "ddl_command_end",
+      "enabled_state": "O",
+      "tags": [
+        "CREATE EXTENSION"
+      ],
+      "function_signature": "grant_pg_graphql_access()"
+    },
+    {
+      "trigger_name": "issue_pg_net_access",
+      "event_name": "ddl_command_end",
+      "enabled_state": "O",
+      "tags": [
+        "CREATE EXTENSION"
+      ],
+      "function_signature": "grant_pg_net_access()"
+    },
+    {
+      "trigger_name": "pgrst_ddl_watch",
+      "event_name": "ddl_command_end",
+      "enabled_state": "O",
+      "tags": null,
+      "function_signature": "pgrst_ddl_watch()"
+    },
+    {
+      "trigger_name": "pgrst_drop_watch",
+      "event_name": "sql_drop",
+      "enabled_state": "O",
+      "tags": null,
+      "function_signature": "pgrst_drop_watch()"
+    }
+  ],
+  "default_privileges": [
+    {
+      "creator_role": "postgres",
+      "scope": "public",
+      "object_type": "S",
+      "default_acl": "{postgres=rwU/postgres,anon=rwU/postgres,authenticated=rwU/postgres,service_role=rwU/postgres}"
+    },
+    {
+      "creator_role": "postgres",
+      "scope": "public",
+      "object_type": "f",
+      "default_acl": "{postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}"
+    },
+    {
+      "creator_role": "postgres",
+      "scope": "public",
+      "object_type": "r",
+      "default_acl": "{postgres=arwdDxtm/postgres,anon=arwdDxtm/postgres,authenticated=arwdDxtm/postgres,service_role=arwdDxtm/postgres}"
+    },
+    {
+      "creator_role": "supabase_admin",
+      "scope": "public",
+      "object_type": "S",
+      "default_acl": "{postgres=rwU/supabase_admin,anon=rwU/supabase_admin,authenticated=rwU/supabase_admin,service_role=rwU/supabase_admin}"
+    },
+    {
+      "creator_role": "supabase_admin",
+      "scope": "public",
+      "object_type": "f",
+      "default_acl": "{postgres=X/supabase_admin,anon=X/supabase_admin,authenticated=X/supabase_admin,service_role=X/supabase_admin}"
+    },
+    {
+      "creator_role": "supabase_admin",
+      "scope": "public",
+      "object_type": "r",
+      "default_acl": "{postgres=arwdDxtm/supabase_admin,anon=arwdDxtm/supabase_admin,authenticated=arwdDxtm/supabase_admin,service_role=arwdDxtm/supabase_admin}"
+    }
+  ],
+  "schema_privileges": [
+    {
+      "schema_name": "public",
+      "explicit_acl": "{pg_database_owner=UC/pg_database_owner,=U/pg_database_owner,postgres=U/pg_database_owner,anon=U/pg_database_owner,authenticated=U/pg_database_owner,service_role=U/pg_database_owner}",
+      "anon_usage": true,
+      "anon_create": false,
+      "authenticated_usage": true,
+      "authenticated_create": false
+    }
+  ],
+  "source_hashes": [
+    {
+      "file": "index (4).html",
+      "sha256": "54b7686d1b94b30ef8a0505c479a82785afaee83d1e75b3125a5491846f5437a"
+    },
+    {
+      "file": "index (5).html",
+      "sha256": "2bc8510a4029a1973191334980efa149443a2e6f9687bab7a834751073980429"
+    },
+    {
+      "file": "ResourceCollection",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "DocumentCenter",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "System-Instruction-Migrasi-Claim-System-ke-Supabase.md",
+      "sha256": "19e75b6942672fb66a1932937d41fc684f508b5fcd92f943098d74d9cfc5236b"
+    }
+  ],
+  "limitations": [
+    "Inventory calls were separate observations, not a transactionally consistent database snapshot or a backup.",
+    "Non-platform relation query excluded named platform schemas; empty result does not assert whole database has no objects or data.",
+    "Metadata access through MCP does not verify app login, browser API access, RLS allow/deny, rollback or business workflows.",
+    "Advisor observed_at timestamps are provider values, not evidence that a fresh full security scan ran.",
+    "The combined schema/default privilege query returned only its last result set; schema privileges were obtained by a separate SELECT.",
+    "No DEV environment, Apps Script backends, sync job, headers or anonymized production samples were available.",
+    "Initial frontend characterization results in phase-0-audit.md were not rerun; source hashes matched."
+  ]
+}

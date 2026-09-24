@@ -1,0 +1,20 @@
+        <!-- ====================================================================
+             DIALOG PERBESAR KARTU - dipakai aplikasi DAN dashboard publik
+             ====================================================================
+             Berkas bersama, bukan salinan: tombol perbesar ada pada setiap kartu diagram di
+             view/parts/report-panes.html, jadi dialognya harus ikut ke mana pun panel itu
+             dipasang. -->
+        <!-- Versi sebelumnya hanya menempelkan kelas CSS pada kartunya di tempat. Cara itu
+             tidak pernah rapi: kartu tetap berada di dalam grid induknya, mewarisi overflow
+             dan stacking context dari wadahnya, dan pada sebagian tata letak justru tidak
+             bergerak sama sekali. Sekarang isinya dipindahkan ke dialog tersendiri seperti
+             modal detail di Analytics, lalu dikembalikan ke tempat asalnya saat ditutup. -->
+        <div id="cardExpandModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[75] p-4">
+            <div class="bg-white rounded-2xl shadow-2xl w-full h-full max-w-[98vw] max-h-[96vh] overflow-hidden flex flex-col">
+                <div class="p-4 border-b border-gray-100 bg-white flex justify-between items-center">
+                    <h3 class="font-black text-gray-800 text-lg tracking-tight" id="cardExpandTitle">-</h3>
+                    <button onclick="rcTutupCardExpand()" class="text-gray-400 hover:text-red-500 bg-gray-50 w-9 h-9 rounded-full"><i class="fas fa-times"></i></button>
+                </div>
+                <div id="cardExpandBody" class="flex-1 overflow-auto p-5 bg-white"></div>
+            </div>
+        </div>

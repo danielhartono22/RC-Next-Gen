@@ -1,0 +1,144 @@
+                <!-- MODULE: CLAIM UPLOAD -->
+                <!-- Satu-satunya daftar Jenis CB yang sah. Dipakai grid Mass Upload maupun
+                     formulir Manual Input; validasinya di JavaScript memakai daftar yang sama. -->
+                <datalist id="rcJenisCbOptions"><option value="Transfer"></option><option value="CN"></option><option value="Rebate"></option><option value="Rebate Manual"></option></datalist>
+                <div id="modUpload" class="module-section">
+                    <div id="uploadModuleTabs" class="flex gap-2 mb-4 bg-white p-2 rounded-xl shadow-sm border border-gray-200 inline-flex">
+                        <button onclick="switchSubTab('upload', 'mass')" id="subnav_mass" class="px-5 py-2 text-sm font-bold rounded-lg bg-blue-100 text-blue-700 transition">Mass Upload</button>
+                        <button onclick="switchSubTab('upload', 'single')" id="subnav_single" class="px-5 py-2 text-sm font-bold rounded-lg text-gray-500 hover:bg-gray-100 transition">Manual Input</button><button onclick="openRcOpenTab()" id="subnav_open" class="px-5 py-2 text-sm font-bold rounded-lg text-gray-500 hover:bg-gray-100 transition">Open</button>
+                    </div>
+
+                    <div id="postingModeBar" class="flex flex-wrap items-center gap-2 mb-4 bg-white p-2 rounded-xl shadow-sm border border-gray-200">
+                        <span class="text-[10px] font-black text-gray-400 uppercase px-2">Tipe Posting</span>
+                        <button type="button" onclick="setPostingMode('claim')" id="modeBtnClaim" class="px-5 py-2 text-sm font-bold rounded-lg bg-green-100 text-green-700 transition">Posting Claim</button>
+                        <button type="button" onclick="setPostingMode('exception')" id="modeBtnException" class="px-5 py-2 text-sm font-bold rounded-lg text-gray-500 hover:bg-gray-100 transition">Posting Exception (On Hold / Expired)</button>
+                        <span id="modeExceptionHint" class="hidden text-[11px] text-orange-600 font-semibold ml-1"><i class="fas fa-info-circle mr-1"></i>Mode ini hanya untuk menahan (On Hold) atau menghanguskan (Expired) dokumen berstatus Not Yet - kelengkapan data klaim tidak diperlukan.</span>
+                        <button type="button" onclick="refreshUploadDocuments()" id="btnRefreshUploadDocs" class="ml-auto bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 text-xs font-bold py-2 px-3 rounded-lg shadow-sm transition" title="Muat ulang data dokumen terbaru dari server"><i class="fas fa-sync-alt mr-1 text-blue-500"></i> Refresh Data</button>
+                    </div>
+
+                    <!-- SUB TAB: MASS UPLOAD -->
+                    <div id="tab_mass" class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 md:p-8 relative">
+                        <div class="flex flex-col md:flex-row justify-between items-center border-b border-gray-100 pb-4 mb-6 gap-4">
+                            <div>
+                                <h2 class="text-xl font-bold text-gray-800"><i class="fas fa-table text-blue-600 mr-2"></i>Mass Upload </h2>
+                            </div>
+                            <div class="flex flex-wrap gap-2 md:gap-3 justify-end items-center">
+                                <span id="rowCountDisplay" class="bg-blue-100 text-blue-800 text-xs font-black px-3 py-1.5 rounded-full shadow-sm">5 / 200 Baris</span>
+                                <button onclick="downloadUploadTemplate()" class="bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 text-xs font-bold py-1.5 px-3 rounded-lg transition shadow-sm"><i class="fas fa-download mr-1"></i> Template</button>
+                                <button onclick="document.getElementById('massUploadFileInput').click()" class="bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-xs font-bold py-1.5 px-3 rounded-lg transition shadow-sm"><i class="fas fa-file-import mr-1"></i> Upload Excel</button>
+                                <input type="file" id="massUploadFileInput" accept=".xlsx,.xls" class="hidden" onchange="handleMassUploadExcelFile(this)">
+                            </div>
+                        </div>
+                        <div class="table-container shadow-sm rounded-lg mb-4 border border-gray-200">
+                            <table class="w-full text-left whitespace-nowrap text-xs excel-table" id="inputGrid">
+                                <thead class="bg-gray-50"><tr id="inputGridHead"></tr></thead>
+                                <tbody id="inputGridBody" class="divide-y divide-gray-200 bg-white"></tbody>
+                            </table>
+                        </div>
+                        <div class="flex flex-col md:flex-row justify-between items-center pt-4 border-t border-gray-100 gap-4">
+                            <div class="flex gap-2"><button onclick="addInputRow()" class="text-sm font-bold text-blue-700 bg-blue-50 px-4 py-2.5 rounded-lg border border-blue-200"><i class="fas fa-plus"></i></button><button onclick="removeInputRow()" class="text-sm font-bold text-red-700 bg-red-50 px-4 py-2.5 rounded-lg border border-red-200"><i class="fas fa-minus"></i></button></div>
+                            <div class="flex gap-3"><button onclick="resetInputGrid()" class="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 font-bold rounded-xl shadow-sm hover:bg-gray-50 transition">Bersihkan</button><button onclick="previewUploadData('mass')" id="btnPreviewUpload" class="px-8 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md active:scale-95 transition"><i class="fas fa-search"></i> Preview Data</button></div>
+                        </div>
+                    </div>
+
+                    <!-- SUB TAB: MANUAL INPUT -->
+                    <div id="tab_single" class="hidden bg-white rounded-xl shadow-sm border border-gray-200 p-6 md:p-8 relative">
+                        <h2 class="text-xl font-bold text-gray-800 mb-6 border-b pb-3"><i class="fas fa-keyboard text-blue-500 mr-2"></i>Manual Input Penagihan</h2>
+                        <form id="singleUploadForm" onsubmit="event.preventDefault(); previewUploadData('single');">
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5">
+                                <div class="md:col-span-2"><label class="block text-xs font-bold text-blue-700 uppercase mb-1">No Document <span id="singleDocStatus" class="ml-2 font-normal text-[10px]"></span></label><input type="text" id="singleNoDoc" required oninput="handleSingleDocInput()" class="w-full px-4 py-2 border-2 rounded-lg border-blue-300 bg-white focus:border-blue-600 font-bold uppercase shadow-sm"></div>
+                                <div class="md:col-span-1 bg-yellow-50 border border-yellow-200 rounded-lg p-3 flex flex-col justify-center items-end shadow-inner"><span class="text-[10px] uppercase font-bold text-yellow-700 mb-0.5">Total Reward Hak Toko</span><span id="singleRewardHighlight" class="text-xl md:text-2xl font-black text-gray-800">-</span></div>
+                            </div>
+                            <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-5 grid grid-cols-2 md:grid-cols-5 gap-4 text-xs">
+                                <div><span class="block text-gray-500 font-bold uppercase mb-1 text-[9px]">Toko</span><span class="font-bold text-gray-800" id="singleToko">-</span></div>
+                                <div><span class="block text-gray-500 font-bold uppercase mb-1 text-[9px]">Campaign</span><span class="font-bold text-gray-800" id="singleCamp">-</span></div>
+                                <div><span class="block text-gray-500 font-bold uppercase mb-1 text-[9px]">Jenis CB</span><span class="font-black text-gray-800" id="singleJenisCb">-</span></div>
+                                <div><span class="block text-gray-500 font-bold uppercase mb-1 text-[9px]">Status Pajak (Camp)</span><span class="font-bold text-gray-800" id="singleStatusPajak">-</span></div>
+                                <div><span class="block text-gray-500 font-bold uppercase mb-1 text-[9px]">Subyek Pajak (Toko)</span><span class="font-bold text-gray-800" id="singleSubyekPajak">-</span></div>
+                            </div>
+                            <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm mb-5">
+                                <h3 class="text-xs font-black text-gray-700 uppercase mb-4 border-b border-gray-100 pb-2">Kelengkapan Administrasi</h3>
+                                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                                    <div><label class="block text-xs font-bold text-gray-700 mb-1">Tgl Lunas <span class="text-red-500">*</span></label><input type="text" id="singleTglLunas" placeholder="DD-MM-YYYY" required class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white shadow-sm"></div>
+                                    <div><label class="block text-xs font-bold text-gray-700 mb-1">No KTP (Auto DB)</label><input type="text" id="singleKtp" readonly class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-100 cursor-not-allowed text-gray-500 font-bold"></div>
+                                    <div><label class="block text-xs font-bold text-gray-700 mb-1">No NPWP (Auto DB)</label><input type="text" id="singleNpwp" readonly class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-100 cursor-not-allowed text-gray-500 font-bold"></div>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                                    <div><label class="block text-xs font-bold text-gray-700 mb-1">No Rekening</label><input type="text" id="singleRek" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white shadow-sm"></div>
+                                    <div class="col-span-2"><label class="block text-xs font-bold text-gray-700 mb-1">Nama Pemilik</label><input type="text" id="singleNamaRek" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white shadow-sm"></div>
+                                    <div><label class="block text-xs font-bold text-gray-700 mb-1">Bank</label><input type="text" id="singleBank" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white shadow-sm"></div>
+                                </div>
+                                <div class="grid grid-cols-2 md:grid-cols-6 gap-4">
+                                    <div class="col-span-2 md:col-span-1"><label class="block text-xs font-bold text-gray-700 mb-1">Actual TOP <span class="text-red-500">*</span></label><input type="number" id="singleTop" required class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white text-center shadow-sm"></div>
+                                    
+                                    
+                                    
+                                    
+                                    <div class="col-span-2 md:col-span-1"><label class="block text-xs font-bold text-gray-700 mb-1">Jenis CB*</label><input type="text" id="singleJenisCbInput" list="rcJenisCbOptions" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-bold uppercase text-emerald-700" placeholder="Auto dari master"><p class="text-[10px] text-gray-400 mt-1">Harus persis: Transfer, CN, Rebate, Rebate Manual.</p></div>
+                                </div>
+                            </div>
+                            <div class="flex justify-end gap-3 pt-2">
+                                <button type="button" onclick="resetSingleForm()" class="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 font-bold rounded-xl shadow-sm hover:bg-gray-50 transition">Reset Kosongkan</button>
+                                <button type="submit" id="btnSinglePreview" disabled class="px-8 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md disabled:bg-gray-400 transition active:scale-95">Preview Validasi</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- PREVIEW SECTION (SHARED) -->
+                    <div id="tab_open" class="hidden">
+                        <div class="flex flex-wrap gap-3 items-center mb-4"><input id="openSearch" placeholder="Cari No Doc, kode atau nama toko" class="flex-1 min-w-[220px] px-4 py-2.5 border border-gray-300 rounded-lg text-sm"><select id="openCampaign" class="min-w-[220px] px-4 py-2.5 border border-gray-300 rounded-lg text-sm"><option value="">-- Semua Campaign --</option></select><button onclick="loadOpenClaims(0)" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-sm"><i class="fas fa-search mr-2"></i>Cari</button></div>
+                        <div class="flex flex-wrap gap-3 items-center mb-4 p-4 bg-blue-50 border border-blue-200 rounded-xl"><span class="text-sm font-bold text-blue-900"><span id="openSelectedCount">0</span> dokumen dipilih</span><button onclick="openToMassUpload()" id="btnOpenToMass" disabled class="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-bold rounded-lg text-sm"><i class="fas fa-arrow-right mr-2"></i>Pindahkan ke Mass Upload</button><button onclick="openToTemplate()" id="btnOpenToTemplate" disabled class="px-5 py-2 bg-white border border-gray-300 hover:bg-gray-50 disabled:opacity-40 text-gray-700 font-bold rounded-lg text-sm"><i class="fas fa-file-excel mr-2 text-green-600"></i>Unduh sebagai Template</button><span class="text-xs text-blue-800">Field yang sudah ada di Customer Master ikut terbawa; Anda hanya melengkapi yang kosong.</span></div>
+                        <!-- Pemilih kolom. Susunan bakunya sama seperti sebelumnya; kolom
+                             tambahan dimatikan lebih dulu supaya tabel tidak langsung penuh
+                             bagi orang yang tidak membutuhkannya. -->
+                        <div class="mb-3 flex flex-wrap items-center gap-2">
+                            <button type="button" onclick="toggleOpenKolomPanel()"
+                                class="px-4 py-2 text-sm font-bold rounded-lg border border-gray-300 bg-white hover:bg-gray-50">
+                                <i class="fas fa-table-columns mr-2 text-blue-600"></i>Pilih Kolom</button>
+                            <span class="text-[11px] text-gray-500" id="openKolomRingkas">-</span>
+                        </div>
+                        <div id="openKolomPanel" class="hidden mb-4 p-4 bg-gray-50 border border-gray-200 rounded-xl">
+                            <div id="openKolomDaftar" class="grid grid-cols-2 md:grid-cols-4 gap-2"></div>
+                            <div class="mt-3 flex gap-2">
+                                <button type="button" onclick="openKolomSemua(true)" class="px-3 py-1.5 text-xs font-bold rounded-lg border border-gray-300 bg-white">Tampilkan semua</button>
+                                <button type="button" onclick="openKolomSemua(false)" class="px-3 py-1.5 text-xs font-bold rounded-lg border border-gray-300 bg-white">Kembali ke baku</button>
+                            </div>
+                        </div>
+                        <div class="overflow-auto border border-gray-200 rounded-xl"><table class="w-full text-sm"><thead class="bg-gray-50 text-gray-600"><tr id="openTableHead"></tr></thead><tbody id="openTableBody"></tbody></table></div>
+                        <div id="openPager" class="mt-4"></div>
+                    </div>
+                    <div id="uploadPreviewContainer" class="hidden bg-white rounded-xl shadow-sm border border-gray-200 p-6 md:p-8 mt-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="font-black text-gray-800 text-lg"><i class="fas fa-check-square mr-2 text-green-500"></i>Pratinjau Data Akhir</h3>
+                            <span class="bg-blue-100 text-blue-800 text-xs font-black px-3 py-1 rounded-full shadow-sm border border-blue-200" id="previewCount">0 Baris Valid</span>
+                        </div>
+                        <div class="table-container shadow-sm rounded-lg mb-5 border border-gray-200">
+                            <table class="w-full text-left whitespace-nowrap text-[10px] excel-table">
+                                <thead class="bg-gray-100">
+                                    <!-- Judul kolom dibangun ulang oleh pasangPreviewHead() mengikuti
+                                         Tipe Posting. Isi di bawah ini adalah keadaan awal mode Claim. -->
+                                    <tr id="uploadPreviewHead">
+                                        <th class="text-center w-12"><input type="checkbox" id="cbUploadAll" onchange="toggleAllUpload(this)" class="w-4 h-4 text-blue-600 rounded" checked></th>
+                                        <th class="text-center">Status</th><th>No Document</th><th>Kode Toko</th><th>Nama Toko</th><th>Kode Campaign</th><th>Nama Campaign</th><th class="text-right text-blue-700">Total Reward</th>
+                                        <th>No Rekening</th><th>Nama Rekening</th><th>Bank</th><th>No KTP</th><th>No NPWP</th><th class="text-center">Subyek Pajak</th><th class="text-center">TOP Setting</th><th class="text-center">TOP Actual</th><th class="text-center">Jenis CB</th><th class="text-center text-green-700">Bln Potong Tagihan</th><th class="text-right text-indigo-700">Total Tagihan</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="uploadPreviewBody" class="divide-y divide-gray-200 bg-white"></tbody>
+                            </table>
+                        </div>
+                        <div id="masterUpdateWarning" class="hidden bg-orange-50 border border-orange-200 p-3 rounded-lg text-xs text-orange-800 mb-6 flex gap-2 shadow-sm">
+                            <i class="fas fa-info-circle mt-0.5 text-orange-500 text-lg"></i>
+                            <p><strong>Peringatan Sistem:</strong> Terdapat perubahan No Rekening / Bank / Nama Pemilik pada baris yang ditandai. Sistem akan <b>memperbarui profil Master Customer</b> secara otomatis jika Anda melanjutkan.</p>
+                        </div>
+                        <div class="flex justify-end gap-3">
+                            <button type="button" onclick="cancelPreview()" class="px-6 py-3 bg-white border-2 border-gray-200 hover:bg-gray-50 text-gray-700 font-bold rounded-xl shadow-sm transition">Batal & Edit Kembali</button>
+                            <div id="claimSubmitGroup" class="flex gap-3">
+                                <button type="button" id="btnSubmitUpload" onclick="submitUploadAction()" disabled class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-xl flex items-center shadow-md disabled:bg-gray-400 transition active:scale-95"><span id="btnSubmitTextUpload">Posting Claim</span><div id="submitLoaderUpload" class="loader hidden ml-3 border-t-white w-5 h-5 border-2"></div></button>
+                            </div>
+                            <div id="exceptionSubmitGroup" class="hidden flex gap-3">
+                                <button type="button" id="btnPostHold" onclick="submitPostingException('hold')" disabled class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-xl flex items-center shadow-md disabled:bg-gray-400 transition active:scale-95"><i class="fas fa-pause-circle mr-2"></i><span>On Hold</span><div id="loaderPostHold" class="loader hidden ml-3 border-t-white w-5 h-5 border-2"></div></button>
+                                <button type="button" id="btnPostExpired" onclick="submitPostingException('expired')" disabled class="bg-gray-800 hover:bg-gray-900 text-white font-bold py-3 px-6 rounded-xl flex items-center shadow-md disabled:bg-gray-400 transition active:scale-95"><i class="fas fa-times-circle mr-2"></i><span>Expired</span><div id="loaderPostExpired" class="loader hidden ml-3 border-t-white w-5 h-5 border-2"></div></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>

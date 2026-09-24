@@ -1,0 +1,15 @@
+{
+  "environment": "isolated-test",
+  "projectRef": "REPLACE_WITH_TEST_REF",
+  "baseUrl": "https://REPLACE_WITH_TEST_REF.supabase.co",
+  "frontendUrl": "https://REPLACE_WITH_STAGING_FRONTEND.vercel.app",
+  "frontendVerified": false,
+  "publishableKey": "REPLACE_WITH_TEST_PUBLIC_KEY",
+  "dummyOnly": true,
+  "claimRows": 1000000,
+  "datasetId": "rc-perf-20260921-v1",
+  "sideEffectsDisabled": false,
+  "timeoutSeconds": 30,
+  "thinkSeconds": 3,
+  "batchSize": 10
+}

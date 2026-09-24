@@ -1,0 +1,10 @@
+import {readFile,writeFile,mkdir} from 'node:fs/promises';
+import sql from './lib-sql.mjs';
+const candidate=process.argv.includes('--candidate');
+const migration=candidate?await readFile('supabase/migrations/20261153010000_user_upload_approval.sql','utf8'):'';
+const base=await readFile('supabase/queries/test_access_registration.sql','utf8');
+const suite=await readFile('supabase/queries/test_user_upload.sql','utf8');
+const rows=await sql("begin; set local timezone='Asia/Jakarta'; set local lock_timeout='5s'; set local statement_timeout='60s';\n"+migration+'\n'+base+'\n'+suite+'\nrollback;');
+await mkdir('.runtime/user-upload',{recursive:true});
+await writeFile('.runtime/user-upload/test-'+(candidate?'candidate':'applied')+'.json',JSON.stringify({testedAt:new Date().toISOString(),candidate,rolledBack:true,rows},null,2));
+console.log(rows.length+' assertions passed; all fixtures rolled back.');

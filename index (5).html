@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Center - Resource Collection</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- ExcelJS, FileSaver, HTML2PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <style>
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f3f4f6; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .img-transparent-bg { mix-blend-mode: multiply; }
+        .tab-content { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
+        /* Area khusus print PDF agar tidak terpotong */
+        .pdf-page { background: white; padding: 24px; color: #1f2937; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // URL Web App Deployment (PENTING: Ganti dengan akhiran /exec milik Anda)
+        const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbw-rsqNe8MaikS82e4_HTUKUxb20ulm-0swtoj1DjebknS1BaEwqCKG8XcMRu0tvrOE/exec";
+
+        const LucideIcon = ({ name, className }) => {
+            if (!window.lucide || !window.lucide.icons[name]) return null;
+            const svgContent = window.lucide.icons[name].toSvg({ class: className });
+            return <span className="inline-flex items-center justify-center" dangerouslySetInnerHTML={{ __html: svgContent }} />;
+        };
+
+        const formatIDRNumber = (num) => {
+            if (num === null || num === undefined || isNaN(num)) return "0";
+            return new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0 }).format(num);
+        };
+
+        const getJenisCbBadge = (type) => {
+            const t = String(type).toUpperCase();
+            if(t.includes('TRANSFER')) return "bg-green-100 text-green-700 border-green-200 border";
+            if(t.includes('REBATE')) return "bg-orange-100 text-orange-700 border-orange-200 border";
+            if(t.includes('CN') || t.includes('CREDIT NOTE')) return "bg-purple-100 text-purple-700 border-purple-200 border";
+            return "bg-blue-100 text-blue-700 border-blue-200 border"; 
+        };
+
+        // ==========================================
+        // COMPONENT 1: PRINT DOCUMENT 
+        // ==========================================
+        const PrintDocModule = () => {
+            const [lookupType, setLookupType] = useState("upload");
+            const [batchInput, setBatchInput] = useState("");
+            const [previewData, setPreviewData] = useState([]);
+            const [error, setError] = useState("");
+            const [isLoading, setIsLoading] = useState(false);
+            const [isGenerating, setIsGenerating] = useState(false);
+            
+            const [currentPage, setCurrentPage] = useState(1);
+            const itemsPerPage = 20; 
+
+            const handleSearch = async (e) => {
+                e.preventDefault();
+                setError("");
+                
+                if (!batchInput.trim()) {
+                    setPreviewData([]);
+                    return;
+                }
+
+                const batchNumbers = batchInput
+                    .split(/[\n,]+/)
+                    .map(b => b.trim())
+                    .filter(b => b.length > 0);
+
+                if (batchNumbers.length === 0) return;
+
+                setIsLoading(true);
+                setPreviewData([]); 
+                setCurrentPage(1);
+
+                try {
+                    const response = await fetch(GAS_WEB_APP_URL, {
+                        method: "POST",
+                        mode: "cors",
+                        headers: { "Content-Type": "text/plain;charset=utf-8" },
+                        body: JSON.stringify({
+                            action: "lookupBatch", 
+                            lookupType: lookupType,
+                            batchNumbers: batchNumbers
+                        })
+                    });
+
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const result = JSON.parse(await response.text());
+                    if (result.success) {
+                        setPreviewData(result.data);
+                    } else {
+                        setError(result.message || "Terjadi kesalahan pada pencarian data.");
+                    }
+                } catch (err) {
+                    setError(err.message || "Gagal terhubung ke server. Pastikan URL Web App sudah benar.");
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            const generateExcel = async () => {
+                const maxLimit = lookupType === "upload" ? 200 : 2000;
+                if (previewData.length === 0 || previewData.length > maxLimit) return;
+                setIsGenerating(true);
+
+                try {
+                    const workbook = new window.ExcelJS.Workbook();
+                    const worksheet = workbook.addWorksheet('Form_01', { views: [{ showGridLines: false }] });
+
+                    worksheet.getCell('A3').value = 'Claim Promo Cashback';
+                    const headers = ['No', 'No Document', 'DC', 'Depot', 'No Campaign', 'Campaign', 'Total Cashback', 'Cust Code', 'Cust Name', 'Jenis Cashback', 'NO KTP', 'NO NPWP', 'Subjek Pajak', 'Status pajak', 'Tgl Lunas', 'Day', 'Approval'];
+                    headers.forEach((h, i) => worksheet.getCell(5, i + 1).value = h);
+
+                    for (let i = 0; i < previewData.length; i++) {
+                        const data = previewData[i];
+                        const rowNum = 7 + i;
+                        worksheet.getCell(`A${rowNum}`).value = i + 1;
+                        worksheet.getCell(`B${rowNum}`).value = data.B || '';
+                        worksheet.getCell(`C${rowNum}`).value = data.E || '';
+                        worksheet.getCell(`D${rowNum}`).value = data.F || '';
+                        worksheet.getCell(`E${rowNum}`).value = data.C || '';
+                        worksheet.getCell(`F${rowNum}`).value = data.D || '';
+                        worksheet.getCell(`G${rowNum}`).value = data.K || '';
+                        worksheet.getCell(`H${rowNum}`).value = data.G || '';
+                        worksheet.getCell(`I${rowNum}`).value = data.H || '';
+                    }
+
+                    const buffer = await workbook.xlsx.writeBuffer();
+                    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                    window.saveAs(blob, `Document_Print_${new Date().getTime()}.xlsx`);
+                    
+                    fetch(GAS_WEB_APP_URL, {
+                        method: "POST", mode: "no-cors",
+                        headers: { "Content-Type": "text/plain;charset=utf-8" },
+                        body: JSON.stringify({ action: "log_print", detailActivity: `User mendownload Print Doc Excel untuk tipe: ${lookupType}` })
+                    });
+                } catch (err) {
+                    alert("Terjadi kesalahan saat membuat file Excel.");
+                } finally {
+                    setIsGenerating(false);
+                }
+            };
+
+            const totalPages = Math.ceil(previewData.length / itemsPerPage);
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const currentData = previewData.slice(startIndex, startIndex + itemsPerPage);
+
+            return (
+                <div className="tab-content">
+                    <div className="p-6 border-b border-gray-200 bg-gray-50/50">
+                        <h2 className="text-lg font-semibold text-gray-800 mb-1">Cari Data Dokumen</h2>
+                        <p className="text-sm text-gray-500 mb-6">Pilih jenis referensi dan masukkan nomor batch untuk menampilkan data.</p>
+                        
+                        <form onSubmit={handleSearch} className="flex flex-col md:flex-row gap-4 items-start">
+                            <div className="w-full md:w-1/4">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Jenis Referensi</label>
+                                <select value={lookupType} onChange={(e) => setLookupType(e.target.value)} className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500">
+                                    <option value="upload">Batch Upload (Max 200)</option>
+                                    <option value="claim">Batch Claim (Max 2000)</option>
+                                </select>
+                            </div>
+                            <div className="w-full md:w-2/4">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Nomor Batch</label>
+                                <textarea value={batchInput} onChange={(e) => setBatchInput(e.target.value)} placeholder="Contoh: 1220705260002" className="w-full p-3 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 h-11 transition-all focus:h-24"></textarea>
+                            </div>
+                            <div className="w-full md:w-1/4 pt-6">
+                                <button type="submit" disabled={isLoading} className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white py-2.5 px-4 rounded-lg font-medium transition-colors disabled:opacity-70">
+                                    {isLoading ? <LucideIcon name="loader" className="w-4 h-4 animate-spin" /> : <LucideIcon name="search" className="w-4 h-4" />}
+                                    {isLoading ? "Mencari..." : "Tampilkan Data"}
+                                </button>
+                            </div>
+                        </form>
+                        {error && <p className="mt-4 text-sm text-red-600 font-medium bg-red-50 p-3 rounded-lg border border-red-100">{error}</p>}
+                    </div>
+
+                    {previewData.length > 0 && (
+                        <div className="p-0">
+                            <div className="p-4 bg-white border-b border-gray-200 flex justify-between items-center">
+                                <div><h3 className="font-semibold text-gray-800">Preview Data</h3><p className="text-sm text-gray-500">Total: <span className="font-bold text-red-600">{previewData.length}</span></p></div>
+                                <button onClick={generateExcel} disabled={isGenerating} className="flex items-center gap-2 bg-red-600 hover:bg-red-700 transition-colors text-white py-2 px-6 rounded-lg disabled:opacity-70 font-medium">
+                                    <LucideIcon name="download" className="w-4 h-4" /> {isGenerating ? 'Proses...' : 'Download Print Doc'}
+                                </button>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-sm text-gray-600">
+                                    <thead className="bg-gray-50 text-xs uppercase font-semibold text-gray-700">
+                                        <tr>
+                                            <th className="px-4 py-3">No</th>
+                                            <th className="px-4 py-3">No Document</th>
+                                            <th className="px-4 py-3">Depot</th>
+                                            <th className="px-4 py-3">Cust Name</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                        {currentData.map((row, index) => (
+                                            <tr key={index} className="hover:bg-red-50/50">
+                                                <td className="px-4 py-3 text-gray-500">{startIndex + index + 1}</td>
+                                                <td className="px-4 py-3 font-medium">{row.B}</td>
+                                                <td className="px-4 py-3">{row.F}</td>
+                                                <td className="px-4 py-3">{row.H}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                            
+                            {previewData.length > itemsPerPage && (
+                                <div className="p-4 bg-gray-50 flex justify-between items-center text-sm border-t border-gray-200">
+                                    <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-4 py-2 border border-gray-300 rounded font-medium bg-white hover:bg-gray-100 disabled:opacity-50">Prev</button>
+                                    <span className="font-medium text-gray-600">Hal {currentPage} / {totalPages}</span>
+                                    <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-4 py-2 border border-gray-300 rounded font-medium bg-white hover:bg-gray-100 disabled:opacity-50">Next</button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // ==========================================
+        // COMPONENT 2: COMPILE CASHBACK 
+        // ==========================================
+        const CompileCashbackModule = () => {
+            const [previewData, setPreviewData] = useState([]);
+            const [isLoading, setIsLoading] = useState(false);
+            const [error, setError] = useState("");
+            const fileInputRef = useRef(null);
+
+            const [currentPage, setCurrentPage] = useState(1);
+            const itemsPerPage = 20;
+
+            const [showLogin, setShowLogin] = useState(false);
+            const [username, setUsername] = useState("");
+            const [password, setPassword] = useState("");
+            const [isLoggingIn, setIsLoggingIn] = useState(false);
+            const [loginError, setLoginError] = useState("");
+            const [loggedInName, setLoggedInName] = useState("");
+
+            const [showConfirm, setShowConfirm] = useState(false);
+            const [isSubmitting, setIsSubmitting] = useState(false);
+
+            const [showSummary, setShowSummary] = useState(false);
+            const [summaryData, setSummaryData] = useState([]);
+            const [rejectedData, setRejectedData] = useState([]);
+
+            const downloadTemplate = async () => {
+                const workbook = new window.ExcelJS.Workbook();
+                const worksheet = workbook.addWorksheet('Template');
+                
+                worksheet.columns = [
+                    { header: 'Kode Campaign', key: 'kode', width: 15 },
+                    { header: 'DC', key: 'dc', width: 10 },
+                    { header: 'Cust Code', key: 'custCode', width: 15 },
+                    { header: 'Cust Name', key: 'custName', width: 25 },
+                    { header: 'Net Value', key: 'netValue', width: 15 },
+                    { header: 'Total', key: 'total', width: 15 },
+                    { header: 'Jenis CB', key: 'jenisCb', width: 15 },
+                    { header: 'Before Tax Val', key: 'beforeTaxVal', width: 18 } 
+                ];
+                
+                worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+                worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDC2626' } };
+
+                const buffer = await workbook.xlsx.writeBuffer();
+                const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                window.saveAs(blob, `Template_Compile_Cashback.xlsx`);
+            };
+
+            const handleFileUpload = async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                setError("");
+                setIsLoading(true);
+                setPreviewData([]);
+                setCurrentPage(1);
+
+                try {
+                    const buffer = await file.arrayBuffer();
+                    const workbook = new window.ExcelJS.Workbook();
+                    await workbook.xlsx.load(buffer);
+                    
+                    let targetWorksheet = null;
+                    workbook.eachSheet((sheet) => {
+                        if (sheet.name.trim().toLowerCase() === 'upload_cb') {
+                            targetWorksheet = sheet;
+                        }
+                    });
+
+                    if (!targetWorksheet) {
+                        throw new Error("Sheet 'Upload_CB' tidak ditemukan. Pastikan Anda mengupload form dari sheet yang benar.");
+                    }
+                    
+                    // =========================================================================
+                    // HELPER UNTUK MENGATASI ISU [object Object] (Rich Text / Formula)
+                    // =========================================================================
+                    const getSafeString = (cell) => {
+                        if (!cell || cell.value === null || cell.value === undefined) return "";
+                        const val = cell.value;
+                        if (typeof val === 'object') {
+                            if (val.result !== undefined) return String(val.result);
+                            if (val.richText) return val.richText.map(rt => rt.text).join('');
+                            if (val.text) return String(val.text);
+                            if (val instanceof Date) return val.toISOString();
+                        }
+                        return String(val);
+                    };
+
+                    const getSafeNumber = (cell) => {
+                        const strVal = getSafeString(cell);
+                        const parsed = parseFloat(strVal);
+                        return isNaN(parsed) ? 0 : parsed;
+                    };
+                    // =========================================================================
+
+                    const extractedData = [];
+                    targetWorksheet.eachRow((row, rowNumber) => {
+                        if (rowNumber > 1) {
+                            extractedData.push({
+                                kodeCampaign: getSafeString(row.getCell(1)).trim(),
+                                dc: getSafeString(row.getCell(2)).trim(),
+                                custCode: getSafeString(row.getCell(3)).trim(),
+                                custName: getSafeString(row.getCell(4)).trim(),
+                                netValue: getSafeNumber(row.getCell(5)),
+                                total: getSafeNumber(row.getCell(6)),
+                                jenisCb: getSafeString(row.getCell(7)).trim(),
+                                beforeTaxVal: getSafeNumber(row.getCell(8)) 
+                            });
+                        }
+                    });
+
+                    if (extractedData.length === 0) throw new Error("File Excel (Sheet Upload_CB) kosong.");
+
+                    const response = await fetch(GAS_WEB_APP_URL, {
+                        method: "POST", mode: "cors",
+                        headers: { "Content-Type": "text/plain;charset=utf-8" },
+                        body: JSON.stringify({ action: "previewCashback", data: extractedData })
+                    });
+
+                    let result = JSON.parse(await response.text());
+                    if (result.success) setPreviewData(result.data);
+                    else throw new Error(result.message);
+                } catch (err) {
+                    setError("Gagal memproses file: " + err.message);
+                } finally {
+                    setIsLoading(false);
+                    if(fileInputRef.current) fileInputRef.current.value = "";
+                }
+            };
+
+            const initiateSubmit = () => {
+                if(previewData.length === 0) return;
+                const cachedSession = sessionStorage.getItem('cashback_auth_session');
+                
+                if (cachedSession) {
+                    setLoggedInName(JSON.parse(cachedSession).name);
+                    setShowConfirm(true);
+                } else {
+                    setUsername(""); setPassword(""); setLoginError("");
+                    setShowLogin(true);
+                }
+            };
+
+            const handleLogin = async (e) => {
+                e.preventDefault();
+                setIsLoggingIn(true);
+                setLoginError("");
+
+                try {
+                    const response = await fetch(GAS_WEB_APP_URL, {
+                        method: "POST", mode: "cors",
+                        headers: { "Content-Type": "text/plain;charset=utf-8" },
+                        body: JSON.stringify({ action: "login", username, password })
+                    });
+                    const result = JSON.parse(await response.text());
+                    if (result.success) {
+                        sessionStorage.setItem('cashback_auth_session', JSON.stringify({ name: result.name }));
+                        setLoggedInName(result.name);
+                        setShowLogin(false);
+                        setShowConfirm(true); 
+                    } else {
+                        setLoginError(result.message);
+                    }
+                } catch (err) {
+                    setLoginError("Koneksi gagal. Silakan coba lagi.");
+                } finally {
+                    setIsLoggingIn(false);
+                }
+            };
+
+            const executeSubmit = async () => {
+                setIsSubmitting(true);
+                setShowConfirm(false);
+                setError("");
+                
+                try {
+                    const response = await fetch(GAS_WEB_APP_URL, {
+                        method: "POST", mode: "cors",
+                        headers: { "Content-Type": "text/plain;charset=utf-8" },
+                        body: JSON.stringify({ 
+                            action: "submitCashback", 
+                            data: previewData,
+                            username: loggedInName 
+                        })
+                    });
+
+                    const result = JSON.parse(await response.text());
+                    if (result.success) {
+                        setSummaryData(result.summary);
+                        setRejectedData(result.rejected);
+                        setShowSummary(true); 
+                        setPreviewData([]); 
+                    } else {
+                        throw new Error(result.message);
+                    }
+                } catch (err) {
+                    setError("Gagal menyimpan data: " + err.message);
+                } finally {
+                    setIsSubmitting(false);
+                }
+            };
+
+            const downloadPDF = () => {
+                const element = document.getElementById('summary-pdf-content');
+                const opt = {
+                    margin:       0.3,
+                    filename:     `Summary_Upload_${new Date().getTime()}.pdf`,
+                    image:        { type: 'jpeg', quality: 0.98 },
+                    html2canvas:  { scale: 2, useCORS: true }, 
+                    jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' },
+                    pagebreak:    { mode: 'avoid-all', before: '.page-break' }
+                };
+                html2pdf().set(opt).from(element).save();
+            };
+
+            const totalPages = Math.ceil(previewData.length / itemsPerPage);
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const currentData = previewData.slice(startIndex, startIndex + itemsPerPage);
+
+            return (
+                <div className="tab-content relative">
+                    
+                    {/* ================= MODALS SECTION ================= */}
+                    
+                    {/* Login Modal */}
+                    {showLogin && (
+                        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+                            <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-[fadeIn_0.2s_ease]">
+                                <div className="bg-red-600 p-4 text-white font-semibold flex justify-between items-center">
+                                    <span>Otorisasi Dibutuhkan</span>
+                                    <button 
+                                        onClick={() => !isLoggingIn && setShowLogin(false)} 
+                                        disabled={isLoggingIn}
+                                        className="hover:bg-red-700 p-1 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                                        <LucideIcon name="x" className="w-4 h-4"/>
+                                    </button>
+                                </div>
+                                <form onSubmit={handleLogin} className="p-6">
+                                    {loginError && <div className="mb-4 text-sm text-red-600 bg-red-50 p-3 rounded-lg border border-red-100 font-medium">{loginError}</div>}
+                                    <div className="mb-4">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                                        <input type="text" required value={username} onChange={e=>setUsername(e.target.value)} 
+                                            disabled={isLoggingIn}
+                                            className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-none disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"/>
+                                    </div>
+                                    <div className="mb-6">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                                        <input type="password" required value={password} onChange={e=>setPassword(e.target.value)} 
+                                            disabled={isLoggingIn}
+                                            className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-none disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"/>
+                                    </div>
+                                    <button type="submit" disabled={isLoggingIn} className="w-full bg-red-600 text-white font-medium py-2.5 rounded-lg flex justify-center items-center gap-2 hover:bg-red-700 disabled:opacity-80 disabled:cursor-wait transition-all shadow-sm">
+                                        {isLoggingIn ? <LucideIcon name="loader" className="w-4 h-4 animate-spin"/> : <LucideIcon name="log-in" className="w-4 h-4"/>}
+                                        {isLoggingIn ? "Memverifikasi..." : "Login & Lanjutkan"}
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Confirm Modal */}
+                    {showConfirm && (
+                        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+                            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-[fadeIn_0.2s_ease]">
+                                <div className="p-6">
+                                    <div className="flex items-center gap-3 mb-4 text-orange-600">
+                                        <LucideIcon name="alert-triangle" className="w-6 h-6" />
+                                        <h3 className="font-bold text-lg text-gray-900">Konfirmasi Upload</h3>
+                                    </div>
+                                    <div className="bg-gray-50 p-5 rounded-lg border border-gray-200 text-sm text-gray-700 leading-relaxed text-justify mb-6 shadow-inner">
+                                        "Saya <span className="font-bold text-red-600">[{loggedInName}]</span> mengonfirmasi bahwa data cashback yang saya unggah telah saya periksa dan dipastikan benar. Saya memahami bahwa pengiriman data ini akan tercatat atas nama user saya, dan saya bertanggung jawab penuh atas keakuratan serta kebenaran data yang disampaikan."
+                                    </div>
+                                    <div className="flex justify-end gap-3">
+                                        <button onClick={() => setShowConfirm(false)} className="px-5 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 font-medium transition-colors">Batal</button>
+                                        <button onClick={executeSubmit} className="px-5 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium flex items-center gap-2 transition-colors shadow-sm">
+                                            <LucideIcon name="check-square" className="w-4 h-4"/> Saya Mengonfirmasi
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Loading Submit Overlay */}
+                    {isSubmitting && (
+                        <div className="fixed inset-0 bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center z-50">
+                            <LucideIcon name="loader" className="w-12 h-12 text-red-600 animate-spin mb-4" />
+                            <h3 className="text-xl font-bold text-gray-800">Menyimpan Data...</h3>
+                            <p className="text-sm text-gray-500 font-medium mt-1">Mengecek duplikasi dan menulis ke Spreadsheet</p>
+                        </div>
+                    )}
+
+                    {/* Summary Modal (PDF FIX) */}
+                    {showSummary && (
+                        <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-50 p-4">
+                            <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[90vh] overflow-hidden animate-[fadeIn_0.2s_ease]">
+                                
+                                <div className="bg-green-600 p-4 text-white font-semibold flex justify-between items-center shrink-0">
+                                    <span className="flex items-center gap-2"><LucideIcon name="check-circle" className="w-5 h-5"/> Upload Selesai</span>
+                                    <button onClick={() => setShowSummary(false)} className="hover:bg-green-700 p-1 rounded transition-colors"><LucideIcon name="x" className="w-5 h-5"/></button>
+                                </div>
+                                
+                                <div className="overflow-y-auto flex-1 bg-gray-100">
+                                    <div className="w-full flex justify-center py-6 px-4">
+                                        <div id="summary-pdf-content" className="pdf-page w-full max-w-2xl shadow-sm border border-gray-200">
+                                            <div className="text-center mb-8 border-b pb-4">
+                                                <h2 className="text-2xl font-bold text-gray-900 mb-1">Summary Compile Cashback</h2>
+                                                <p className="text-sm text-gray-500">Diupload oleh: <span className="font-bold text-gray-800">{loggedInName}</span> | {new Date().toLocaleDateString('id-ID', {day:'2-digit', month:'short', year:'numeric'})}</p>
+                                            </div>
+
+                                            <div className="mb-6">
+                                                <h3 className="font-bold text-green-700 border-l-4 border-green-600 pl-3 mb-4 text-sm uppercase tracking-wider">Data Berhasil Masuk</h3>
+                                                {summaryData.length > 0 ? (
+                                                    <div className="grid gap-3">
+                                                        {summaryData.map((item, idx) => (
+                                                            <div key={idx} className="bg-white border border-gray-200 p-4 rounded-lg flex justify-between items-center shadow-sm">
+                                                                <div>
+                                                                    <p className="font-bold text-gray-900 text-base">{item.namaDepot}</p>
+                                                                    <p className="text-sm text-gray-500 mt-0.5">{item.namaCampaign}</p>
+                                                                </div>
+                                                                <div className="text-right">
+                                                                    <p className="font-bold text-gray-900 font-mono text-lg">{formatIDRNumber(item.totalReward)}</p>
+                                                                    <p className="text-xs font-semibold bg-gray-100 text-gray-600 py-0.5 px-2 rounded-full inline-block mt-1">{item.qtyToko} Toko</p>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-sm text-gray-500 mb-6 italic bg-gray-50 p-4 rounded text-center">Tidak ada data baru yang masuk (semua terdeteksi duplikat).</p>
+                                                )}
+                                            </div>
+
+                                            {rejectedData.length > 0 && (
+                                                <div className="mt-8 page-break">
+                                                    <h3 className="font-bold text-red-600 border-l-4 border-red-600 pl-3 mb-4 text-sm uppercase tracking-wider">Data Ditolak (Duplikat)</h3>
+                                                    <div className="bg-white border border-red-100 rounded-lg overflow-hidden shadow-sm">
+                                                        <table className="w-full text-left text-sm text-gray-700">
+                                                            <thead className="bg-red-50 text-red-800 text-xs uppercase">
+                                                                <tr>
+                                                                    <th className="py-3 px-4 font-semibold">Cust Code</th>
+                                                                    <th className="py-3 px-4 font-semibold">Nama Cust</th>
+                                                                    <th className="py-3 px-4 font-semibold">Campaign</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-gray-100">
+                                                                {rejectedData.map((row, idx) => (
+                                                                    <tr key={idx} className="hover:bg-gray-50">
+                                                                        <td className="py-2.5 px-4 font-mono text-xs">{row.custCode}</td>
+                                                                        <td className="py-2.5 px-4 font-medium">{row.custName}</td>
+                                                                        <td className="py-2.5 px-4 text-xs text-gray-500">{row.namaCampaign}</td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div className="p-4 bg-white border-t border-gray-200 flex justify-end gap-3 shrink-0">
+                                    <button onClick={() => setShowSummary(false)} className="px-5 py-2 border border-gray-300 rounded-lg font-medium text-gray-600 hover:bg-gray-50 transition-colors">Tutup</button>
+                                    <button onClick={downloadPDF} className="px-5 py-2 bg-blue-600 text-white rounded-lg font-medium flex items-center gap-2 hover:bg-blue-700 shadow-sm transition-colors">
+                                        <LucideIcon name="file-text" className="w-4 h-4"/> Export PDF
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ================= MAIN CONTENT SECTION ================= */}
+
+                    <div className="p-6 border-b border-gray-200 bg-gray-50/50">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                            <div>
+                                <h2 className="text-lg font-semibold text-gray-800 mb-1">Upload Data Cashback</h2>
+                                <p className="text-sm text-gray-500">Sistem akan secara spesifik membaca sheet <strong>Upload_CB</strong> pada form yang diunggah.</p>
+                            </div>
+                            <button onClick={downloadTemplate} className="flex items-center gap-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 py-2 px-4 rounded-lg font-medium shadow-sm transition-colors text-sm">
+                                <LucideIcon name="download-cloud" className="w-4 h-4" /> Download Template
+                            </button>
+                        </div>
+                        
+                        <div className="flex items-center justify-center w-full">
+                            <label htmlFor="dropzone-file" className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer bg-white border-gray-300 hover:border-red-500 hover:bg-red-50/30 transition-all">
+                                <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                    {isLoading ? (
+                                        <LucideIcon name="loader" className="w-8 h-8 text-red-500 mb-3 animate-spin" />
+                                    ) : (
+                                        <LucideIcon name="upload-cloud" className="w-8 h-8 text-gray-400 mb-3" />
+                                    )}
+                                    <p className="mb-2 text-sm text-gray-600 font-semibold">{isLoading ? 'Membaca & Mencari Data...' : 'Klik atau seret file ke sini untuk upload'}</p>
+                                    <p className="text-xs text-gray-400">Format XLSX (Pastikan sheet Upload_CB ada)</p>
+                                </div>
+                                <input id="dropzone-file" type="file" accept=".xlsx" className="hidden" onChange={handleFileUpload} ref={fileInputRef} disabled={isLoading} />
+                            </label>
+                        </div>
+
+                        {error && <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 font-medium flex items-center gap-2"><LucideIcon name="alert-circle" className="w-4 h-4" /> {error}</div>}
+                    </div>
+
+                    {previewData.length > 0 && (
+                        <div className="p-0 animate-[fadeIn_0.3s_ease]">
+                            <div className="p-4 bg-white border-b border-gray-200 flex justify-between items-center">
+                                <div>
+                                    <h3 className="font-semibold text-gray-800">Preview Data Compile</h3>
+                                    <p className="text-sm text-gray-500">Ditemukan <span className="font-bold text-red-600">{previewData.length}</span> baris data tervalidasi.</p>
+                                </div>
+                                <button onClick={initiateSubmit} className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white py-2.5 px-6 rounded-lg font-medium transition-colors shadow-sm">
+                                    <LucideIcon name="send" className="w-4 h-4" /> Submit ke Spreadsheet
+                                </button>
+                            </div>
+                            
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-sm text-gray-600 whitespace-nowrap">
+                                    <thead className="bg-gray-50 border-b border-gray-200 text-xs uppercase font-semibold text-gray-700">
+                                        <tr>
+                                            <th className="px-4 py-3 text-center">No</th>
+                                            <th className="px-4 py-3">Cust Code</th>
+                                            <th className="px-4 py-3">Nama Cust</th>
+                                            <th className="px-4 py-3">Nama Campaign</th>
+                                            <th className="px-4 py-3 text-right">Bef Tax Val</th>
+                                            <th className="px-4 py-3 text-right">Total (CB)</th>
+                                            <th className="px-4 py-3 text-center">Jenis CB</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                        {currentData.map((row, index) => (
+                                            <tr key={index} className="hover:bg-gray-50 transition-colors">
+                                                <td className="px-4 py-3 text-center text-gray-500">{startIndex + index + 1}</td>
+                                                <td className="px-4 py-3 font-mono">{row.custCode}</td>
+                                                <td className="px-4 py-3 font-medium text-gray-900">{row.custName}</td>
+                                                <td className="px-4 py-3">
+                                                    {row.namaCampaign === "CAMPAIGN TIDAK DITEMUKAN" ? 
+                                                        <span className="text-red-500 font-medium text-xs bg-red-50 border border-red-100 px-2.5 py-1 rounded-full">{row.namaCampaign}</span> : 
+                                                        row.namaCampaign}
+                                                </td>
+                                                <td className="px-4 py-3 text-right font-mono text-gray-500 font-medium">{formatIDRNumber(row.beforeTaxVal)}</td>
+                                                <td className="px-4 py-3 text-right font-mono text-gray-800 font-bold">{formatIDRNumber(row.total)}</td>
+                                                <td className="px-4 py-3 text-center">
+                                                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getJenisCbBadge(row.jenisCb)}`}>
+                                                        {row.jenisCb || "-"}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Pagination Component */}
+                            {previewData.length > itemsPerPage && (
+                                <div className="bg-gray-50 px-4 py-3 border-t border-gray-200 flex items-center justify-between sm:px-6">
+                                    <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                                        <p className="text-sm text-gray-700">Menampilkan <span className="font-medium">{startIndex + 1}</span> hingga <span className="font-medium">{Math.min(startIndex + itemsPerPage, previewData.length)}</span> dari <span className="font-medium">{previewData.length}</span> data</p>
+                                        <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
+                                            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="relative inline-flex items-center px-4 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400">Prev</button>
+                                            <span className="relative inline-flex items-center px-4 py-2 border-t border-b border-gray-300 bg-white text-sm font-medium text-gray-800">Hal {currentPage} / {totalPages}</span>
+                                            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="relative inline-flex items-center px-4 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400">Next</button>
+                                        </nav>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // ==========================================
+        // MAIN APP
+        // ==========================================
+        const App = () => {
+            const [activeTab, setActiveTab] = useState('compile'); 
+            const [logoFailed, setLogoFailed] = useState(false); 
+
+            return (
+                <div className="min-h-screen flex flex-col">
+                    <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10">
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                            <div className="flex justify-between h-16 items-center">
+                                <div className="flex items-center gap-3">
+                                    <div className="flex items-center justify-center w-10 h-10">
+                                        {!logoFailed ? (
+                                            <img src="logo.png" alt="Logo" className="h-8 w-auto object-contain img-transparent-bg" onError={() => setLogoFailed(true)} />
+                                        ) : (
+                                            <LucideIcon name="layers" className="w-6 h-6 text-red-600" />
+                                        )}
+                                    </div>
+                                    <div>
+                                        <h1 className="text-xl font-bold text-gray-900 leading-tight">Document Center</h1>
+                                        <p className="text-xs text-gray-500 font-medium tracking-wide uppercase">Multi-Module Platform</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 bg-gray-50/30">
+                            <div className="flex space-x-6 border-b border-gray-200">
+                                <button 
+                                    onClick={() => setActiveTab('print')} 
+                                    className={`py-3 px-1 text-sm font-medium border-b-2 transition-colors ${activeTab === 'print' ? 'border-red-600 text-red-600' : 'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300'}`}>
+                                    <div className="flex items-center gap-2"><LucideIcon name="printer" className="w-4 h-4"/> Print Document</div>
+                                </button>
+                                <button 
+                                    onClick={() => setActiveTab('compile')} 
+                                    className={`py-3 px-1 text-sm font-medium border-b-2 transition-colors ${activeTab === 'compile' ? 'border-red-600 text-red-600' : 'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300'}`}>
+                                    <div className="flex items-center gap-2"><LucideIcon name="database" className="w-4 h-4"/> Compile Cashback</div>
+                                </button>
+                            </div>
+                        </div>
+                    </header>
+
+                    <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full relative z-0">
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden relative min-h-[400px]">
+                            {activeTab === 'print' ? <PrintDocModule /> : <CompileCashbackModule />}
+                        </div>
+                    </main>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

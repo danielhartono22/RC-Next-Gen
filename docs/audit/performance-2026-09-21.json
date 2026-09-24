@@ -1,0 +1,315 @@
+{
+  "recordedAt": "2026-09-20T17:23:42.459Z",
+  "status": "BLOCKED_NO_STAGING",
+  "productionLoadRequests": 0,
+  "databaseRowsInserted": 0,
+  "applicationPerformanceMeasured": false,
+  "stagingConfirmedAbsentByOwner": true,
+  "discoveredProjects": [
+    {
+      "ref": "vvojshgcduqlugngpzkj",
+      "name": "rc-next-gen-dev",
+      "region": "ap-southeast-1",
+      "eligibleForTest": false
+    }
+  ],
+  "dataset": {
+    "dataset_id": "rc-perf-20260921-v1",
+    "kind": "OFFLINE_DUMMY_CSV_NOT_DATABASE",
+    "seed": 20260921,
+    "claim_rows": 1000000,
+    "depot_rows": 100,
+    "campaign_rows": 1000,
+    "customer_rows": 100000,
+    "status_distribution": {
+      "claimed": 99999,
+      "not_yet": 299998,
+      "done": 250001,
+      "released": 150001,
+      "submitted": 150002,
+      "on_hold": 29996,
+      "expired": 20003
+    },
+    "depot_distribution": {
+      "1": 99990,
+      "2": 41410,
+      "3": 31800,
+      "4": 26780,
+      "5": 23620,
+      "6": 21340,
+      "7": 19640,
+      "8": 18260,
+      "9": 17140,
+      "10": 16240,
+      "11": 15450,
+      "12": 14730,
+      "13": 14140,
+      "14": 13620,
+      "15": 13130,
+      "16": 12700,
+      "17": 12310,
+      "18": 11970,
+      "19": 11600,
+      "20": 11330,
+      "21": 11050,
+      "22": 10780,
+      "23": 10550,
+      "24": 10310,
+      "25": 10100,
+      "26": 9910,
+      "27": 9720,
+      "28": 9520,
+      "29": 9360,
+      "30": 9220,
+      "31": 9050,
+      "32": 8900,
+      "33": 8790,
+      "34": 8630,
+      "35": 8520,
+      "36": 8380,
+      "37": 8270,
+      "38": 8170,
+      "39": 8070,
+      "40": 7960,
+      "41": 7850,
+      "42": 7750,
+      "43": 7680,
+      "44": 7580,
+      "45": 7500,
+      "46": 7410,
+      "47": 7320,
+      "48": 7270,
+      "49": 7180,
+      "50": 7100,
+      "51": 7050,
+      "52": 6960,
+      "53": 6900,
+      "54": 6840,
+      "55": 6770,
+      "56": 6710,
+      "57": 6650,
+      "58": 6600,
+      "59": 6530,
+      "60": 6480,
+      "61": 6440,
+      "62": 6370,
+      "63": 6330,
+      "64": 6270,
+      "65": 6240,
+      "66": 6170,
+      "67": 6130,
+      "68": 6070,
+      "69": 6050,
+      "70": 6000,
+      "71": 5950,
+      "72": 5920,
+      "73": 5880,
+      "74": 5830,
+      "75": 5780,
+      "76": 5750,
+      "77": 5720,
+      "78": 5680,
+      "79": 5650,
+      "80": 5610,
+      "81": 5570,
+      "82": 5540,
+      "83": 5490,
+      "84": 5480,
+      "85": 5440,
+      "86": 5410,
+      "87": 5380,
+      "88": 5350,
+      "89": 5310,
+      "90": 5290,
+      "91": 5240,
+      "92": 5240,
+      "93": 5190,
+      "94": 5180,
+      "95": 5140,
+      "96": 5110,
+      "97": 5110,
+      "98": 5050,
+      "99": 5030,
+      "100": 5020
+    },
+    "files": [
+      {
+        "file": "depots.csv",
+        "rows": 100,
+        "bytes": 7530,
+        "sha256": "92c53b1d6fcde34f8a570da857643b5c36c9248231fb90e88c78ff4128c48666",
+        "columns": [
+          "id",
+          "depot_code",
+          "depot_name",
+          "region",
+          "abbr"
+        ]
+      },
+      {
+        "file": "campaigns.csv",
+        "rows": 1000,
+        "bytes": 113981,
+        "sha256": "2e3765ce6a9ce1cad42884bc2d873d687933718c8acef260ac3616da79e2a6c9",
+        "columns": [
+          "id",
+          "campaign_code",
+          "campaign_name",
+          "period_start",
+          "period_end",
+          "cashback_type",
+          "tax_status",
+          "status"
+        ]
+      },
+      {
+        "file": "customers.csv",
+        "rows": 100000,
+        "bytes": 12652876,
+        "sha256": "b91d9c97a66ae15a39189b9fc0e53933efe1bec53633792813c3205ab60d4107",
+        "columns": [
+          "id",
+          "customer_code",
+          "customer_name",
+          "tax_subject",
+          "top_text",
+          "bank",
+          "account_number",
+          "account_name"
+        ]
+      },
+      {
+        "file": "customer_depots.csv",
+        "rows": 100000,
+        "bytes": 7500022,
+        "sha256": "afc098985191fe7834e64731db9be8bb71d31e09cfeaf9d225da3ae42e4aabca",
+        "columns": [
+          "customer_id",
+          "depot_id"
+        ]
+      },
+      {
+        "file": "claims.csv",
+        "rows": 1000000,
+        "bytes": 336694921,
+        "sha256": "16a221dc93a633b60c314a6a89c87cf9e6efd5c8d410449f7f27d8401ac14263",
+        "columns": [
+          "id",
+          "no_doc",
+          "campaign_id",
+          "customer_id",
+          "depot_id",
+          "status",
+          "previous_status",
+          "cb_net",
+          "net_value",
+          "volume",
+          "tax_subject",
+          "period_start",
+          "period_end",
+          "created_at",
+          "updated_at",
+          "version_no",
+          "uploaded_at",
+          "released_at",
+          "claimed_at",
+          "cleared_at",
+          "batch_upload",
+          "batch_release",
+          "batch_claim",
+          "batch_clearing"
+        ]
+      }
+    ],
+    "elapsed_seconds": 19.593
+  },
+  "datasetVerification": {
+    "status": "PASS_OFFLINE_CSV",
+    "claim_rows": 1000000,
+    "all_csv_rows": 1201100,
+    "files_verified": 5
+  },
+  "checks": {
+    "javascriptUnitTests": 8,
+    "pythonGeneratorTests": 1,
+    "pythonReportTests": 2,
+    "passed": 11
+  },
+  "k6": {
+    "version": "2.2.0",
+    "archiveSha256": "ceb2b1e1cf9dbe1303c6c33ec83ffda86dda5c610b4def92064d3c7ebae8d9f4",
+    "inspect": {
+      "maxVUs": 1500,
+      "totalDuration": "52m30s",
+      "classification": "CONFIGURATION_ONLY_NOT_EXECUTED"
+    },
+    "inspectedModes": {
+      "baseline": {
+        "maxVUs": 1,
+        "totalDuration": "6m0s",
+        "executed": false
+      },
+      "load": {
+        "maxVUs": 1000,
+        "totalDuration": "40m30s",
+        "executed": false
+      },
+      "stress": {
+        "maxVUs": 1500,
+        "totalDuration": "52m30s",
+        "executed": false
+      },
+      "mixed": {
+        "maxVUs": 1000,
+        "totalDuration": "18m0s",
+        "executed": false
+      },
+      "spike": {
+        "maxVUs": 1000,
+        "totalDuration": "16m40s",
+        "executed": false
+      },
+      "soak": {
+        "maxVUs": 1000,
+        "totalDuration": "4h10m0s",
+        "executed": false
+      }
+    }
+  },
+  "machine": {
+    "cpu": "12th Gen Intel(R) Core(TM) i5-1235U",
+    "logicalCpus": 12,
+    "totalMemoryBytes": 16890978304,
+    "platform": "win32"
+  },
+  "sourceHashes": {
+    "browser-probe.js": "d76c4551f7493b0c9b1ac099533b7032b03197fe8e13f8832423513e33c2a95a",
+    "explain.psql": "612b700dc8913ac91ef600b5708cd0c65189aa5455df5d96c9a61685eeeee7ee",
+    "generate_dataset.py": "43f316c27f9089219e13eb7608bba53ba12c9c17d3e315ffe21e7271c1ed6567",
+    "import-dummy.psql": "7eaa5071bd744581901891de1ea4cae4fc0541b91baca15caef4118ad1248b9b",
+    "install-k6.ps1": "be9423c19c3aec87a3853d1b7b5b21b9cbddc74e086d8624c130f65a03a5260a",
+    "integrity.js": "47168104956ad434b4a5e02b186607b5c79353cbe27c16929dbdd42fa0167bd7",
+    "make-budgets.mjs": "79186b8d079d16459b90e8ef409ecb12c2cead37b447f25151be500ec669f4c6",
+    "observe.sql": "d7917c836266e52b24ce03a46e21b1ad03e18228447d549ac0c6e051b7a1f472",
+    "plan.mjs": "3859a0e5a0c0822a9ff0c08d3ff97e7349794b9b013a9b77b6691cd67c575427",
+    "rc-scale.js": "ba088308510ce769edfc3300dc7d6882ab2b163229ed2f7305f2aabd763f3bf7",
+    "report.py": "09d2cefa28cd2776adace058e7a488e5e71d454bdd9cda899f0d97a3022eea0c",
+    "run.mjs": "756bf85500cedac772855457b5a90e12a245944e2f04f56d0258e707c55a8ab1",
+    "staging.example.json": "1d5380b754e7c78f1bfe7e4915353c23357aa8ee153ba9e9f6683fbd94a3b04b",
+    "test_dataset.py": "059a6feecbc4778505aa361d4b7585be6a304ca5023d5c91674bb51a4e88d409",
+    "test_plan.mjs": "13cfcced9ad2d07d41dcfd13f4b693c0fd3df2d71270a6aa65de23267ed1e01d",
+    "test_report.py": "7b6f98ef73da065aaa6af006af947e0d16744e5b6a86e475cafc587ffe8e4fe4"
+  },
+  "notRun": [
+    "baseline",
+    "load",
+    "stress",
+    "mixed",
+    "integrity",
+    "spike",
+    "soak",
+    "browser",
+    "postgresql_seed",
+    "postgresql_explain"
+  ]
+}

@@ -1,0 +1,18 @@
+.runtime/
+__pycache__/
+*.pyc
+data-rc/
+.env
+.env.*
+!.env.example
+public/
+node_modules/
+.vercel/
+
+.vercel
+
+# Berkas sementara yang disusun jalankan-bukti.mjs
+scripts/loadtest/.bukti-gabungan.sql
+scripts/loadtest/pengguna-uji.json
+scripts/performance/*-users.json
+scripts/performance/*-fixture.json

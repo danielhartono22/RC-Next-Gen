@@ -1,0 +1,502 @@
+// ============================================================================
+// Code.gs — Backend Document Center (Print Document + Compile Cashback)
+//
+// Optimasi Skala Menengah (~50 Users Concurrent) - ANTI ANTREAN:
+//   1. LockService Shrinking: Memindahkan pemanggilan DepotMap dan LogActivity
+//      ke LUAR antrean Lock. Penguncian kini hanya murni untuk read/write sheet Upload.
+//      Ini memotong waktu tunggu antrean antar-user hingga 70%.
+//   2. Internal Batch Pre-Filter: Mencegah duplikasi data dalam 1 file sebelum masuk Lock.
+//   3. getSS() Direct Call: Menghilangkan _ssCache global untuk mencegah memory
+//      reference loss yang menyebabkan bug "getLastRow".
+//   4. Manual Execution Guard: Mencegah error "Invalid argument: id" jika
+//      script di-run langsung dari editor (Tombol Run).
+//   5. Mapping Tetap Sama: K=Total, O=Before Tax, U=User Upload, T=Timestamp.
+//
+// == UPDATE PERFORMA (Anti-Lambat Saat Sheet Upload Membesar) ==
+//   6. Existing-Keys Index Cache (INCREMENTAL): Sebelumnya, SETIAP submit selalu
+//      membaca ULANG SELURUH baris Upload (kolom C & G) untuk cek duplikat.
+//      Ini adalah bottleneck utama: makin banyak data historis di Upload, makin
+//      LAMA proses submit -> ini penyebab "upload terasa makin lama" seiring waktu,
+//      dan ini terjadi DI DALAM Lock sehingga memperlambat semua user yang antre.
+//      Sekarang index Set (kodeCampaign_custCode) disimpan di CacheService dan
+//      HANYA baris baru sejak index terakhir yang dibaca (delta), bukan seluruh
+//      sheet. Index otomatis rebuild penuh jika cache kosong/kadaluarsa (self-healing).
+//   7. SpreadsheetApp.flush() dipanggil SEBELUM lock dilepas, memastikan data
+//      benar-benar ter-commit sebelum user berikutnya membaca getLastRow().
+//
+// == FIX: getLastRow() MELOMPAT TERLALU JAUH KE BAWAH ==
+//   8. Anchor-Column Last Row: sheet.getLastRow() bawaan Apps Script menghitung
+//      baris terakhir dari SEMUA kolom, termasuk kolom-kolom rumus (D, F, J, L, M,
+//      P-S, dst) yang sudah dibuatkan rumus di spreadsheet dan sering ter-drag jauh
+//      ke bawah meski belum ada data script di baris tersebut. Akibatnya lastRow
+//      terdeteksi jauh melebihi baris data asli -> insertRow lompat jauh & baca
+//      delta index jadi ikut membaca ribuan baris kosong.
+//      Sekarang lastRow dihitung HANYA dari kolom C (kodeCampaign) — kolom yang
+//      SELALU diisi langsung oleh script (bukan rumus) — menggunakan
+//      Range.getNextDataCell(UP). Ini 1 kali panggilan API yang langsung "loncat"
+//      ke baris data terakhir tanpa membaca/looping seluruh kolom, jadi tetap
+//      efisien walau sheet sudah besar.
+//   9. Sparse Column Write (Rumus TIDAK Tertimpa): Sebelumnya insert data
+//      pakai 1x setValues() ke seluruh range A:U (21 kolom), dengan kolom
+//      rumus (D,F,J,L,M,P-S dst) diisi string kosong "" sebagai placeholder.
+//      Ini MENGHAPUS rumus yang sudah ada di baris tsb. Sekarang insert
+//      dipecah jadi beberapa setValues() kecil, HANYA ke kolom yang memang
+//      diisi script (C, E, G:I, K, N:O, T:U). Kolom lain tidak disentuh sama
+//      sekali, jadi rumus yang sudah dibuat di spreadsheet tetap utuh.
+// ============================================================================
+
+const COMPILE_SS_ID = "1_hlpdQ_kAVnF7-I671W2o-Mi2RiV7M4KHPiMkhVL2ws";
+const AUTH_SS_ID = "1JCWt3gvaxz_77DgU82ePdq_axnDCmjC2kpcvB2z6YmI";
+const CACHE_TTL_SECONDS = 300; // 5 menit
+
+// Konfigurasi index cache untuk existing-keys Upload (anti duplikat cepat)
+const UPLOAD_INDEX_META_KEY = 'upload_idx_meta_v1';
+const UPLOAD_INDEX_CHUNK_PREFIX = 'upload_idx_chunk_v1_';
+const UPLOAD_INDEX_CHUNK_SIZE = 3000;   // jumlah key per chunk, aman di bawah limit 100KB/cache-key
+const UPLOAD_INDEX_TTL = 21600;         // 6 jam (maksimum yang diizinkan CacheService)
+
+// Kolom acuan untuk deteksi lastRow sheet Upload: KOLOM C (kodeCampaign).
+// Wajib kolom yang HANYA diisi oleh script (bukan kolom rumus), karena
+// kolom rumus bisa ter-drag jauh ke bawah dan membuat getLastRow() bawaan salah.
+const UPLOAD_ANCHOR_COL = 3; // C
+
+// ----------------------------------------------------------------------------
+// Helper: Memanggil Spreadsheet (Langsung, untuk mencegah invalid reference state)
+// ----------------------------------------------------------------------------
+function getSS(id) {
+  if (!id) throw new Error("ID Spreadsheet tidak valid.");
+  return SpreadsheetApp.openById(id);
+}
+
+// ----------------------------------------------------------------------------
+// Helper: Baris terakhir yang BENAR-BENAR berisi data, berdasarkan satu kolom
+// acuan (bukan seluruh sheet). Memakai getNextDataCell(UP) -> 1 panggilan API,
+// langsung loncat ke data terakhir di kolom tsb, tanpa membaca/looping seluruh
+// kolom. Ini yang membuat lastRow tidak lagi "ketarik" oleh kolom rumus lain
+// yang mungkin ter-drag jauh ke bawah.
+// ----------------------------------------------------------------------------
+function getRealLastRow(sheet, colIndex) {
+  const maxRows = sheet.getMaxRows();
+  const cell = sheet.getRange(maxRows, colIndex).getNextDataCell(SpreadsheetApp.Direction.UP);
+  const row = cell.getRow();
+  const value = cell.getValue();
+
+  // Jika kolom acuan benar-benar kosong (belum ada data sama sekali / hanya
+  // header), anggap 0 supaya perilakunya sama seperti getLastRow() pada
+  // sheet kosong (lastRow < 2 -> insertRow tetap mulai dari baris 3).
+  if (value === "" || value === null) return 0;
+  return row;
+}
+
+// ----------------------------------------------------------------------------
+// Helper: Cache referensi untuk ListCampaign & Depot_ID
+// ----------------------------------------------------------------------------
+function getCachedMap(cacheKey, buildFn) {
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get(cacheKey);
+  if (cached) {
+    try { return JSON.parse(cached); } catch (e) { /* Abaikan jika korup, lanjut build */ }
+  }
+  const map = buildFn();
+  try { cache.put(cacheKey, JSON.stringify(map), CACHE_TTL_SECONDS); } catch (e) {}
+  return map;
+}
+
+function jsonOut(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
+ * ENTRY POINT POST REQUEST DARI FRONTEND
+ */
+function doPost(e) {
+  try {
+    // GUARD: Cegah error saat di-run manual dari Apps Script Editor
+    if (!e || !e.postData || !e.postData.contents) {
+      return jsonOut({
+        success: false,
+        message: "Script tidak dapat dijalankan secara manual. Script ini hanya menerima data POST dari Frontend Web App."
+      });
+    }
+
+    const payload = JSON.parse(e.postData.contents);
+
+    switch (payload.action) {
+      case 'log_print':
+        logActivity(payload.detailActivity);
+        return jsonOut({ success: true });
+
+      case 'login':
+        return processLogin(payload.username, payload.password);
+
+      case 'previewCashback':
+        return processPreviewCashback(payload.data);
+
+      case 'submitCashback':
+        return processSubmitCashback(payload.data, payload.username);
+
+      default: {
+        const lookupType = payload.lookupType;
+        const batchNumbers = payload.batchNumbers;
+        const result = processLookup(lookupType, batchNumbers);
+
+        if (result.success) {
+          const batchString = Array.isArray(batchNumbers) ? batchNumbers.join(', ') : batchNumbers;
+          logActivity(`Mencari Document Print (Tipe: ${lookupType}, Batch: ${batchString}) - Ditemukan: ${result.totalFound} data`);
+        }
+        return jsonOut(result);
+      }
+    }
+  } catch (error) {
+    return jsonOut({ success: false, message: "Terjadi kesalahan internal pada script: " + error.message });
+  }
+}
+
+function logActivity(detailMessage) {
+  try {
+    const logSheet = getSS(AUTH_SS_ID).getSheetByName('LogActivity');
+    if (logSheet) logSheet.appendRow([new Date(), "", "", detailMessage]);
+  } catch (e) {
+    console.error("Gagal mencatat log: " + e.message);
+  }
+}
+
+function processLogin(user, pass) {
+  try {
+    const sheetAuth = getSS(AUTH_SS_ID).getSheetByName('Authority');
+    const lastRow = sheetAuth.getLastRow();
+    if (lastRow < 2) return jsonOut({ success: false, message: "Data user tidak ditemukan." });
+
+    // Range sempit: Kolom B - F (5 kolom)
+    const data = sheetAuth.getRange(2, 2, lastRow - 1, 5).getValues();
+    const userTrim = String(user).trim();
+    const passTrim = String(pass).trim();
+
+    let foundName = null;
+    for (let i = 0; i < data.length; i++) {
+      const sheetUser = String(data[i][3]).trim(); // Kolom E
+      const sheetPass = String(data[i][4]).trim(); // Kolom F
+      if (sheetUser === userTrim && sheetPass === passTrim) {
+        foundName = String(data[i][0]).trim(); // Kolom B = Nama User
+        break;
+      }
+    }
+
+    if (foundName) return jsonOut({ success: true, name: foundName });
+    return jsonOut({ success: false, message: "Username atau Password salah." });
+  } catch (error) {
+    return jsonOut({ success: false, message: "Gagal mengakses data user: " + error.message });
+  }
+}
+
+function processLookup(lookupType, batchNumbers) {
+  if (!lookupType || !['upload', 'claim'].includes(lookupType)) return { success: false, message: "Jenis referensi tidak valid." };
+  if (!batchNumbers || !Array.isArray(batchNumbers) || batchNumbers.length === 0) return { success: false, message: "Nomor batch tidak boleh kosong." };
+
+  const sheet = getSS(AUTH_SS_ID).getSheetByName('DM-30D');
+  if (!sheet) return { success: false, message: "Sheet 'DM-30D' tidak ditemukan." };
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) return { success: false, message: "Sheet DM-30D kosong." };
+
+  // Range sempit: Kolom B (index 2) ke AH (33 Kolom)
+  const rows = sheet.getRange(2, 2, lastRow - 1, 33).getValues();
+  const COL = { B: 0, C: 1, D: 2, E: 3, F: 4, G: 5, H: 6, K: 9, O: 13, P: 14, Q: 15, R: 16, S: 17, T: 18, Z: 24, AF: 30, AH: 32 };
+
+  const results = [];
+  const scriptTimeZone = Session.getScriptTimeZone();
+  const batchSet = new Set(batchNumbers.map(b => String(b).trim().toLowerCase()));
+  const maxLimit = lookupType === "upload" ? 200 : 2000;
+  const keyIndex = lookupType === "upload" ? COL.AF : COL.AH;
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const keyToMatch = row[keyIndex];
+    const keyString = (keyToMatch !== null && keyToMatch !== undefined) ? String(keyToMatch).trim().toLowerCase() : "";
+
+    if (keyString !== "" && batchSet.has(keyString)) {
+      results.push({
+        B: row[COL.B] || '', C: row[COL.C] || '', D: row[COL.D] || '', E: row[COL.E] || '',
+        F: row[COL.F] || '', G: row[COL.G] || '', H: row[COL.H] || '', K: row[COL.K] || '',
+        O: row[COL.O] || '', P: row[COL.P] || '', Q: row[COL.Q] || '',
+        R: row[COL.R] instanceof Date ? Utilities.formatDate(row[COL.R], scriptTimeZone, "d-MMM-yyyy") : (row[COL.R] || ''),
+        S: row[COL.S] || '', T: row[COL.T] || '', Z: row[COL.Z] || '',
+        AF: row[COL.AF] || '', AH: row[COL.AH] || ''
+      });
+
+      if (results.length > maxLimit) return { success: false, message: `Data melebihi batas maksimal ${maxLimit} toko.` };
+    }
+  }
+
+  if (results.length === 0) return { success: false, message: "Data tidak ditemukan, Silakan Konfirmasi ke Tim OSC." };
+  return { success: true, totalFound: results.length, data: results };
+}
+
+function getCampaignMap() {
+  return getCachedMap('campaignMap_v1', () => {
+    const data = getSS(COMPILE_SS_ID).getSheetByName("ListCampaign").getDataRange().getValues();
+    const map = {};
+    for (let i = 1; i < data.length; i++) map[String(data[i][0]).trim()] = String(data[i][1]).trim();
+    return map;
+  });
+}
+
+function getDepotMap() {
+  return getCachedMap('depotMap_v1', () => {
+    const sheet = getSS(COMPILE_SS_ID).getSheetByName("Depot_ID");
+    const map = {};
+    if (sheet) {
+      const data = sheet.getDataRange().getValues();
+      for (let i = 1; i < data.length; i++) map[String(data[i][0]).trim()] = String(data[i][1]).trim();
+    }
+    return map;
+  });
+}
+
+function processPreviewCashback(uploadData) {
+  const campaignMap = getCampaignMap();
+  const previewData = uploadData.map(row => {
+    row.namaCampaign = campaignMap[String(row.kodeCampaign || "").trim()] || "CAMPAIGN TIDAK DITEMUKAN";
+    return row;
+  });
+  return jsonOut({ success: true, data: previewData });
+}
+
+// ----------------------------------------------------------------------------
+// EXISTING-KEYS INDEX (Upload) — Incremental Cache untuk Cek Duplikat
+//
+// Sebelumnya setiap submit membaca ULANG seluruh baris Upload (kolom C & G).
+// Ini O(total baris histori) setiap kali, dan berjalan DI DALAM Lock,
+// sehingga makin banyak data historis -> makin lama tiap submit -> makin
+// panjang antrean user lain.
+//
+// Sekarang: index (Set berisi "kodeCampaign_custCode") disimpan di
+// CacheService (shared, script-level). Saat submit baru masuk, kita HANYA
+// membaca baris baru yang belum ter-index (delta), bukan seluruh sheet.
+// Jika cache kosong/kadaluarsa (maks 6 jam), otomatis full-rebuild sekali
+// (self-healing), lalu kembali cepat untuk submit-submit berikutnya.
+// ----------------------------------------------------------------------------
+function loadExistingKeysIndex() {
+  const cache = CacheService.getScriptCache();
+  const metaRaw = cache.get(UPLOAD_INDEX_META_KEY);
+  if (!metaRaw) return null; // cache miss -> caller akan full rebuild
+
+  let meta;
+  try { meta = JSON.parse(metaRaw); } catch (e) { return null; }
+
+  const chunkKeys = [];
+  for (let i = 0; i < meta.chunkCount; i++) chunkKeys.push(UPLOAD_INDEX_CHUNK_PREFIX + i);
+
+  const chunks = chunkKeys.length ? cache.getAll(chunkKeys) : {};
+  const keys = new Set();
+
+  for (let i = 0; i < meta.chunkCount; i++) {
+    const raw = chunks[UPLOAD_INDEX_CHUNK_PREFIX + i];
+    if (raw === null || raw === undefined) return null; // chunk hilang/expired -> full rebuild demi konsistensi
+    try {
+      const arr = JSON.parse(raw);
+      for (let j = 0; j < arr.length; j++) keys.add(arr[j]);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  return { keys: keys, lastRow: meta.lastRow };
+}
+
+function saveExistingKeysIndex(keysSet, lastRow) {
+  try {
+    const cache = CacheService.getScriptCache();
+    const arr = Array.from(keysSet);
+    const chunkCount = Math.max(1, Math.ceil(arr.length / UPLOAD_INDEX_CHUNK_SIZE));
+
+    const payload = {};
+    for (let i = 0; i < chunkCount; i++) {
+      const slice = arr.slice(i * UPLOAD_INDEX_CHUNK_SIZE, (i + 1) * UPLOAD_INDEX_CHUNK_SIZE);
+      payload[UPLOAD_INDEX_CHUNK_PREFIX + i] = JSON.stringify(slice);
+    }
+    payload[UPLOAD_INDEX_META_KEY] = JSON.stringify({ lastRow: lastRow, chunkCount: chunkCount });
+
+    cache.putAll(payload, UPLOAD_INDEX_TTL);
+  } catch (e) {
+    // Jika gagal simpan (mis. ukuran data tak wajar), abaikan saja.
+    // Submit berikutnya akan full-rebuild dari sheet -> tetap benar, hanya sedikit lebih lambat sekali.
+    console.error("Gagal menyimpan index cache Upload: " + e.message);
+  }
+}
+
+/**
+ * Mengambil Set existing keys ("kodeCampaign_custCode") dari Upload, dengan
+ * strategi baca DELTA (hanya baris baru) jika cache index masih valid.
+ * Dipanggil DI DALAM Lock agar konsisten dengan operasi tulis berikutnya.
+ */
+function getExistingKeysForDedup(sheetUpload, currentLastRow) {
+  const cached = loadExistingKeysIndex();
+
+  if (cached) {
+    const existingKeys = cached.keys;
+    if (currentLastRow > cached.lastRow) {
+      const startRow = Math.max(3, cached.lastRow + 1);
+      if (currentLastRow >= startRow) {
+        const deltaData = sheetUpload.getRange(startRow, 3, currentLastRow - startRow + 1, 5).getValues();
+        for (let i = 0; i < deltaData.length; i++) {
+          const kc = String(deltaData[i][0]).trim(); // Kolom C
+          const cc = String(deltaData[i][4]).trim(); // Kolom G
+          if (kc && cc) existingKeys.add(kc + "_" + cc);
+        }
+      }
+    }
+    return existingKeys;
+  }
+
+  // Cache miss / kadaluarsa -> full rebuild (fallback, sama seperti versi lama)
+  const existingKeys = new Set();
+  if (currentLastRow >= 3) {
+    const regData = sheetUpload.getRange(3, 3, currentLastRow - 2, 5).getValues();
+    for (let i = 0; i < regData.length; i++) {
+      const kc = String(regData[i][0]).trim(); // Kolom C
+      const cc = String(regData[i][4]).trim(); // Kolom G
+      if (kc && cc) existingKeys.add(kc + "_" + cc);
+    }
+  }
+  return existingKeys;
+}
+
+/**
+ * ALUR SUBMIT HIGH-EFFICIENCY
+ */
+function processSubmitCashback(dataToSubmit, userName) {
+  // 1. PRE-PROCESSING (Di luar Lock agar tidak memakan antrean)
+  const depotMap = getDepotMap(); // Ambil Map dari Cache
+  const timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy - HH:mm:ss");
+
+  // Filter duplikasi internal di dalam file yg diupload (mencegah error saat looping)
+  const uniqueBatch = [];
+  const rejectedData = [];
+  const internalKeys = new Set();
+
+  for (let i = 0; i < dataToSubmit.length; i++) {
+    const row = dataToSubmit[i];
+    const key = String(row.kodeCampaign).trim() + "_" + String(row.custCode).trim();
+    if (internalKeys.has(key)) {
+      rejectedData.push(row);
+    } else {
+      internalKeys.add(key);
+      uniqueBatch.push(row);
+    }
+  }
+
+  // Data diterima disimpan per-GRUP KOLOM (bukan 1 array 21-kolom penuh),
+  // supaya saat insert nanti kita cuma nulis ke kolom yang memang dipakai
+  // script — kolom rumus lain di baris yg sama tidak pernah disentuh/ditimpa.
+  const colC = [];    // Kolom C  : kodeCampaign
+  const colE = [];    // Kolom E  : dc
+  const colGHI = [];  // Kolom G-I: custCode, custName, netValue
+  const colK = [];    // Kolom K  : total (CB)
+  const colNO = [];   // Kolom N-O: jenisCb, beforeTaxVal
+  const colTU = [];   // Kolom T-U: timestamp, userName
+  const summaryMap = {};
+  let validCount = 0;
+
+  // 2. CRITICAL SECTION (Lock dimulai hanya jika ada data unik)
+  if (uniqueBatch.length > 0) {
+    const lock = LockService.getScriptLock();
+    try {
+      lock.waitLock(30000); // Tunggu maks 30 detik untuk handle concurrent users
+
+      const ss = getSS(COMPILE_SS_ID);
+      const sheetUpload = ss.getSheetByName("Upload");
+      if (!sheetUpload) throw new Error("Sheet 'Upload' tidak ditemukan di spreadsheet COMPILE_SS_ID. Cek nama tab, mungkin berbeda/berubah.");
+
+      // FIX: pakai kolom acuan C (bukan getLastRow() bawaan), supaya tidak
+      // ketarik jauh ke bawah oleh kolom-kolom rumus lain di sheet Upload.
+      const lastRow = getRealLastRow(sheetUpload, UPLOAD_ANCHOR_COL);
+
+      // Ambil existing keys SECEPAT MUNGKIN: delta dari cache index, bukan full-scan
+      const existingKeys = getExistingKeysForDedup(sheetUpload, lastRow);
+
+      // Filter terhadap data di Database
+      for (let i = 0; i < uniqueBatch.length; i++) {
+        const row = uniqueBatch[i];
+        const key = String(row.kodeCampaign).trim() + "_" + String(row.custCode).trim();
+
+        if (existingKeys.has(key)) {
+          rejectedData.push(row);
+        } else {
+          // Push HANYA ke kolom yang diisi script. Kolom rumus lain (A,B,D,F,
+          // J,L,M,P,Q,R,S) tidak pernah dibuat/ditulis di sini sama sekali.
+          colC.push([String(row.kodeCampaign).trim()]);                 // C
+          colE.push([row.dc]);                                          // E
+          colGHI.push([String(row.custCode).trim(), row.custName, row.netValue]); // G,H,I
+          colK.push([row.total]);                                       // K
+          colNO.push([row.jenisCb, row.beforeTaxVal]);                  // N,O
+          colTU.push([timestamp, userName]);                            // T,U
+
+          existingKeys.add(key); // langsung tandai terpakai, cegah duplikat dalam summary/cache
+
+          // Build Summary (Di memori)
+          const namaDepot = depotMap[String(row.dc).trim()] || row.dc;
+          const summaryKey = namaDepot + "_" + row.namaCampaign;
+          if (!summaryMap[summaryKey]) {
+            summaryMap[summaryKey] = { namaDepot, namaCampaign: row.namaCampaign, totalReward: 0, qtyToko: 0 };
+          }
+          summaryMap[summaryKey].totalReward += Number(row.total) || 0;
+          summaryMap[summaryKey].qtyToko += 1;
+        }
+      }
+
+      // Batch Insert ke DB — HANYA ke kolom yang berisi data (C, E, G:I, K,
+      // N:O, T:U), lewat beberapa setValues() kecil, BUKAN 1x ke seluruh A:U.
+      // Kolom rumus lain (A,B,D,F,J,L,M,P,Q,R,S) sama sekali tidak disentuh,
+      // jadi rumus yang sudah ada di baris tsb tidak ikut tertimpa/terhapus.
+      let newLastRow = lastRow;
+      if (colC.length > 0) {
+        const insertRow = lastRow < 2 ? 3 : lastRow + 1;
+        const n = colC.length;
+
+        sheetUpload.getRange(insertRow, 3, n, 1).setValues(colC);    // C
+        sheetUpload.getRange(insertRow, 5, n, 1).setValues(colE);    // E
+        sheetUpload.getRange(insertRow, 7, n, 3).setValues(colGHI);  // G:I
+        sheetUpload.getRange(insertRow, 11, n, 1).setValues(colK);   // K
+        sheetUpload.getRange(insertRow, 14, n, 2).setValues(colNO);  // N:O
+        sheetUpload.getRange(insertRow, 20, n, 2).setValues(colTU);  // T:U
+
+        SpreadsheetApp.flush(); // pastikan tertulis permanen sebelum lock dilepas & lastRow berikutnya dibaca
+        validCount = n;
+        newLastRow = insertRow + n - 1;
+      }
+
+      // Update index cache (delta yang sudah dibaca + key baru yang baru masuk)
+      // sehingga submit BERIKUTNYA tidak perlu baca ulang dari awal.
+      saveExistingKeysIndex(existingKeys, newLastRow);
+
+    } catch (e) {
+      // Catat error ASLI ke log Executions (Apps Script) untuk diagnosis.
+      // Pesan ke frontend tetap generik (UX), tapi sekarang penyebab sebenarnya
+      // tidak lagi "hilang" — cek menu Executions di Apps Script untuk detail.
+      console.error("processSubmitCashback gagal: " + e.message);
+      return jsonOut({ success: false, message: "Server sibuk memproses data user lain. Silakan coba beberapa detik lagi." });
+    } finally {
+      // Buka gembok SECEPAT MUNGKIN agar user lain bisa masuk.
+      // Guard: hanya release jika waitLock() berhasil (hasLock true),
+      // supaya tidak melempar error baru saat waitLock() itu sendiri gagal/timeout
+      // (error baru di sini akan menutupi pesan error asli di atas).
+      if (lock.hasLock()) {
+        lock.releaseLock();
+      }
+    }
+  }
+
+  // 3. POST-PROCESSING (Log activity dipanggil SETELAH lock dilepas agar sangat efisien)
+  if (validCount > 0) {
+    logActivity(`User ${userName} submit Compile Cashback. Valid: ${validCount}, Ditolak: ${rejectedData.length}`);
+  }
+
+  return jsonOut({
+    success: true,
+    message: `${validCount} data berhasil disimpan. ${rejectedData.length} data duplikat ditolak.`,
+    summary: Object.values(summaryMap),
+    rejected: rejectedData
+  });
+}

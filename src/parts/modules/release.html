@@ -1,0 +1,37 @@
+                <!-- MODULE: RELEASE DOC -->
+                <div id="modRelease" class="module-section hidden">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 md:p-8">
+                        <div class="flex justify-between items-center border-b border-gray-100 pb-4 mb-6">
+                            <div><h2 class="text-xl font-bold text-gray-800"><i class="fas fa-check-double text-purple-600 mr-2"></i>Release Data Klaim</h2></div>
+                            <div class="flex flex-wrap items-center gap-2">
+                                
+                                
+                                <div class="bg-white border border-gray-200 rounded-xl px-4 py-2 shadow-sm min-w-[150px] overflow-hidden"><p class="text-[10px] font-black text-gray-500 uppercase tracking-wider truncate">Qty Toko</p><p class="rc-kpi-value font-black text-purple-700" id="relTotToko">-</p></div><div class="bg-white border border-gray-200 rounded-xl px-4 py-2 shadow-sm min-w-[150px] overflow-hidden"><p class="text-[10px] font-black text-gray-500 uppercase tracking-wider truncate">Total Cashback</p><p class="rc-kpi-value font-black text-red-700" id="relTotCB">-</p></div><button onclick="fetchWorkflowData()" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 text-sm font-bold py-2 px-4 rounded-lg shadow-sm transition"><i class="fas fa-sync-alt mr-2 text-blue-500"></i> Segarkan Data</button>
+                            </div>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-6 flex flex-wrap gap-4 shadow-sm">
+                            <div class="w-full md:w-56 flex-shrink-0"><label class="block text-xs font-bold text-gray-700 mb-1.5">Pencarian Cepat</label><div class="relative"><i class="fas fa-search absolute left-3 top-3 text-gray-400"></i><input type="text" id="relSearch" oninput="debounceSearch(() => renderWorkflowTable('release'))" class="w-full pl-9 pr-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-sm" placeholder="Cari Dokumen/Batch..."></div></div>
+                            <div id="relFilterDepotContainer" class="w-48 flex-shrink-0 hidden relative"><label class="block text-xs font-bold text-gray-700 mb-1.5">Filter Depot</label><button type="button" onclick="toggleMultiSelect('relDepotDropdown')" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white text-sm text-left truncate shadow-sm"><span class="truncate block whitespace-nowrap">-- Semua Depot --</span></button><div id="relDepotDropdown" class="multiselect-dropdown p-2 text-sm shadow-xl border-gray-200"></div></div>
+                            <div class="w-56 flex-shrink-0 relative"><label class="block text-xs font-bold text-gray-700 mb-1.5">Filter Campaign</label><button type="button" onclick="toggleMultiSelect('relCampDropdown')" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white text-sm text-left truncate shadow-sm"><span class="truncate block whitespace-nowrap">-- Semua Campaign --</span></button><div id="relCampDropdown" class="multiselect-dropdown p-2 text-sm shadow-xl border-gray-200"></div></div>
+                        </div>
+                        <div class="table-container shadow-sm border border-gray-200 rounded-xl mb-4">
+                            <table class="w-full text-left border-collapse bg-white whitespace-nowrap">
+                                <thead class="bg-gray-100 border-b border-gray-200">
+                                    <tr>
+                                        <th class="p-3.5 text-center w-12"><input type="checkbox" id="cbReleaseAll" onchange="toggleAllWorkflow(this, 'cb-rel', 'btnSubmitRelease', 'releaseSelectedCount')" class="w-4 h-4 rounded text-blue-600"></th>
+                                        <th class="p-3.5 text-[10px] font-black text-gray-500 uppercase tracking-wider">BATCH UPLOAD</th>
+                                        <th class="p-3.5 text-[10px] font-black text-gray-500 uppercase tracking-wider">TGL UPLOAD</th><th class="p-3.5 text-[10px] font-black text-gray-500 uppercase tracking-wider">NO DOCUMENT</th><th class="p-3.5 text-[10px] font-black text-gray-500 uppercase tracking-wider">IDENTITAS TOKO</th><th class="p-3.5 text-[10px] font-black text-gray-500 uppercase tracking-wider">NAMA CAMPAIGN</th><th class="p-3.5 text-[10px] font-black text-blue-700 uppercase tracking-wider text-right">TOTAL KLAIM (Rp)</th><th class="p-3.5 text-[10px] font-black text-gray-500 uppercase tracking-wider text-center">TINDAKAN</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="releaseTableBody" class="divide-y divide-gray-100 text-sm"></tbody>
+                            </table>
+                        </div>
+                        <div class="flex items-center justify-between bg-blue-50 p-4 rounded-xl border border-blue-100">
+                            <p class="text-sm text-blue-800 font-bold"><i class="fas fa-check-circle mr-1"></i> <span id="releaseSelectedCount" class="font-black text-lg">0</span> Dokumen Terpilih</p>
+                            <div class="flex gap-3">
+                                <button type="button" onclick="submitWorkflow('release', 'cb-rel', 'btnSubmitRelease', 'reject')" class="bg-red-100 hover:bg-red-200 text-red-700 font-bold py-2.5 px-6 rounded-lg shadow-sm transition">Reject (Kembali)</button>
+                                <button type="button" id="btnSubmitRelease" onclick="submitWorkflow('release', 'cb-rel', 'btnSubmitRelease', 'approve')" disabled class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-8 rounded-lg shadow-md disabled:bg-gray-400 transition active:scale-95">Posting Release</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>

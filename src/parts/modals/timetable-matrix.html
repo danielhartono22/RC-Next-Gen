@@ -1,0 +1,30 @@
+        <!-- MODAL: TIMETABLE DETAIL (matrix depot x campaign) -->
+        <!-- Dipindahkan dari layar utama atas permintaan pemilik. Matrix ini selebar jumlah
+             campaign aktif dan setinggi jumlah depot; sebagai kartu di tengah halaman ia menekan
+             seluruh isi lain ke bawah, sedangkan yang dibutuhkannya justru ruang penuh. -->
+        <div id="ttMatrixModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-[96vw] overflow-hidden flex flex-col max-h-[92vh]">
+                <div class="p-5 border-b border-gray-100 flex flex-wrap justify-between items-center gap-3">
+                    <div>
+                        <h3 class="font-black text-gray-800 text-lg">Timetable Detail (Depot &times; Campaign)</h3>
+                        <p class="text-[11px] text-gray-500 mt-0.5">Klik kode depot untuk membuka rinciannya beserta penandaan Not Achieved.</p>
+                    </div>
+                    <div class="flex flex-wrap gap-4 items-center text-xs font-bold">
+                        <span class="flex items-center gap-1.5"><span class="w-4 h-4 rounded bg-red-500 inline-block"></span> Not Yet</span>
+                        <span class="flex items-center gap-1.5"><span class="w-4 h-4 rounded bg-orange-400 inline-block"></span> Compiled</span>
+                        <span class="flex items-center gap-1.5"><span class="w-4 h-4 rounded bg-green-500 inline-block"></span> Completed</span>
+                        <span class="flex items-center gap-1.5"><span class="w-4 h-4 rounded bg-white border border-gray-300 inline-block"></span> Not Achieved</span>
+                        <button onclick="ttTutupMatrix()" class="text-gray-400 hover:text-red-500 bg-gray-50 hover:bg-red-50 w-8 h-8 rounded-full flex items-center justify-center transition"><i class="fas fa-times"></i></button>
+                    </div>
+                </div>
+                <div class="overflow-auto flex-1 p-4">
+                    <table class="text-xs border-collapse" id="ttMatrix" style="table-layout:fixed">
+                        <thead id="ttHead"></thead>
+                        <tbody id="ttBody"></tbody>
+                    </table>
+                </div>
+                <div class="p-4 border-t border-gray-100 flex justify-end">
+                    <button onclick="ttTutupMatrix()" class="px-6 py-2.5 bg-gray-800 hover:bg-gray-900 text-white font-bold rounded-xl transition shadow-sm">Tutup</button>
+                </div>
+            </div>
+        </div>

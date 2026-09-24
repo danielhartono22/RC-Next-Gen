@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claim Dashboard - Resource Collection</title>
+    <link rel="icon" type="image/png" href="/images/logo.png">
+
+    <!-- ==========================================================================
+         CLAIM DASHBOARD - dapat dibuka tanpa login
+         ==========================================================================
+         Halaman ini adalah modul Report yang sama dengan yang ada di dalam aplikasi: bilah tab
+         yang sama, bilah filter yang sama, panel dan diagram yang sama, angka yang sama.
+         Bukan tiruannya.
+
+         Yang membuatnya benar-benar sama, dan tetap sama ketika Report berubah:
+
+           * bilah tab, bilah filter,
+             markup panel      -> view/parts/report-panes.html, disisipkan build ke SINI dan ke
+                                  modul Report di dalam portal
+           * penggambar, filter,
+             ekspor Excel      -> view/js/*.js, disisipkan ke index.html dan dipancarkan sebagai
+                                  /assets/rc-report-view.js yang dimuat halaman ini
+           * gaya, notifikasi,
+             dialog perbesar   -> view/parts/*.html, disisipkan ke kedua halaman
+           * angkanya          -> rc_private.report_dashboard / cost_center / cost_center_2 di
+                                  Postgres, dipanggil pembungkus aplikasi maupun pembungkus
+                                  publik, dengan filter yang sama
+
+         SATU-SATUNYA yang berbeda adalah loadReport(): dari mana datanya datang. Portal
+         memanggil satu RPC per tab dengan hak akses pemakainya; halaman ini memanggil satu RPC
+         untuk ketiganya. Selebihnya berkas yang sama.
+
+         BATASNYA. Halaman ini sengaja tidak meminta login, atas keputusan pemilik, sehingga
+         isinya dibatasi pada agregat per Depot, Campaign, Region dan bulan. Fungsi
+         rc_dashboard_publik() di sisi server tidak menyentuh tabel yang memuat nama toko, KTP,
+         NPWP maupun nomor rekening - berapa pun filter yang dikirimkan.
+    -->
+    <meta name="robots" content="noindex, nofollow">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Dipakai tombol Excel pada bilah filter bersama. -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!--#include view/parts/style.html-->
+    <script src="/assets/rc-env.js"></script>
+    <script src="/assets/rc-report-view.js"></script>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+<header class="bg-gradient-to-r from-red-700 to-red-600 text-white shadow-lg">
+    <div class="max-w-7xl mx-auto px-4 py-5 flex items-center gap-4">
+        <img src="/images/blobby.png" alt="" class="h-12 w-12 object-contain"
+             onerror="this.style.display='none'">
+        <div>
+            <h1 class="text-xl md:text-2xl font-black tracking-tight leading-tight">Claim Dashboard</h1>
+            <p class="text-[11px] md:text-xs text-red-100">Resource Collection &middot; ringkasan performa klaim</p>
+        </div>
+        <a href="/" class="ml-auto text-[11px] md:text-xs text-red-100 hover:text-white font-bold whitespace-nowrap">
+            Masuk ke portal <i class="fas fa-arrow-right ml-1"></i></a>
+    </div>
+</header>
+
+<main class="max-w-7xl mx-auto px-4 py-6">
+
+    <div id="dashGalat" class="hidden bg-red-50 border border-red-200 rounded-2xl p-6 mb-6 text-sm text-red-800"></div>
+
+    <!-- Bilah tab, bilah filter dan ketiga panel - potongan yang sama dengan modul Report. -->
+    <!--#include view/parts/report-panes.html-->
+
+    <p class="text-[11px] text-gray-400 text-center py-6">
+        Halaman ini menampilkan ringkasan performa klaim tanpa perlu masuk. Untuk memproses klaim,
+        buka <a href="/" class="text-red-600 font-bold hover:underline">portal Resource Collection</a>.
+    </p>
+</main>
+
+<!--#include view/parts/notifikasi.html-->
+<!--#include view/parts/card-expand.html-->
+
+<!-- Tirai memuat. Portal memakai overlay miliknya sendiri; di sini cukup satu lapisan sederhana,
+     digerakkan showLoadingOverlay/hideLoadingOverlay dengan nama yang sama seperti di portal. -->
+<div id="dashTirai" class="fixed inset-0 bg-white/70 backdrop-blur-sm z-[90] flex items-center justify-center">
+    <div class="text-center">
+        <i class="fas fa-circle-notch fa-spin text-3xl text-red-600"></i>
+        <p class="mt-3 text-sm text-gray-500">Memuat data…</p>
+    </div>
+</div>
+
+<script>
+    // ------------------------------------------------------------------------------------
+    // Sambungan yang memang berbeda: dari mana datanya datang
+    // ------------------------------------------------------------------------------------
+    // Panel bersama memanggil loadReport() setiap kali tab berpindah atau filter berubah, dan
+    // showLoadingOverlay/hideLoadingOverlay selama menunggu. Ketiganya disediakan di sini.
+    //
+    // Portal memanggil satu RPC per tab, memakai hak akses pemakainya. Halaman ini memanggil
+    // rc_dashboard_publik sekali untuk ketiga panel - satu kali bolak-balik sudah cukup - dengan
+    // filter yang sama persis dan badan agregasi yang sama persis.
+    function showLoadingOverlay() { setHiddenSafely('dashTirai', false); }
+    function hideLoadingOverlay() { setHiddenSafely('dashTirai', true); }
+
+    async function loadReport() {
+        showLoadingOverlay();
+        try {
+            const env = window.RC_ENV || {};
+            const res = await fetch(env.supabaseUrl + '/rest/v1/rpc/rc_dashboard_publik', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    apikey: env.supabasePublishableKey,
+                    Authorization: 'Bearer ' + env.supabasePublishableKey
+                },
+                body: JSON.stringify({ p_filter: filterReport() })
+            });
+            if (!res.ok) throw new Error('Server menjawab ' + res.status);
+            const d = await res.json();
+            if (!d || d.status !== 'success') throw new Error('Jawaban tidak dikenali.');
+
+            setHiddenSafely('dashGalat', true);
+            rtData.dashboard = d.dashboard;
+            rtData.cc1 = d.cc1;
+            rtData.cc2 = d.cc2;
+
+            // Urutannya sama dengan loadReport() di dalam aplikasi, memakai fungsi yang sama.
+            // Bedanya ketiganya digambar sekaligus, karena datanya memang sudah ada.
+            rtIsiFilterDariData(d.dashboard);
+            renderReportDashboard(d.dashboard);
+
+            renderCostCenter1((d.cc1 && d.cc1.rows) || []);
+            renderCc1Charts((d.cc1 && d.cc1.rows) || []);
+            rcAktifkanUrutSemua('rtPaneCc1');
+
+            rtIsiFilterBulan((d.cc2 && d.cc2.rows) || []);
+            renderCc2Terfilter();
+
+            // Kanvas yang digambar selagi panelnya tersembunyi berukuran nol; Chart.js perlu
+            // diberi tahu ukurannya sesudah panelnya terlihat.
+            if (window.Chart && typeof Chart.getChart === 'function') {
+                document.querySelectorAll('canvas').forEach(function (c) {
+                    const ch = Chart.getChart(c);
+                    if (ch) ch.resize();
+                });
+            }
+        } catch (e) {
+            const g = document.getElementById('dashGalat');
+            g.classList.remove('hidden');
+            g.innerHTML = '<b>Gagal memuat data.</b><br>' + rcEsc(e && e.message ? e.message : e)
+                + '<br><span class="text-xs">Coba muat ulang halaman ini beberapa saat lagi.</span>';
+        } finally {
+            hideLoadingOverlay();
+        }
+    }
+
+    // ------------------------------------------------------------------------------------
+    // Route
+    // ------------------------------------------------------------------------------------
+    // Setiap tab punya alamatnya sendiri, sehingga tautan yang dikirim di email atau disalin ke
+    // orang lain membuka panel yang dimaksud. switchReportTab bersama dibungkus - persis cara
+    // portal membungkus navigasinya - supaya alamat ikut berpindah tanpa menyentuh fungsinya.
+    const DASH_RUTE = {
+        dashboard: '/dashboard',
+        cc1: '/dashboard/cost-center-1',
+        cc2: '/dashboard/cost-center-2'
+    };
+
+    function dashTabDariAlamat() {
+        const p = location.pathname.replace(/\/+$/, '').toLowerCase();
+        return Object.keys(DASH_RUTE).find(function (k) { return DASH_RUTE[k] === p; }) || 'dashboard';
+    }
+
+    let dashDiam = false;
+    const dashTabAsli = switchReportTab;
+    switchReportTab = function (tab) {
+        dashTabAsli(tab);
+        if (dashDiam) return;
+        const path = DASH_RUTE[tab];
+        try {
+            if (path && location.pathname.replace(/\/+$/, '') !== path) {
+                history.pushState({ tab: tab }, '', path);
+            }
+        } catch (e) { /* riwayat ditolak; halaman tetap berjalan tanpa alamat */ }
+    };
+
+    function dashTerapkanAlamat() {
+        dashDiam = true;
+        try { switchReportTab(dashTabDariAlamat()); } finally { dashDiam = false; }
+    }
+    window.addEventListener('popstate', dashTerapkanAlamat);
+
+    // switchReportTab memanggil loadReport(), jadi pemanggilan ini sekaligus memuat datanya.
+    dashTerapkanAlamat();
+</script>
+</body>
+</html>

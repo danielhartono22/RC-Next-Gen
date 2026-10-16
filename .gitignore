@@ -16,3 +16,11 @@ scripts/loadtest/.bukti-gabungan.sql
 scripts/loadtest/pengguna-uji.json
 scripts/performance/*-users.json
 scripts/performance/*-fixture.json
+
+# Ekspor, rekap, dan pratinjau email dari data prod (klaim, customer, nominal CB, penerima
+# email) tidak masuk git. Hanya dokumen UAT/panduan yang boleh.
+outputs/*
+!outputs/rc-uat-20260924/
+
+# Berkas kunci Office yang tertinggal saat dokumen terbuka
+~$*

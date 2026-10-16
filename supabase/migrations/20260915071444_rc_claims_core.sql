@@ -1,5 +1,5 @@
 -- RC DEV core. No Document Center objects.
-create function rc_private.can_access(p_depot uuid, p_permission text default null)
+create or replace function rc_private.can_access(p_depot uuid, p_permission text default null)
 returns boolean language sql stable security definer set search_path='' as $$
 select exists(select 1 from public.profiles p
  where p.id=(select auth.uid()) and p.status='active' and not p.must_change_password
@@ -10,7 +10,7 @@ revoke all on function rc_private.can_access(uuid,text) from public,anon;
 grant usage on schema rc_private to authenticated;
 grant execute on function rc_private.can_access(uuid,text) to authenticated;
 
-create function rc_private.source_number(v text) returns numeric
+create or replace function rc_private.source_number(v text) returns numeric
 language plpgsql immutable set search_path='' as $$
 declare s text:=btrim(coalesce(v,'')); begin
  if s in ('','-') then return null; end if;
@@ -107,7 +107,7 @@ from public.claims c join staging.rc_latest_rows s on s.snapshot_id=c.source_sna
 insert into public.claim_status_history(claim_id,to_status,action)
 select id,status,'import_snapshot' from public.claims;
 
-create function rc_private.next_batch(p_stage text) returns text language plpgsql security definer set search_path='' as $$
+create or replace function rc_private.next_batch(p_stage text) returns text language plpgsql security definer set search_path='' as $$
 declare s text; d date:=(now() at time zone 'Asia/Jakarta')::date; n integer; b text;
 begin
  select suffix_num into strict s from public.profiles where id=auth.uid() and status='active' and not must_change_password;

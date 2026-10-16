@@ -17,7 +17,7 @@ revoke all on staging.rc_snapshots from public, anon, authenticated;
 grant usage on schema staging to service_role;
 grant select, insert on staging.rc_snapshots to service_role;
 
-create function public.rc_import_snapshot(
+create or replace function public.rc_import_snapshot(
  p_source text, p_sheet text, p_snapshot_at timestamptz,
  p_headers jsonb, p_rows jsonb
 ) returns jsonb language plpgsql security invoker set search_path = ''

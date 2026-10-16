@@ -36,7 +36,7 @@
                 // Email Otomatis, Exclude Campaign, Persetujuan Depot dan Grade Depot pindah
                 // ke sini atas permintaan pemilik: ketiganya keputusan administratif yang
                 // mengubah apa yang dilihat orang lain, bukan bagian dari laporan harian.
-                ['list', 'add', 'req', 'email', 'exclude', 'arsip', 'grade'].forEach(tab => {
+                ['list', 'add', 'req', 'email', 'emailPengajuan', 'exclude', 'arsip', 'grade', 'approval'].forEach(tab => {
                     setHiddenSafely('mContent' + tab.charAt(0).toUpperCase() + tab.slice(1), tab !== t);
                     let btn = document.getElementById('mTab' + tab.charAt(0).toUpperCase() + tab.slice(1));
                     if (btn) { if (tab === t) { btn.classList.add('bg-white', 'shadow-sm', 'text-blue-600'); btn.classList.remove('text-gray-500', 'hover:text-gray-800'); } else { btn.classList.remove('bg-white', 'shadow-sm', 'text-blue-600'); btn.classList.add('text-gray-500', 'hover:text-gray-800'); } }
@@ -46,12 +46,14 @@
                 if (typeof mTerapkanViewer === 'function') setTimeout(mTerapkanViewer, 0);
                 if (t === 'add') loadAddAccountForm();
                 else if (t === 'email') loadEmailPanel();
+                else if (t === 'emailPengajuan') loadEmailPanelPengajuan();
                 else if (t === 'exclude') muatExcludeCampaign();
                 else if (t === 'arsip') muatArsipAkun();
                 else if (t === 'grade') muatGradeDepot();
+                else if (t === 'approval') muatSetelanApproval();
                 // Approval Request memuat dua antrean: perubahan data pengguna (sudah dimuat
                 // bersama daftar akun) dan pengajuan profil depot.
-                else if (t === 'req') muatPersetujuanDepot();
+                else if (t === 'req') { muatPermintaanPin(); muatPersetujuanDepot(); }
             }
 
             function parseAuthBool(val) { if(!val) return false; let str = String(val).toLowerCase(); return (str === 'yes' || str === 'approved' || str === 'true' || str === 'visible'); }
@@ -63,8 +65,10 @@
                 let errEl = document.getElementById('loginErrorText');
                 
                 if (!uid || !pin) { errEl.innerText = "Isi UserID dan PIN Anda!"; setHiddenSafely('loginError', false); return; }
-                if (!pinAttempts[uid]) pinAttempts[uid] = 0;
-                if (pinAttempts[uid] >= 3) { errEl.innerText = "Akun Anda diblokir (Salah PIN >3x)."; setHiddenSafely('loginError', false); return; }
+                // Penghitung salah PIN TIDAK lagi disimpan di halaman. Server yang menghitung dan
+                // men-suspend (20261162110000). Penghitung lokal dulu memblokir User ID di halaman
+                // ini tanpa bertanya ke server, sehingga PIN baru yang sudah disetujui pun ditolak
+                // sampai halaman dimuat ulang (laporan pemilik 7 Oktober 2026).
 
                 setHiddenSafely('loginError', true); setHiddenSafely('loginLoader', false); setDisabledSafely('btnLogin', true);
                 uidInput.disabled = true; pinInput.disabled = true; document.getElementById('btnLoginText').innerText = "Memverifikasi...";
@@ -81,8 +85,10 @@
                         applySession(res);
                         logActivity("User Login Berhasil");
                     } else {
-                        pinAttempts[uid]++; let aL = 3 - pinAttempts[uid];
-                        if (pinAttempts[uid] >= 3) errEl.innerText = "Akun diblokir karena salah PIN lebih dari 3x."; else errEl.innerText = res.message || `PIN Salah. Sisa: ${aL}`;
+                        // Pesan server apa adanya: "UserID atau PIN salah", atau pesan suspend yang
+                        // menjelaskan bahwa akun terkunci setelah 3 kali salah berturut-turut dan
+                        // bagaimana mengaktifkannya kembali.
+                        errEl.innerText = res.message || 'UserID atau PIN salah.';
                         setHiddenSafely('loginError', false); throw new Error("Invalid Login");
                     }
                 } catch (e) {

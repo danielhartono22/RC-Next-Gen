@@ -369,8 +369,13 @@ begin
   select pg_get_functiondef(p.oid) into src from pg_proc p
     join pg_namespace n2 on n2.oid = p.pronamespace
    where n2.nspname = 'rc_private' and p.proname = 'compile_upload';
-  if src is null then raise exception 'rc_private.compile_upload tidak ditemukan.'; end if;
-  if position('sudah diarsipkan' in src) = 0 then
+  -- Pada database yang dibangun dari nol fungsi ini belum ada di titik ini (lihat catatan yang
+  -- sama pada 20261108). Melewatinya menjaga bagian lain migrasi ini - termasuk kolom
+  -- archived_at pada depots, campaigns dan customers - tetap terpasang. Tanpa itu, satu fungsi
+  -- yang belum lahir meruntuhkan belasan migrasi sesudahnya.
+  if src is null then
+    raise notice 'rc_private.compile_upload belum ada; tambalan dilewati (versi akhirnya dari 20261152010000).';
+  elsif position('sudah diarsipkan' in src) = 0 then
     baru := src;
     baru := replace(baru,
       'select * into v_depot from public.depots where depot_code=btrim(coalesce(r->>''kodeDepot'',''''));',

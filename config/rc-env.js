@@ -1,4 +1,4 @@
-ampil/*
+/*
  * Public browser configuration for the Resource Collection frontend.
  *
  * Only the project URL and a publishable/anon key belong here. A service_role or secret key
@@ -16,5 +16,5 @@ window.RC_ENV = {
   supabaseUrl: 'https://vvojshgcduqlugngpzkj.supabase.co',
   supabasePublishableKey: 'sb_publishable_CO-7bzo2xZnUg3LQEjWP5Q_zEqvAVLd',
   appsScriptUrl: 'https://script.google.com/macros/s/AKfycbyaYkDLi2i3O8Aprc5V80prTbvzrG1IlCQ_xRKCVsclHu_58_-6wjwQtbmjqxVjmYgw/exec',
-  environment: 'dev'
+  environment: 'prod'
 };

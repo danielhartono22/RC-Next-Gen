@@ -1,14 +1,74 @@
-            function toggleAllWorkflow(src, cbClass, btnId, countId) { document.querySelectorAll('.' + cbClass).forEach(c => c.checked = src.checked); updateWorkflowCount(cbClass, btnId, countId); }
-            function updateWorkflowCount(cbClass, btnId, countId) { let n = document.querySelectorAll('.' + cbClass + ':checked').length; document.getElementById(countId).innerText = n; setDisabledSafely(btnId, n === 0 || (btnId === 'btnSubmitClearing' && !document.getElementById('tglClearingInput').value)); }
+            // Baris yang terkunci (dokumen tanpa Customer Master, 20261162260000) tidak ikut dicentang.
+            function toggleAllWorkflow(src, cbClass, btnId, countId) { document.querySelectorAll('.' + cbClass + ':not(:disabled)').forEach(c => c.checked = src.checked); updateWorkflowCount(cbClass, btnId, countId); }
+
+            // Kolom toko. Dokumen tanpa Customer Master ditandai merah dengan kode sumbernya,
+            // bukan "null"; centangnya dikunci karena server pasti menolaknya.
+            function rcSelToko(r) {
+                const nama = r.masterKosong
+                    ? '<span class="font-bold block text-red-600"><i class="fas fa-exclamation-triangle mr-1"></i>Customer Master belum ada</span>'
+                    : '<span class="font-bold block text-gray-800">' + rcEsc(r.namaToko || '') + '</span>';
+                return nama + '<span class="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">' + rcEsc(r.kodeToko || '-') + '</span>';
+            }
+            function updateWorkflowCount(cbClass, btnId, countId) { let n = document.querySelectorAll('.' + cbClass + ':checked').length; document.getElementById(countId).innerText = n; setDisabledSafely(btnId, n === 0 || (btnId === 'btnSubmitClearing' && !document.getElementById('tglClearingInput').value)); if (btnId === 'btnSubmitBulk') setDisabledSafely('btnRejectBulk', n === 0); }
             function validateClearingBtn() { let n = document.querySelectorAll('.cb-clr:checked').length; let d = document.getElementById('tglClearingInput').value; setDisabledSafely('btnSubmitClearing', n === 0 || !d); }
 
+            // Dropdown filter dan kotak centang keempat antrean, dijaga selama sisa halaman
+            // dimuat di latar belakang (lihat 27-muat-bertahap.js).
+            const RC_WF_DROPDOWN = ['relDepotDropdown', 'relCampDropdown', 'cfDepotDropdown', 'cfCampDropdown',
+                                    'clrDepotDropdown', 'clrCampDropdown', 'bulkDepotDropdown', 'bulkCampDropdown'];
+
+            // false selama antrean masih dimuat bertahap; Mass Process Clearing memakainya untuk
+            // membedakan "belum dimuat" dari "tidak ada di antrean".
+            let rcWorkflowLengkap = false;
+
             async function fetchWorkflowData() {
+                rcWorkflowLengkap = false;
                 showLoadingOverlay("Memuat Data Operasional...");
+                let overlay = true;
+                const role = currentUserData.sysRole || currentUserData.role || '';
+                const rel = [], cf = [], clr = [], bulk = [];
                 try {
-                    let role = currentUserData.sysRole || currentUserData.role || '';
-                    let res = await fetchApp({ action: 'getWorkflowData', requesterId: currentUserData.userId, requesterRole: role, managedDepots: currentUserData.managedDepots });
-                    if (res.status === 'success') { globalReleaseData = res.releaseData || []; globalClaimFinData = res.claimFinData || []; globalClearingData = res.clearingData || []; globalBulkRebateData = res.bulkRebateData || []; popWorkflowFilters(); renderWorkflowTable('release'); renderWorkflowTable('claim'); renderWorkflowTable('clearing'); renderBulkTable(); }
-                } catch (e) { showNotification("Gagal memuat data operasi dari server.", "error"); } finally { hideLoadingOverlay(); }
+                    // Antrean dimuat per halaman: halaman pertama kecil supaya tabel segera
+                    // tampil, berikutnya 1000 baris per permintaan sampai habis.
+                    const selesai = await rcMuatBertahap({
+                        kunci: 'workflow', label: 'Data operasional',
+                        ambil: (setelah, pertama) => fetchApp({ action: 'getWorkflowData', requesterId: currentUserData.userId, requesterRole: role, managedDepots: currentUserData.managedDepots, setelah: setelah, limit: pertama ? 300 : 1000 }),
+                        terima: async function (res) {
+                            rel.push(...(res.releaseData || [])); cf.push(...(res.claimFinData || []));
+                            clr.push(...(res.clearingData || [])); bulk.push(...(res.bulkRebateData || []));
+                            globalReleaseData = rel; globalClaimFinData = cf;
+                            globalClearingData = clr; globalBulkRebateData = bulk;
+                            // Master pelanggan diambil sekali untuk seluruh baris yang baru datang,
+                            // sebelum tabelnya digambar. Tanpa ini, kolom yang berasal dari master
+                            // akan kosong pada tampilan pertama dan terisi entah kapan.
+                            await pastikanMasterDariBaris(
+                                [].concat(res.releaseData || [], res.claimFinData || [],
+                                          res.clearingData || [], res.bulkRebateData || []));
+                        },
+                        gambar: (pertama) => {
+                            const pilihan = pertama ? null : rcSimpanPilihanMulti(RC_WF_DROPDOWN);
+                            const centang = pertama ? null : rcSimpanCentang(['cb-rel', 'cb-claim', 'cb-clr', 'cb-bulk']);
+                            popWorkflowFilters();
+                            if (pilihan) rcPulihkanPilihanMulti(pilihan);
+                            renderWorkflowTable('release'); renderWorkflowTable('claim');
+                            renderWorkflowTable('clearing'); renderBulkTable();
+                            if (centang) {
+                                rcPulihkanCentang(centang);
+                                updateWorkflowCount('cb-rel', 'btnSubmitRelease', 'releaseSelectedCount');
+                                updateWorkflowCount('cb-claim', 'btnSubmitClaim', 'claimSelectedCount');
+                                updateWorkflowCount('cb-clr', 'btnSubmitClearing', 'clearingSelectedCount');
+                                updateWorkflowCount('cb-bulk', 'btnSubmitBulk', 'bulkSelectedCount');
+                            }
+                            if (overlay) { hideLoadingOverlay(); overlay = false; }
+                        }
+                    });
+                    if (selesai) rcWorkflowLengkap = true;
+                    // Keempat antrean kosong setelah SELURUH halaman dimuat: tanyakan sebabnya
+                    // ke server (tidak ada data, atau ada tetapi di luar jangkauan akun ini).
+                    if (selesai && !rel.length && !cf.length && !clr.length && !bulk.length) {
+                        fetchApp({ action: 'workflowDiagnostic' }).catch(function () {});
+                    }
+                } catch (e) { showNotification("Gagal memuat data operasi dari server.", "error"); } finally { if (overlay) hideLoadingOverlay(); }
             }
 
             function popWorkflowFilters() {
@@ -57,7 +117,7 @@
                 rcIsiKartuAngka('bulkTotCB', rcNominalRingkas(totalCbSum), rcNominalPenuh(totalCbSum));
 
                 let stageBadgeCls = {};
-                let rowsHtml = filtered.map(r => `<tr class="hover:bg-pink-50 border-b transition-colors"><td class="p-3.5 text-center"><input type="checkbox" value="${r.noDoc}" class="cb-bulk w-4 h-4 rounded text-pink-600 focus:ring-pink-500" onchange="updateWorkflowCount('cb-bulk', 'btnSubmitBulk', 'bulkSelectedCount')"></td><td class="p-3.5 text-center"><span class="${rcStatusClass(r.status)} text-[10px] font-black px-2 py-1 rounded uppercase">${r.status}</span></td><td class="p-3.5 font-black text-blue-700">${r.noDoc}</td><td class="p-3.5"><span class="font-bold block text-gray-800">${r.namaToko}</span><span class="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">${r.kodeToko}</span></td><td class="p-3.5"><span class="text-[10px] text-gray-500 block uppercase font-bold">${r.codeCampaign}</span><span class="text-sm font-medium whitespace-normal" title="${r.campaignName}">${r.campaignName}</span></td><td class="p-3.5 text-right font-black text-red-600">Rp ${Math.trunc(Number(Number(r.cbNet))||0).toLocaleString('id-ID')}</td></tr>`).join('');
+                let rowsHtml = filtered.map(r => `<tr class="hover:bg-pink-50 border-b transition-colors"><td class="p-3.5 text-center"><input type="checkbox" value="${r.noDoc}" class="cb-bulk w-4 h-4 rounded text-pink-600 focus:ring-pink-500" onchange="updateWorkflowCount('cb-bulk', 'btnSubmitBulk', 'bulkSelectedCount')"${r.masterKosong ? ' disabled title="Customer Master belum ada. Lengkapi di Key Master &gt; Customer Master lebih dulu."' : ''}></td><td class="p-3.5 text-center"><span class="${rcStatusClass(r.status)} text-[10px] font-black px-2 py-1 rounded uppercase">${r.status}</span></td><td class="p-3.5 text-xs text-gray-500 font-medium">${rcEsc(r.tglUpload || '-')}</td><td class="p-3.5 font-black text-blue-700">${r.noDoc}</td><td class="p-3.5">${rcSelToko(r)}</td><td class="p-3.5"><span class="text-[10px] text-gray-500 block uppercase font-bold">${r.codeCampaign}</span><span class="text-sm font-medium whitespace-normal" title="${r.campaignName}">${r.campaignName}</span></td><td class="p-3.5 text-right font-black text-red-600">Rp ${Math.trunc(Number(Number(r.cbNet))||0).toLocaleString('id-ID')}</td></tr>`).join('');
                 document.getElementById('bulkTableBody').innerHTML = rowsHtml;
                 updateWorkflowCount('cb-bulk', 'btnSubmitBulk', 'bulkSelectedCount');
             }
@@ -80,7 +140,29 @@
                         if (succRows.length > 0) downloadBulkProcessExcel(succRows);
                         fetchWorkflowData();
                     } else { showNotification(res.message || "Gagal memproses.", "error"); }
-                } catch (e) { showNotification("Terjadi kesalahan saat memproses Bulk Process.", "error"); fetchWorkflowData(); }
+                } catch (e) { showNotification((e && e.message) ? "Gagal: " + e.message : "Terjadi kesalahan saat memproses Bulk Process.", "error"); fetchWorkflowData(); }
+                finally { hideLoadingOverlay(); }
+            }
+
+            // Tolak dari Bulk Process: dokumen Rebate kembali ke depot (Not Yet) dari tahap mana
+            // pun, supaya depot memperbaiki dan mengajukan ulang. Alasan wajib (20261162120000).
+            async function rejectBulkProcess() {
+                let docs = []; document.querySelectorAll('.cb-bulk:checked').forEach(c => docs.push(c.value)); if (docs.length === 0) return;
+                let alasan = window.prompt('Alasan penolakan ' + docs.length + ' dokumen (akan tercatat di riwayat dokumen):', '') || '';
+                if (!alasan.trim()) { showNotification('Penolakan memerlukan alasan.', 'warning'); return; }
+                let yakin = await showConfirmModal({ title: "Tolak Dokumen Bulk", message: `${docs.length} dokumen akan dikembalikan ke depot (status Not Yet) dan keluar dari antrean Bulk Process. Depot perlu mengajukan ulang.\n\nAlasan: ${alasan.trim()}`, confirmText: "Ya, Tolak" });
+                if (!yakin) return;
+
+                setDisabledSafely('btnRejectBulk', true); setDisabledSafely('btnSubmitBulk', true);
+                showLoadingOverlay('Mengembalikan dokumen ke depot...');
+                try {
+                    let res = await fetchApp({ action: 'bulkReject', docsToProcess: docs, reason: alasan.trim() });
+                    if (res.status === 'success') {
+                        logActivity(`Bulk Process (Tolak -> Not Yet): ${docs.length} dokumen. Alasan: ${alasan.trim()}`);
+                        showNotification(docs.length + ' dokumen dikembalikan ke depot.', 'success');
+                        fetchWorkflowData();
+                    } else { showNotification(res.message || "Gagal menolak dokumen.", "error"); }
+                } catch (e) { showNotification((e && e.message) ? "Gagal: " + e.message : "Terjadi kesalahan saat menolak dokumen.", "error"); fetchWorkflowData(); }
                 finally { hideLoadingOverlay(); }
             }
 
@@ -103,7 +185,10 @@
                     // akan membuat dokumen tampak berpindah sendiri.
                     ['Approved', r.approvedBy, r.tglApprove],
                     ['Released', r.releasedBy, r.tglRelease],
-                    ['Claimed', r.claimedBy, r.tglClaim]
+                    ['Claimed', r.claimedBy, r.tglClaim],
+                    // Clearing ditambahkan atas permintaan pemilik 9 Oktober 2026: seluruh tahap,
+                    // dari Submitted sampai Clearing, terbaca di satu kartu.
+                    ['Clearing', r.clearedBy, r.tglClearing]
                 ];
                 const isi = tahap.map(function (t) {
                     const nama = String(t[1] || '').trim();
@@ -117,7 +202,12 @@
                         + '</span>';
                 }).join('');
                 const dibuat = String(r.createdBy || '').trim();
-                return isi + '<span class="block text-[10px] text-gray-400 mt-1 border-t border-gray-100 pt-1 truncate">'
+                // 20261163150000: pelaku Amend, merah.
+                const amend = (Array.isArray(r.amendBy) ? r.amendBy : []).map(function (a) {
+                    return '<span class="block text-[11px] leading-snug truncate text-red-600 font-black" title="' + rcEsc('Amend (' + (a.dari || '-') + '): ' + (a.oleh || '-') + (a.waktu ? ' - ' + a.waktu : '')) + '">'
+                        + 'Amend (' + rcEsc(a.dari || '-') + ') ' + rcEsc(a.oleh || '-') + '</span>';
+                }).join('');
+                return isi + amend + '<span class="block text-[10px] text-gray-400 mt-1 border-t border-gray-100 pt-1 truncate">'
                     + 'Dibuat: ' + (dibuat ? rcEsc(dibuat) : '-') + '</span>';
             }
 
@@ -134,8 +224,12 @@
             // sama bila daftarnya hanya dicentang sebagian tanpa keterangan.
             function clearingTandaiDariDaftar() {
                 const teks = (document.getElementById('clrMassDocs') || {}).value || '';
-                const diminta = teks.split(/[\r\n,;\t]+/)
-                    .map(x => x.trim().toUpperCase()).filter(x => x !== '');
+                // Tempelan dari Excel kerap membawa karakter tak terlihat (spasi tak-putus, zero-width)
+                // dan kolom lain yang ikut tersalin. No Document tidak pernah berspasi dan selalu
+                // memuat "/", jadi potongan lain (nama toko, nominal) diabaikan, bukan dilaporkan
+                // sebagai No Document yang tidak ditemukan.
+                const diminta = teks.replace(/[ ​-‍﻿]/g, ' ').split(/[\s,;]+/)
+                    .map(x => x.trim().toUpperCase()).filter(x => x !== '' && x.indexOf('/') > -1);
                 const ringkas = document.getElementById('clrMassRingkas');
                 if (diminta.length === 0) {
                     if (ringkas) ringkas.innerText = 'Belum ada No Document yang ditempel.';
@@ -146,31 +240,47 @@
                 // mencentangnya diam-diam akan memposting sesuatu yang tidak terlihat di layar.
                 const kotak = Array.from(document.querySelectorAll('.cb-clr'));
                 const adaDiLayar = new Set(kotak.map(c => String(c.value).trim().toUpperCase()));
+                // Dokumen tanpa Customer Master tampil di daftar tetapi tidak dapat diproses;
+                // mencentangnya akan menggagalkan seluruh posting (20261162260000).
+                const terkunci = new Set(kotak.filter(c => c.disabled).map(c => String(c.value).trim().toUpperCase()));
                 const unik = Array.from(new Set(diminta));
-                const ketemu = unik.filter(d => adaDiLayar.has(d));
+                const ketemu = unik.filter(d => adaDiLayar.has(d) && !terkunci.has(d));
+                const tanpaMaster = unik.filter(d => terkunci.has(d));
                 const tidak = unik.filter(d => !adaDiLayar.has(d));
 
-                kotak.forEach(c => { c.checked = ketemu.indexOf(String(c.value).trim().toUpperCase()) > -1; });
+                kotak.forEach(c => { c.checked = !c.disabled && ketemu.indexOf(String(c.value).trim().toUpperCase()) > -1; });
                 updateWorkflowCount('cb-clr', 'btnSubmitClearing', 'clearingSelectedCount');
                 validateClearingBtn();
 
+                if (tidak.length > 0 && !rcWorkflowLengkap) {
+                    if (ringkas) ringkas.innerHTML = '<b class="text-emerald-700">' + ketemu.length + '</b> dari ' + unik.length
+                        + ' No Document tercentang. <b class="text-orange-600">Data Clearing masih dimuat</b> - '
+                        + tidak.length + ' No Document belum terlihat. Tunggu sampai indikator pemuatan selesai, lalu klik Centang lagi.';
+                    return;
+                }
                 if (ringkas) {
                     ringkas.innerHTML = '<b class="text-emerald-700">' + ketemu.length + '</b> dari '
                         + unik.length + ' No Document tercentang.'
+                        + (tanpaMaster.length > 0
+                            ? ' <b class="text-red-600">' + tanpaMaster.length + ' belum punya Customer Master</b> '
+                              + '(tidak dicentang; lengkapi di Key Master &gt; Customer Master lebih dulu).'
+                            : '')
                         + (tidak.length > 0
                             ? ' <b class="text-red-600">' + tidak.length + ' tidak ada di daftar Clearing</b> '
                               + '(salah ketik, sudah diproses, di luar yurisdiksi Anda, '
                               + 'atau tersembunyi oleh filter yang sedang aktif).'
                             : '');
                 }
-                if (tidak.length > 0) {
-                    rcDialog('No Document yang tidak ditemukan di Clearing',
-                        '<p class="text-sm text-gray-600 mb-3">Dokumen berikut tidak ada pada daftar Clearing yang '
-                        + 'sedang tampil. Periksa ejaannya, atau bersihkan filter lebih dulu.</p>'
+                if (tidak.length > 0 || tanpaMaster.length > 0) {
+                    const baris = (daftar, sebab) => daftar.map(d => '<tr class="border-b border-gray-100"><td class="p-2 font-mono text-red-700">'
+                        + rcEsc(d) + '</td><td class="p-2 text-gray-600">' + sebab + '</td></tr>').join('');
+                    rcDialog('No Document yang tidak dapat dicentang',
+                        '<p class="text-sm text-gray-600 mb-3">Dokumen berikut tidak ikut dicentang. Dokumen lain tetap dapat '
+                        + 'diposting.</p>'
                         + '<div class="max-h-72 overflow-auto border border-gray-200 rounded-lg">'
                         + '<table class="w-full text-sm"><tbody>'
-                        + tidak.map(d => '<tr class="border-b border-gray-100"><td class="p-2 font-mono text-red-700">'
-                            + rcEsc(d) + '</td></tr>').join('')
+                        + baris(tanpaMaster, 'Customer Master belum ada - lengkapi di Key Master lebih dulu')
+                        + baris(tidak, 'Tidak ada di daftar Clearing yang tampil (salah ketik, sudah diproses, di luar yurisdiksi, atau tersembunyi filter)')
                         + '</tbody></table></div>');
                 }
             }
@@ -203,7 +313,6 @@
                     else if (type === 'claim') pBatch = r.batchRelease || '-';
                     else if (type === 'clearing') pBatch = r.batchClaim || '-';
 
-                    let cstLocal = globalCustomers.find(c => c.custCode === r.kodeToko) || {};
                     let matchSearch = !sv || Object.values(r).some(val => val !== null && String(val).toLowerCase().includes(sv)) || pBatch.toLowerCase().includes(sv);
                     let matchDepot = (sd.length === 0 || sd.includes(r.depot));
                     let matchCamp = (sc.length === 0 || sc.includes(r.codeCampaign + " - " + r.campaignName));
@@ -220,6 +329,9 @@
                 });
 
                 let tb = document.getElementById(bodyId); let rowsHtml = '';
+                // Tanggal transfer/proses aktual tidak boleh sesudah hari ini (WIB), sama dengan
+                // aturan server (20261162270000).
+                if (type === 'clearing') { const tgl = document.getElementById('tglClearingInput'); if (tgl) tgl.max = new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10); }
 
                 // Qty Toko, Total Cashback, & Total CB Gross Up (mengikuti hasil filter yang sedang aktif di layar)
                 let totTokoElId = type === 'release' ? 'relTotToko' : (type === 'claim' ? 'cfTotToko' : 'clrTotToko');
@@ -241,11 +353,11 @@
                     else if (type === 'claim') pBatch = r.batchRelease || '-';
                     else if (type === 'clearing') pBatch = r.batchClaim || '-';
 
-                    let cst = globalCustomers.find(c => c.custCode === r.kodeToko) || {};
-                    let doc = globalDocuments.find(d => String(d.noDoc).toUpperCase() === String(r.noDoc).toUpperCase()) || {};
+                    let idn = rcIdentitasDokumen(r);
+                    let doc = rcCariDokumen(r.noDoc) || {};
                     
-                    let valKtp = cst.ktp || r.ktp || '-'; let valNpwp = cst.npwp || r.npwp || '-'; let valTop = doc.top || r.top || '-'; let valLunas = doc.tglLunas || r.tglLunas || '-';
-                    let valRek = cst.noRek || r.noRekening || '-'; let valNamaRek = cst.namaRek || r.pemilikRekening || '-'; let valBank = cst.bank || r.bankCust || '-';
+                    let valKtp = idn.ktp || '-'; let valNpwp = idn.npwp || '-'; let valTop = doc.top || r.top || '-'; let valLunas = doc.tglLunas || r.tglLunas || '-';
+                    let valRek = idn.noRek || '-'; let valNamaRek = idn.namaRek || '-'; let valBank = idn.bank || '-';
                     
                     let valVolume = doc.volume || 0; let valNetValue = doc.netValue || 0;
                     // Label seragam; penulisan berbeda di master tidak lagi tampil sebagai dua
@@ -253,10 +365,9 @@
                     let valStatusPajak = rcLabelPajak(r.statusPajakCamp);
                     // Diturunkan dari KTP/NPWP yang berlaku sekarang. Kolom tax_subject yang
                     // tersimpan saat upload dapat tertinggal ketika identitas toko diperbarui.
-                    let valSubyekPajak = rcSubyekPajak(valKtp === '-' ? '' : valKtp, valNpwp === '-' ? '' : valNpwp)
-                                         || r.statusPajakCust || '-';
+                    let valSubyekPajak = idn.subyek || '-';
 
-                    rowsHtml += `<tr class="hover:bg-blue-50 border-b transition-colors"><td class="p-3.5 text-center"><input type="checkbox" value="${r.noDoc}" class="${cbCls} w-4 h-4 rounded text-blue-600 focus:ring-blue-500" onchange="updateWorkflowCount('${cbCls}', '${btnId}', '${countId}')"></td><td class="p-3.5 text-[10px] font-black text-gray-600 bg-gray-50/50 uppercase">${pBatch}</td><td class="p-3.5 text-xs text-gray-500 font-medium">${r[tglCol]}</td><td class="p-3.5 font-black text-blue-700">${r.noDoc}</td><td class="p-3.5"><span class="font-bold block text-gray-800">${r.namaToko}</span><span class="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">${r.kodeToko}</span></td><td class="p-3.5"><span class="text-[10px] text-gray-500 block uppercase font-bold">${r.codeCampaign}</span><span class="text-sm font-medium whitespace-normal" title="${r.campaignName}">${r.campaignName}</span></td><td class="p-3.5 text-right font-black text-red-600">Rp ${Math.trunc(Number(Number(r.cbNet))||0).toLocaleString('id-ID')}</td><td class="p-3.5 text-xs rc-wrap">${rcEsc(rcCbLabel(r.jenisCb))}</td>${type!=='release'?'<td class="p-3.5 text-right text-orange-700 font-bold">'+rcMoney(r.grossUpCb)+'</td>':''}<td class="p-3.5 text-center"><button onclick="toggleWorkflowDetails('det-${type}-${r.noDoc}')" class="bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold px-3 py-1.5 rounded-lg text-[10px] uppercase shadow-sm transition"><i class="fas fa-eye mr-1"></i> Details</button></td></tr><tr id="det-${type}-${r.noDoc}" class="hidden expanded-details"><td colspan="${type==='release'?9:10}" class="p-4 bg-gray-50"><div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs"><div class="bg-white p-3 rounded-lg shadow-sm border border-gray-200"><span class="font-bold text-gray-500 block mb-1 uppercase text-[9px]"><i class="fas fa-id-card mr-1"></i> Identitas & Pajak</span> <span class="font-bold text-gray-800 block text-xs truncate">KTP: ${valKtp} | NPWP: ${valNpwp}</span><span class="font-bold text-gray-800 block text-xs truncate">Sbyk: ${valSubyekPajak} | Stat: ${valStatusPajak}</span></div><div class="bg-white p-3 rounded-lg shadow-sm border border-gray-200"><span class="font-bold text-gray-500 block mb-1 uppercase text-[9px]"><i class="fas fa-money-check-alt mr-1"></i> Rekening</span> <span class="font-bold text-gray-800 block text-xs truncate">${valRek}</span><span class="font-bold text-gray-800 block text-xs truncate">${valNamaRek} (${valBank})</span></div><div class="bg-white p-3 rounded-lg shadow-sm border border-gray-200"><span class="font-bold text-gray-500 block mb-1 uppercase text-[9px]"><i class="fas fa-box mr-1"></i> Data Campaign</span> <span class="font-bold text-gray-800 block text-xs truncate">Vol: ${valVolume} | Val: Rp ${Math.trunc(Number(Number(valNetValue))||0).toLocaleString('id-ID')}</span><span class="font-bold text-gray-800 block text-xs truncate">TOP: ${valTop} Hr | Lns: ${valLunas}</span></div><div class="bg-white p-3 rounded-lg shadow-sm border border-gray-200"><span class="font-bold text-gray-500 block mb-1 uppercase text-[9px]"><i class="fas fa-user-check mr-1"></i> Process by</span>${kartuPelaku(r)}</div>${rcDetailCard('Remark',r.remark)}</div></td></tr>`; 
+                    rowsHtml += `<tr class="hover:bg-blue-50 border-b transition-colors"><td class="p-3.5 text-center"><input type="checkbox" value="${r.noDoc}" class="${cbCls} w-4 h-4 rounded text-blue-600 focus:ring-blue-500" onchange="updateWorkflowCount('${cbCls}', '${btnId}', '${countId}')"${r.masterKosong ? ' disabled title="Customer Master belum ada. Lengkapi di Key Master &gt; Customer Master lebih dulu."' : ''}></td><td class="p-3.5 text-[10px] font-black text-gray-600 bg-gray-50/50 uppercase">${pBatch}</td><td class="p-3.5 text-xs text-gray-500 font-medium">${r[tglCol]}</td><td class="p-3.5 font-black text-blue-700">${r.noDoc}</td><td class="p-3.5">${rcSelToko(r)}</td><td class="p-3.5"><span class="text-[10px] text-gray-500 block uppercase font-bold">${r.codeCampaign}</span><span class="text-sm font-medium whitespace-normal" title="${r.campaignName}">${r.campaignName}</span></td><td class="p-3.5 text-right font-black text-red-600">Rp ${Math.trunc(Number(Number(r.cbNet))||0).toLocaleString('id-ID')}</td><td class="p-3.5 text-xs rc-wrap">${rcEsc(rcCbLabel(r.jenisCb))}</td>${type!=='release'?'<td class="p-3.5 text-right text-orange-700 font-bold">'+rcMoney(r.grossUpCb)+'</td>':''}<td class="p-3.5 text-center"><button onclick="toggleWorkflowDetails('det-${type}-${r.noDoc}')" class="bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold px-3 py-1.5 rounded-lg text-[10px] uppercase shadow-sm transition"><i class="fas fa-eye mr-1"></i> Details</button></td></tr><tr id="det-${type}-${r.noDoc}" class="hidden expanded-details"><td colspan="${type==='release'?9:10}" class="p-4 bg-gray-50"><div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs"><div class="bg-white p-3 rounded-lg shadow-sm border border-gray-200"><span class="font-bold text-gray-500 block mb-1 uppercase text-[9px]"><i class="fas fa-id-card mr-1"></i> Identitas & Pajak</span> <span class="font-bold text-gray-800 block text-xs truncate">KTP: ${valKtp} | NPWP: ${valNpwp}</span><span class="font-bold text-gray-800 block text-xs truncate">Sbyk: ${valSubyekPajak} | Stat: ${valStatusPajak}</span></div><div class="bg-white p-3 rounded-lg shadow-sm border border-gray-200"><span class="font-bold text-gray-500 block mb-1 uppercase text-[9px]"><i class="fas fa-money-check-alt mr-1"></i> Rekening</span> <span class="font-bold text-gray-800 block text-xs truncate">${valRek}</span><span class="font-bold text-gray-800 block text-xs truncate">${valNamaRek} (${valBank})</span></div><div class="bg-white p-3 rounded-lg shadow-sm border border-gray-200"><span class="font-bold text-gray-500 block mb-1 uppercase text-[9px]"><i class="fas fa-box mr-1"></i> Data Campaign</span> <span class="font-bold text-gray-800 block text-xs truncate">Vol: ${valVolume} | Val: Rp ${Math.trunc(Number(Number(valNetValue))||0).toLocaleString('id-ID')}</span><span class="font-bold text-gray-800 block text-xs truncate">TOP: ${valTop} Hr | Lns: ${valLunas}</span></div><div class="bg-white p-3 rounded-lg shadow-sm border border-gray-200"><span class="font-bold text-gray-500 block mb-1 uppercase text-[9px]"><i class="fas fa-user-check mr-1"></i> Process by</span>${kartuPelaku(r)}</div>${rcDetailCardHtml('Remark',rcRemarkHtml(r.remark))}</div></td></tr>`; 
                 });
                 tb.innerHTML = rowsHtml; updateWorkflowCount(cbCls, btnId, countId);
             }
@@ -271,31 +382,24 @@
                 return parseFloat(str) || 0;
             };
 
-            // Mesin Kalkulasi Gross Up di Frontend - dipakai bersama oleh seluruh fitur export Excel supaya nilai
-            // "Before Tax" selalu 100% akurat meskipun database lama di Google Sheet masih nyangkut/salah.
-            let calcGrossUp = (netCB, subyek, statusCamp) => {
-                let net = Number(netCB) || 0;
-                if (net <= 0) return 0;
-                // Memakai penafsiran yang sama dengan filter dan tampilan kolom, sehingga tidak
-                // mungkin lagi sebuah campaign terlihat "Ditanggung Perusahaan" di layar tetapi
-                // diperlakukan sebagai ditanggung customer saat menghitung gross up.
-                let kunciPajak = rcKunciPajak(statusCamp);
-                // Ditanggung Perusahaan: toko menerima net penuh tanpa potongan pajak, sehingga
-                // nilai "Before Tax" yang perlu ditagihkan ke toko = 0. Rebate Non Tax pun tidak
-                // dikenai pajak sama sekali, jadi diperlakukan sama.
-                if (kunciPajak === 'perusahaan' || kunciPajak === 'nonTax') return 0;
-
-                let sp = String(subyek || '').trim().toLowerCase();
-                // Flat 15% Badan
-                if (sp === 'badan') return net / 0.85;
-
-                // Progresif Pribadi / Perorangan
-                if (net <= 57000000) return net / 0.95;
-                if (net <= 218500000) return 60000000 + ((net - 57000000) / 0.85);
-                if (net <= 406000000) return 250000000 + ((net - 218500000) / 0.75);
-                if (net <= 3556000000) return 500000000 + ((net - 406000000) / 0.70);
-                return 5000000000 + ((net - 3556000000) / 0.65);
-            };
+            // Identitas, rekening dan subyek pajak sebuah dokumen: SATU sumber untuk layar Release /
+            // Claim Process / Clearing dan berkas Claim to Finance. Sebelumnya layar mendahulukan
+            // Customer Master sedangkan berkas mendahulukan nilai per klaim, sehingga NPWP yang nol
+            // depannya hilang di data klaim tampil benar di layar tetapi terunduh tanpa nol
+            // (pemilik, 12 Oktober 2026). Urutan layar dipertahankan: Customer Master lebih dulu.
+            function rcIdentitasDokumen(r) {
+                const cst = rcCariCustomer(r.kodeToko) || {};
+                const t = v => String(v === null || v === undefined ? '' : v).trim();
+                const ktp = t(cst.ktp || r.ktp), npwp = t(cst.npwp || r.npwp);
+                return {
+                    cst: cst, ktp: ktp, npwp: npwp,
+                    noRek: t(cst.noRek || r.noRekening), namaRek: t(cst.namaRek || r.pemilikRekening),
+                    bank: t(cst.bank || r.bankCust),
+                    // Diturunkan dari KTP/NPWP yang berlaku sekarang; tax_subject yang tersimpan saat
+                    // upload dapat tertinggal ketika identitas toko diperbarui.
+                    subyek: rcSubyekPajak(ktp, npwp) || t(r.statusPajakCust)
+                };
+            }
 
            // Excel otomatis saat "Posting Claim" berhasil - kolom lookup dari sheet Compile, diurutkan ascending berdasarkan Jenis CB.
             function downloadClaimToFinanceExcel(rows) {
@@ -319,46 +423,36 @@
                 };
 
                 sorted.forEach((r, i) => {
-                    // Lookup fallback: sebagian data lama di sheet Compile per-baris bisa kosong (periode,
-                    // KTP/NPWP, subyek/status pajak) - kalau kosong, ambil dari master ListCust/ListCampaign
-                    // yang selalu terisi & terbaru, supaya nilai di Excel tidak pernah kosong/salah hitung.
-                    let cst = globalCustomers.find(c => c.custCode === r.kodeToko) || {};
-                    let cmp = globalCampaigns.find(c => c.codeCampaign === r.codeCampaign) || {};
+                    // Identitas, rekening, subyek pajak, Jenis CB dan Gross Up diambil persis dari
+                    // yang tampil di layar Claim Process (rcIdentitasDokumen, rcCbLabel,
+                    // grossUpCb), supaya isi berkas tidak pernah berbeda dari yang dilihat.
+                    // Periode yang kosong per dokumen tetap diambil dari Campaign Master.
+                    let idn = rcIdentitasDokumen(r);
+                    let cst = idn.cst;
+                    let cmp = rcCariCampaign(r.codeCampaign) || {};
 
-                    let ktpVal = String(r.ktp || cst.ktp || '').trim();
-                    let npwpVal = String(r.npwp || cst.npwp || '').trim();
-                    let noRekVal = String(r.noRekening || cst.noRek || '').trim();
-                    let namaRekVal = String(r.namaRekening || cst.namaRek || '').trim();
-                    let bankVal = String(r.bank || cst.bank || '').trim();
-                    // Diturunkan dari identitas yang berlaku sekarang, sama seperti di layar,
-                    // supaya nilai di berkas tidak pernah berbeda dari yang dilihat pengguna.
-                    let subyekVal = rcSubyekPajak(ktpVal, npwpVal)
-                                    || String(r.statusPajakCust || cst.subyekPajak || '').trim();
-                    let pajakMentah = String(r.statusPajakCamp || cmp.statusPajak || '').trim();
-                    let statusPajakCampVal = rcTeksPajak(pajakMentah);
+                    let ktpVal = idn.ktp, npwpVal = idn.npwp, noRekVal = idn.noRek;
+                    let namaRekVal = idn.namaRek, bankVal = idn.bank, subyekVal = idn.subyek;
+                    let statusPajakCampVal = rcTeksPajak(r.statusPajakCamp);
                     let periodeStartVal = toDDMMMYYYY((r.periodeStart && r.periodeStart !== '-') ? r.periodeStart : cmp.periodStart);
                     let periodeEndVal = toDDMMMYYYY((r.periodeEnd && r.periodeEnd !== '-') ? r.periodeEnd : cmp.periodEnd);
                     let idForDigit = ktpVal || npwpVal;
                     let digitCount = idForDigit.replace(/\D/g, '').length;
 
                     let validNet = parseSafeNumber(r.cbNet);
-
-                    // Dihitung dari teks mentahnya; rcKunciPajak menafsirkan keduanya sama, dan
-                    // memakai yang mentah menjaga perhitungan tetap benar seandainya daftar
-                    // label berubah kemudian.
-                    let validGrossUp = calcGrossUp(validNet, subyekVal, pajakMentah);
+                    let validGrossUp = Number(r.grossUpCb) || 0;
                     let digitRek = noRekVal.replace(/\D/g, '').length;
                     let kontakVal = String(r.contactPerson || cst.contactPerson || '').trim();
 
                     aoa.push([
-                        i + 1, r.noDoc, r.kodeDepot, r.depot, r.codeCampaign,
+                        i + 1, rcSelTeks(r.noDoc), rcSelTeks(r.kodeDepot), r.depot, rcSelTeks(r.codeCampaign),
                         periodeStartVal, periodeEndVal, r.campaignName,
-                        r.kodeToko, r.namaToko,
+                        rcSelTeks(r.kodeToko), r.namaToko,
                         Math.trunc(validNet),
-                        Math.trunc(validGrossUp),   // <-- Menggunakan hasil kalkulasi bersih!
-                        ktpVal, npwpVal,
-                        digitCount, subyekVal, statusPajakCampVal, r.jenisCb || '',
-                        noRekVal, digitRek, namaRekVal, bankVal, kontakVal
+                        Math.trunc(validGrossUp),
+                        rcSelTeks(ktpVal), rcSelTeks(npwpVal),
+                        digitCount, subyekVal, statusPajakCampVal, rcCbLabel(r.jenisCb),
+                        rcSelTeks(noRekVal), digitRek, namaRekVal, bankVal, kontakVal
                     ]);
                 });
 
@@ -379,15 +473,15 @@
 
             // Excel otomatis saat "Bulk Process" (Rebate -> Done) berhasil - hanya field yang diminta Finance:
             // Code Campaign, Sales Org (selalu kosong), Code Cust, DC, CB After Tax (Net), CB Before Tax (Gross Up).
-            // CB Before Tax dihitung ulang di frontend (calcGrossUp) supaya akurat walau nilai Gross Up di sheet nyangkut/salah.
+            // CB Before Tax = Gross Up yang sama dengan Laporan Bulk Process di layar (grossUpCb).
             function downloadBulkProcessExcel(rows) {
                 if (!rows || rows.length === 0) return;
                 let header = ["Code Campaign", "Sales Org", "Code Cust", "DC", "CB After Tax", "CB Before Tax"];
                 let aoa = [header];
                 rows.forEach(r => {
                     let netCB = parseSafeNumber(r.cbNet);
-                    let grossUp = calcGrossUp(netCB, r.statusPajakCust, r.statusPajakCamp);
-                    aoa.push([r.codeCampaign || '', '', r.kodeToko || '', r.kodeDepot || '', Math.trunc(netCB), Math.trunc(grossUp)]);
+                    let grossUp = Number(r.grossUpCb) || 0;
+                    aoa.push([rcSelTeks(r.codeCampaign), '', rcSelTeks(r.kodeToko), rcSelTeks(r.kodeDepot), Math.trunc(netCB), Math.trunc(grossUp)]);
                 });
 
                 const ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -435,8 +529,8 @@
                             downloadClaimToFinanceExcel(fullRowsForExcel);
                         }
                         fetchWorkflowData(); 
-                    } else { showNotification("Gagal", "error"); }
-                } catch (e) { showNotification("Terjadi kesalahan saat memproses workflow.", "error"); fetchWorkflowData(); } finally { hideLoadingOverlay(); }
+                    } else { showNotification(res.message || "Gagal memproses dokumen.", "error"); }
+                } catch (e) { showNotification((e && e.message) ? "Gagal: " + e.message : "Terjadi kesalahan saat memproses workflow.", "error"); fetchWorkflowData(); } finally { hideLoadingOverlay(); }
             }
 
             // Resolve campaign code individual (kolom A ListCampaign) ke Master Code (kolom V) & Master Code
@@ -451,7 +545,7 @@
                 // pencocokan case-sensitive sebelumnya membuat Master Code gagal ketemu padahal sudah ada di master
                 // (tampil "belum sinkron"/selalu fallback). Pola normalisasi ini sama seperti campJenisCbMap di Code.gs.
                 let target = String(codeCampaign || '').trim().toUpperCase();
-                let cmp = globalCampaigns.find(c => String(c.codeCampaign || '').trim().toUpperCase() === target) || {};
+                let cmp = rcCariCampaignNorm(target) || {};
                 let mc = String(cmp.masterCode || '').trim();
                 let mcn = String(cmp.masterCodeName || '').trim();
                 if (!mc) mc = codeCampaign;
@@ -460,7 +554,7 @@
             }
 
             function getValidYear(campaignCode) {
-                let cmp = globalCampaigns.find(c => c.codeCampaign === campaignCode);
+                let cmp = rcCariCampaign(campaignCode);
                 if (cmp && cmp.periodStart && cmp.periodStart !== '-') { 
                     let pts = cmp.periodStart.split(/[-\/]/); 
                     if (pts.length === 3) {

@@ -2,19 +2,23 @@
             let mRegistrationSubmitting = false;
             let mAccessLoadSequence = 0;
             // ============================================================================
-            // ACCESS MANAGEMENT: MENGUBAH HANYA SUPERVISOR DAN SYSTEM MANAGER
+            // ACCESS MANAGEMENT: YANG DIBERI MODULNYA DAPAT MENGUBAH
             // ============================================================================
-            // Keputusan pemilik: "modul acces management itu hanya spv dan system manager
-            // sisanya hanya viewer".
+            // Dulu (keputusan pemilik): "modul acces management itu hanya spv dan system
+            // manager sisanya hanya viewer". Diganti keputusan pemilik 6 Oktober 2026: "ketika
+            // di kasih akses suatu modul atau tab maka semua langsung bisa di authorize".
             //
-            // Server sudah menjaganya - rc_update_access, rc_review_pin, penghapusan akun dan
-            // seluruh tulisan lain melewati rc_private.is_manager(), yang hanya mengakui kedua
-            // peran itu. Yang ditambahkan di sini BUKAN penjagaan kedua, melainkan kejujuran
-            // layar: tanpa ini, seorang viewer melihat tombol yang tampak dapat ditekan, menekan
-            // sepuluh kali, dan setiap kali menerima pesan "Access denied" tanpa tahu sebabnya.
+            // Jadi hak mengubah kini datang dari SERVER (canEdit dari rc_legacy_manageable,
+            // yaitu rc_private.boleh_kelola_akses: Supervisor/System Manager atau pemegang izin
+            // Access Management). Server tetap membatasi jangkauannya: hanya akun di depot yang
+            // terjangkau, hanya peran setingkat dirinya ke bawah, dan hanya izin modul yang ia
+            // miliki sendiri. Yang di layar ini BUKAN penjagaan kedua, melainkan kejujuran layar:
+            // tombol yang pasti ditolak tidak ditampilkan sebagai tombol yang dapat ditekan.
             //
-            // Karena penjagaannya di server, membobol yang di layar tidak menghasilkan apa pun.
+            // Sebelum jawaban server datang, perkiraannya dari peran seperti dulu.
+            let mBolehUbahServer = null;
             function mBolehUbah() {
+                if (mBolehUbahServer !== null) return mBolehUbahServer;
                 const peran = String((currentUserData && (currentUserData.sysRole || currentUserData.role)) || '').toLowerCase();
                 return peran === 'supervisor' || peran === 'system manager';
             }
@@ -59,8 +63,9 @@
                     let role = currentUserData.sysRole || currentUserData.role || '';
                     let res = await fetchApp({ action: 'getManageableData', requesterId: currentUserData.userId, requesterRole: role });
                     if (sequence !== mAccessLoadSequence) return false;
-                    if (res.status === 'success') { 
+                    if (res.status === 'success') {
                         mRegistrationOptions = res.registrationOptions || null;
+                        if (typeof res.canEdit === 'boolean') mBolehUbahServer = res.canEdit;
                         currentManageableUsers = res.users || []; 
                         let rawDepots = (role === 'system manager' || role === 'supervisor') ? res.allDepots : res.managedDepots;
                         globalDepotList = [];
@@ -125,13 +130,20 @@
                     let actLabel = actStr === 'suspended' ? 'Suspended' : (actStr === 'disabled' ? 'Disabled' : (actStr === 'inactive' ? 'Inactive' : (isAct ? 'Aktif' : 'Nonaktif')));
                     let actColor = isAct ? 'text-green-600' : 'text-red-600';
                     let reqPinHtml = u.pinStatus === 'pending' ? `<span class="px-2 py-0.5 text-[9px] bg-orange-500 text-white rounded font-bold ml-2 animate-pulse uppercase tracking-wider">Req PIN</span>` : '';
-                    // Menghapus akun adalah wewenang System Manager saja, dan tidak berlaku
-                    // untuk akunnya sendiri - server menolaknya juga, tetapi tombol yang pasti
-                    // ditolak sebaiknya memang tidak ditampilkan.
-                    let bolehHapus = (currentUserData.sysRole || currentUserData.role || '').toLowerCase() === 'system manager'
+                    // Akun aktif yang belum pernah menetapkan PIN sendiri (PIN impor, atau ganti PIN
+                    // yang sudah disetujui) terkunci SELURUHNYA sampai ia masuk dan mengganti PIN,
+                    // walau modulnya tercentang di sini. Ditandai supaya hal itu tidak terbaca
+                    // sebagai akses yang tidak sinkron.
+                    let wajibPinHtml = (u.mustChangePin === true && u.pinStatus !== 'pending' && isAct)
+                        ? `<span class="px-2 py-0.5 text-[9px] bg-amber-100 text-amber-800 border border-amber-300 rounded font-bold ml-2 uppercase tracking-wider" title="Akun ini belum menetapkan PIN sendiri. Seluruh aksesnya terkunci sampai ia masuk dan mengganti PIN.">Wajib ganti PIN</span>` : '';
+                    // Menghapus akun mengikuti hak mengelola akun itu (20261162130000): pemegang
+                    // Access Management, akun di dalam jangkauannya (bolehKelola dari server), dan
+                    // tidak berlaku untuk akunnya sendiri. Server menolaknya juga, tetapi tombol
+                    // yang pasti ditolak sebaiknya memang tidak ditampilkan.
+                    let bolehHapus = mBolehUbah() && u.bolehKelola !== false
                         && String(u.userId) !== String(currentUserData.userId);
 
-                    rowsHtml += `<tr class="hover:bg-blue-50 border-b border-gray-100"><td class="p-2 text-center whitespace-nowrap"><button type="button" data-userid="${rcEsc(u.userId)}" onclick="openEditModal(this.getAttribute('data-userid'))" class="bg-white hover:bg-blue-50 text-blue-600 font-bold border border-blue-200 px-3 py-1.5 rounded-lg shadow-sm transition"><i class="fas fa-edit mr-1"></i> Kelola</button>${bolehHapus ? `<button type="button" data-userid="${rcEsc(u.userId)}" onclick="hapusAkun(this.getAttribute('data-userid'))" title="Hapus akun" class="ml-1 bg-white hover:bg-red-50 text-red-600 font-bold border border-red-200 px-3 py-1.5 rounded-lg shadow-sm transition"><i class="fas fa-user-slash"></i></button>` : ''}</td><td class="p-2 font-black text-gray-800 text-sm">${rcEsc(u.userId)}</td><td class="p-2 font-bold text-gray-700 text-sm">${rcEsc(u.namaLengkap || '-')}</td><td class="p-2 text-center"><span class="px-2 py-0.5 text-[9px] uppercase font-black rounded ${roleColor} inline-block shadow-sm border border-gray-200">${rcEsc(u.activation === 'Pending' ? (u.requestedRole || u.role) : u.role)}</span></td><td class="p-2 text-gray-600 text-xs">${rcEsc(u.email || '-')}</td><td class="p-2 text-sm"><span class="font-bold text-gray-800">${rcEsc(u.kodeDepot)}</span> - ${rcEsc(u.depotName || '-')}</td><td class="p-2 text-center font-bold ${actColor} text-xs">${actLabel} ${reqPinHtml}</td></tr>`;
+                    rowsHtml += `<tr class="hover:bg-blue-50 border-b border-gray-100"><td class="p-2 text-center whitespace-nowrap"><button type="button" data-userid="${rcEsc(u.userId)}" onclick="openEditModal(this.getAttribute('data-userid'))" class="bg-white hover:bg-blue-50 text-blue-600 font-bold border border-blue-200 px-3 py-1.5 rounded-lg shadow-sm transition"><i class="fas fa-edit mr-1"></i> Kelola</button>${bolehHapus ? `<button type="button" data-userid="${rcEsc(u.userId)}" onclick="hapusAkun(this.getAttribute('data-userid'))" title="Hapus akun" class="ml-1 bg-white hover:bg-red-50 text-red-600 font-bold border border-red-200 px-3 py-1.5 rounded-lg shadow-sm transition"><i class="fas fa-user-slash"></i></button>` : ''}</td><td class="p-2 font-black text-gray-800 text-sm">${rcEsc(u.userId)}</td><td class="p-2 font-bold text-gray-700 text-sm">${rcEsc(u.namaLengkap || '-')}</td><td class="p-2 text-center"><span class="px-2 py-0.5 text-[9px] uppercase font-black rounded ${roleColor} inline-block shadow-sm border border-gray-200">${rcEsc(u.activation === 'Pending' ? (u.requestedRole || u.role) : u.role)}</span></td><td class="p-2 text-gray-600 text-xs">${rcEsc(u.email || '-')}</td><td class="p-2 text-sm"><span class="font-bold text-gray-800">${rcEsc(u.kodeDepot)}</span> - ${rcEsc(u.depotName || '-')}</td><td class="p-2 text-center font-bold ${actColor} text-xs">${actLabel} ${reqPinHtml}${wajibPinHtml}</td></tr>`;
                 });
                 tb.innerHTML = rowsHtml;
             }
@@ -173,6 +185,10 @@
                 if (!u) return;
                 const aku = currentUserData.sysRole || currentUserData.role || '';
                 const akuSM = aku === 'system manager';
+                // Boleh mengubah akun INI: pemegang Access Management dan akun ini di dalam
+                // jangkauan serta peringkatnya (bolehKelola dari server, 20261162130000).
+                const bolehKelolaIni = mBolehUbah() && u.bolehKelola !== false;
+                setDisabledSafely('btnSaveAccess', !bolehKelolaIni);
 
                 document.getElementById('editUserId').value = u.userId;
                 document.getElementById('editUserDisplay').innerText = u.userId;
@@ -180,7 +196,10 @@
                 document.getElementById('editRoleDisplay').innerText = `Role: ${u.role}`;
 
                 const a = u.auth || {};
-                document.getElementById('editActivation').value = (a.i === 'Active' || a.i === 'Inactive') ? a.i : 'Active';
+                // "Suspended" dipertahankan apa adanya. Dulu nilai di luar Active/Inactive dipaksa
+                // menjadi Active, sehingga menyimpan dialog ini akan mengaktifkan kembali akun yang
+                // terkunci tanpa disengaja.
+                document.getElementById('editActivation').value = (a.i === 'Active' || a.i === 'Inactive' || a.i === 'Suspended') ? a.i : 'Active';
                 document.getElementById('editSuffix').value = u.suffix || '';
                 document.getElementById('editFullName').value = u.namaLengkap || u.nama || '';
                 document.getElementById('editEmail').value = u.email || '';
@@ -200,8 +219,17 @@
                 const opsiSM = roleSel.querySelector('option[value="system manager"]');
                 if (akuSM && !opsiSM) roleSel.insertAdjacentHTML('beforeend', '<option value="system manager">System Manager</option>');
                 if (!akuSM && opsiSM) opsiSM.remove();
-                setHiddenSafely('editRoleContainer', !(akuSM || aku === 'supervisor'));
-                roleSel.value = String(u.sysRole || u.role || 'admin').toLowerCase();
+                // Peran yang boleh diberikan datang dari server (registration_options mengikuti
+                // rc_private.boleh_beri_peran). Peran tersimpan akun ini tetap dapat dipilih
+                // supaya dialognya tidak diam-diam mengubahnya.
+                const peranKini = String(u.sysRole || u.role || 'admin').toLowerCase();
+                const peranBoleh = (mRegistrationOptions && Array.isArray(mRegistrationOptions.roles))
+                    ? mRegistrationOptions.roles.map(x => String(x.code || '').toLowerCase()) : null;
+                Array.from(roleSel.options).forEach(function (o) {
+                    o.disabled = !!peranBoleh && !peranBoleh.includes(o.value) && o.value !== peranKini;
+                });
+                setHiddenSafely('editRoleContainer', !bolehKelolaIni);
+                roleSel.value = peranKini;
 
                 // Depot asal.
                 const depotSel = document.getElementById('editHomeDepot');
@@ -219,7 +247,7 @@
                 const diriSendiri = String(u.userId) === String(currentUserData.userId);
                 setHiddenSafely('editSelfNote', !diriSendiri);
                 setHiddenSafely('editModuleMatrixContainer', diriSendiri);
-                setHiddenSafely('editRoleContainer', diriSendiri || !(akuSM || aku === 'supervisor'));
+                setHiddenSafely('editRoleContainer', diriSendiri || !bolehKelolaIni);
                 setHiddenSafely('approvePinContainer', true);
                 if (diriSendiri) {
                     setHiddenSafely('editSpvSection', true);
@@ -243,7 +271,7 @@
             // pilihannya datang - menahan seluruh dialog demi satu dropdown tidak sepadan.
             async function applyJurisdictionVisibility(u) {
                 const aku = currentUserData.sysRole || currentUserData.role || '';
-                const bolehAturYurisdiksi = (aku === 'system manager' || aku === 'supervisor');
+                const bolehAturYurisdiksi = mBolehUbah() && u.bolehKelola !== false;
                 const peran = String(document.getElementById('editRoleInput').value || u.sysRole || u.role || '').toLowerCase();
 
                 // System Manager memperoleh seluruh depot lewat perannya; yurisdiksi tidak berlaku.

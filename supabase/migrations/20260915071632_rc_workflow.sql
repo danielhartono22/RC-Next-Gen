@@ -1,4 +1,4 @@
-create function rc_private.mutate_claims(p_action text,p_items jsonb,p_request_id uuid,p_reason text)
+create or replace function rc_private.mutate_claims(p_action text,p_items jsonb,p_request_id uuid,p_reason text)
 returns jsonb language plpgsql security definer set search_path='' as $$
 declare actor uuid:=auth.uid(); perm text; payload jsonb; cached rc_private.requests%rowtype;
  c public.claims%rowtype; item jsonb; target text; batch text; stage text; subject text;
@@ -84,13 +84,13 @@ begin
 end $$;
 revoke all on function rc_private.mutate_claims(text,jsonb,uuid,text) from public,anon;
 grant execute on function rc_private.mutate_claims(text,jsonb,uuid,text) to authenticated;
-create function public.rc_process_claims(p_action text,p_items jsonb,p_request_id uuid,p_reason text default '')
+create or replace function public.rc_process_claims(p_action text,p_items jsonb,p_request_id uuid,p_reason text default '')
 returns jsonb language sql security invoker set search_path='' as $$
 select rc_private.mutate_claims(p_action,p_items,p_request_id,p_reason); $$;
 revoke all on function public.rc_process_claims(text,jsonb,uuid,text) from public,anon;
 grant execute on function public.rc_process_claims(text,jsonb,uuid,text) to authenticated;
 
-create function public.rc_list_claims(p_search text default '',p_status text default '',p_offset integer default 0,p_limit integer default 50)
+create or replace function public.rc_list_claims(p_search text default '',p_status text default '',p_offset integer default 0,p_limit integer default 50)
 returns setof public.claims language sql stable security invoker set search_path='' as $$
 select * from public.claims where (p_status='' or status=p_status)
 and (p_search='' or no_doc ilike '%'||p_search||'%' or batch_upload=p_search or batch_release=p_search or batch_claim=p_search or batch_clearing=p_search)
@@ -98,7 +98,7 @@ order by updated_at desc,id limit least(greatest(p_limit,1),100) offset greatest
 revoke all on function public.rc_list_claims(text,text,integer,integer) from public,anon;
 grant execute on function public.rc_list_claims(text,text,integer,integer) to authenticated;
 
-create function rc_private.claim_detail(p_id uuid) returns jsonb language plpgsql stable security definer set search_path='' as $$
+create or replace function rc_private.claim_detail(p_id uuid) returns jsonb language plpgsql stable security definer set search_path='' as $$
 declare c public.claims%rowtype; v jsonb; begin
  select * into c from public.claims where id=p_id;
  if not found or not rc_private.can_access(c.depot_id) then raise exception 'Access denied' using errcode='42501'; end if;
@@ -109,11 +109,11 @@ declare c public.claims%rowtype; v jsonb; begin
 end $$;
 revoke all on function rc_private.claim_detail(uuid) from public,anon;
 grant execute on function rc_private.claim_detail(uuid) to authenticated;
-create function public.rc_claim_detail(p_id uuid) returns jsonb language sql stable security invoker set search_path='' as $$select rc_private.claim_detail(p_id);$$;
+create or replace function public.rc_claim_detail(p_id uuid) returns jsonb language sql stable security invoker set search_path='' as $$select rc_private.claim_detail(p_id);$$;
 revoke all on function public.rc_claim_detail(uuid) from public,anon;
 grant execute on function public.rc_claim_detail(uuid) to authenticated;
 
-create function public.rc_dashboard() returns jsonb language plpgsql stable security invoker set search_path='' as $$
+create or replace function public.rc_dashboard() returns jsonb language plpgsql stable security invoker set search_path='' as $$
 declare v jsonb; begin
  if not rc_private.can_access(null,'view_analytics') then raise exception 'Access denied' using errcode='42501'; end if;
  select jsonb_agg(x) into v from (select status,count(*) as count,sum(cb_net) as cb_net,sum(gross_up) as gross_up from public.claims group by status) x;

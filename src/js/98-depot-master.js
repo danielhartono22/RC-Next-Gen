@@ -25,6 +25,27 @@
                     // Server yang memutuskan apakah perubahan langsung tersimpan atau
                     // masuk antrean; layar hanya mengikuti, tidak menebak dari peran.
                     dmState.bolehLangsung = res.bolehLangsung === true;
+                    // Depot tanpa Abbr tidak dapat di-compile (No Doc memakai Abbr) - 20261163090000.
+                    const tanpaAbbr = res.tanpaAbbr || [];
+                    const elTa = document.getElementById('depotTanpaAbbr');
+                    if (elTa) {
+                        elTa.innerHTML = tanpaAbbr.length
+                            ? '<i class="fas fa-triangle-exclamation mr-1.5"></i><b>' + tanpaAbbr.length + ' depot belum punya Abbr:</b> '
+                              + tanpaAbbr.map(rcEsc).join(', ') + '. Compile untuk depot ini ditolak sampai Abbr diisi (Ubah, atau unggah template).'
+                            : '';
+                        setHiddenSafely('depotTanpaAbbr', tanpaAbbr.length === 0);
+                    }
+                    // Email Done memakai Email Kepala Admin; selama kosong masih ke Email TO depot.
+                    const tanpaKa = res.tanpaEmailKa || [];
+                    const elKa = document.getElementById('depotTanpaEmailKa');
+                    if (elKa) {
+                        elKa.innerHTML = tanpaKa.length
+                            ? '<i class="fas fa-envelope mr-1.5"></i><b>' + tanpaKa.length + ' depot belum punya Email Kepala Admin</b>'
+                              + ' (tujuan email Done - Pengajuan); untuk depot ini email Done masih dikirim ke Email Depot (TO): '
+                              + tanpaKa.slice(0, 15).map(rcEsc).join(', ') + (tanpaKa.length > 15 ? ', ...' : '') + '.'
+                            : '';
+                        setHiddenSafely('depotTanpaEmailKa', tanpaKa.length === 0);
+                    }
                     renderDepotMaster();
                 } catch (e) {
                     showNotification((e && e.message) ? e.message : 'Gagal memuat Depot Master.', 'error');
@@ -36,8 +57,9 @@
                 document.querySelectorAll('.cb-depot').forEach(c => { c.checked = nyala; });
                 updateDepotArsipCount();
             }
+            // Jumlahnya mencakup pilihan di semua halaman (28-pilihan-lintas-halaman.js).
             function updateDepotArsipCount() {
-                const n = document.querySelectorAll('.cb-depot:checked').length;
+                const n = rcPilihanSerap('cb-depot', null, 'cbDepotAll');
                 setTextSafely('depotArsipCount', n);
                 setDisabledSafely('btnArsipDepot', n === 0);
             }
@@ -57,8 +79,7 @@
                         </td>
                     </tr>`).join('') || '<tr><td colspan="8" class="p-6 text-center text-gray-400">Tidak ada depot yang cocok.</td></tr>';
 
-                const cbAllDepot = document.getElementById('cbDepotAll');
-                if (cbAllDepot) cbAllDepot.checked = false;
+                rcPilihanPulihkan('cb-depot', 'cbDepotAll');
                 updateDepotArsipCount();
 
                 const dari = dmState.total === 0 ? 0 : dmState.offset + 1;
@@ -95,21 +116,21 @@
                 const html = [
                     langsung
                         ? '<div class="mb-4 p-3 bg-green-50 border border-green-200 rounded-xl text-xs text-green-800">Perubahan Anda langsung tersimpan.</div>'
-                        : '<div class="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">Perubahan Anda masuk antrean persetujuan di Access Management. Nilai lama tetap berlaku sampai disetujui Supervisor wilayah atau System Manager.</div>',
+                        : '<div class="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">Perubahan Anda masuk antrean persetujuan di Access Management. Nilai lama tetap berlaku sampai disetujui pemegang akses Approval Request depot ini.</div>',
 
                     '<div class="p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-600 mb-4">',
                     '<b>Dihitung sendiri, tidak dapat diketik:</b><br>',
                     'Tim Pengawas: ' + rcEsc(d.timPengawas || '-') + '<br>',
                     'Akun terdaftar: ' + rcEsc(d.akunTerdaftar || '-') + '<br>',
                     'Total karyawan: ' + Number(d.karTotal || 0) + ' orang (jumlah dari rincian di bawah)',
-                    (d.grade ? '<br>Grade: <b>' + rcEsc(d.grade) + '</b> (ditetapkan System Manager)' : ''),
+                    (d.grade ? '<br>Grade: <b>' + rcEsc(d.grade) + '</b> (ditetapkan lewat tab Grade Depot)' : ''),
                     '</div>',
 
                     '<div class="grid grid-cols-1 md:grid-cols-2 gap-3">',
                     '<div><label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Kode (kunci)</label>',
                     '<input readonly value="' + rcEsc(d.kode) + '" class="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 font-mono text-sm"></div>',
                     dmKolom('dmNama', 'Nama Depot', d.nama),
-                    dmKolom('dmAbbr', 'Abbr', d.abbr, 'text', '2-10 huruf atau angka; dipakai pada No Doc.'),
+                    dmKolom('dmAbbr', 'Abbr', d.abbr, 'text', '2-10 huruf atau angka, tidak boleh sama dengan depot lain; dipakai pada No Doc. Kosong = tidak diubah.'),
                     dmKolom('dmRegion', 'Region', d.region),
                     dmKolom('dmTipe', 'Tipe Depot', d.tipeDepot),
                     dmKolom('dmKepalaDepot', 'Kepala Depot', d.kepalaDepot),
@@ -139,6 +160,8 @@
                     dmKolom('dmEmailAsm', 'Email ASM', d.emailAsm, 'text', 'Maksimal 4 alamat.'),
                     dmKolom('dmEmailSm', 'Email SM', d.emailSm, 'text', 'Maksimal 4 alamat.'),
                     dmKolom('dmEmailTo', 'Email Depot (TO)', d.emailTo, 'text', 'Maksimal 4 alamat. Inilah tujuan email otomatis.'),
+                    // 20261163100000: tujuan (TO) email "Done - Pengajuan".
+                    dmKolom('dmEmailKa', 'Email Kepala Admin', d.emailKepalaAdmin, 'text', 'Maksimal 4 alamat. Satu-satunya tujuan (TO) email Done - Pengajuan; kosong: email Done ke Email Depot (TO).'),
                     '</div>',
                     '<div class="mt-3">' + dmKolom('dmEmailCc', 'Email CC', d.emailCc, 'text',
                         'Daftar siar, maksimal 20 alamat. Alamat yang sudah ada di TO akan DIHAPUS SENDIRI dari CC saat disimpan, '
@@ -174,7 +197,7 @@
                     karLain: dmAngka('dmKarLain'),
                     emailRsm: dmAmbil('dmEmailRsm'), emailAsm: dmAmbil('dmEmailAsm'),
                     emailSm: dmAmbil('dmEmailSm'), emailTo: dmAmbil('dmEmailTo'),
-                    emailCc: dmAmbil('dmEmailCc')
+                    emailCc: dmAmbil('dmEmailCc'), emailKepalaAdmin: dmAmbil('dmEmailKa')
                 };
                 try {
                     const res = await fetchApp({ action: 'depotSave', kode: kode, data: data });
@@ -188,8 +211,8 @@
                     showNotification((e && e.message) ? e.message : 'Gagal menyimpan depot.', 'error');
                 }
             }
-            const DM_HEADER = ['Kode', 'Nama', 'Abbr', 'Region', 'Email TO', 'Email CC'];
-            const DM_FIELD = ['kode', 'nama', 'abbr', 'region', 'emailTo', 'emailCc'];
+            const DM_HEADER = ['Kode', 'Nama', 'Abbr', 'Region', 'Email TO', 'Email CC', 'Email Kepala Admin'];
+            const DM_FIELD = ['kode', 'nama', 'abbr', 'region', 'emailTo', 'emailCc', 'emailKepalaAdmin'];
 
             function downloadDepotTemplate() {
                 // Template diisi dengan data yang ada sekarang, bukan baris kosong. Mengisi email
@@ -198,9 +221,9 @@
                 const aoa = [DM_HEADER];
                 (dmState.rows.length ? dmState.rows : []).forEach(r =>
                     aoa.push(DM_FIELD.map(f => r[f] || '')));
-                if (aoa.length === 1) aoa.push(['4A', 'Medan', 'MDN', '4', 'admin.mdn@contoh.com', 'spv@contoh.com']);
+                if (aoa.length === 1) aoa.push(['4A', 'Medan', 'MDN', '4', 'admin.mdn@contoh.com', 'spv@contoh.com', 'kepala.admin.mdn@contoh.com']);
                 const ws = XLSX.utils.aoa_to_sheet(aoa);
-                ws['!cols'] = [{ wch: 10 }, { wch: 26 }, { wch: 8 }, { wch: 10 }, { wch: 38 }, { wch: 38 }];
+                ws['!cols'] = [{ wch: 10 }, { wch: 26 }, { wch: 8 }, { wch: 10 }, { wch: 38 }, { wch: 38 }, { wch: 34 }];
                 const wb = XLSX.utils.book_new();
                 XLSX.utils.book_append_sheet(wb, ws, 'Depot Master');
                 XLSX.writeFile(wb, 'Template_Depot_Master.xlsx');
@@ -235,8 +258,10 @@
                             });
 
                         const tanpaEmail = dmPending.filter(r => !String(r.emailTo || '').trim()).length;
+                        const tanpaAbbr = dmPending.filter(r => !String(r.abbr || '').trim()).length;
                         document.getElementById('depotUploadText').innerText =
                             `${dmPending.length} baris terbaca. ${dmPending.length - tanpaEmail} punya Email TO, ${tanpaEmail} kosong. `
+                            + (tanpaAbbr ? `${tanpaAbbr} baris tanpa Abbr: depot BARU di antaranya akan ditolak, depot lama tetap memakai Abbr-nya. ` : '')
                             + 'Kolom yang tidak ada di berkas dibiarkan seperti semula.';
                         setHiddenSafely('depotUploadInfo', false);
                     } catch (err) {

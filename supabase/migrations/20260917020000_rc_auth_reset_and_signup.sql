@@ -120,7 +120,7 @@ alter policy profiles_self on public.profiles
 -- auth.users is written by GoTrue, so the profile is created from a trigger rather than by
 -- the browser. Everything the applicant typed arrives in raw_user_meta_data and is treated
 -- as untrusted input: it is validated, length limited, and never used to grant anything.
-create function rc_private.handle_new_user() returns trigger
+create or replace function rc_private.handle_new_user() returns trigger
 language plpgsql security definer set search_path='' as $$
 declare meta jsonb:=coalesce(new.raw_user_meta_data,'{}'::jsonb);
  v_code text; v_name text; v_email text; v_role text; v_depot text; is_first boolean;
@@ -185,7 +185,7 @@ create trigger on_auth_user_created after insert on auth.users
 -- 5. Approval
 ------------------------------------------------------------------------------------------
 -- Batch numbers are built from the suffix, so two active accounts must never share one.
-create function rc_private.next_suffix() returns text
+create or replace function rc_private.next_suffix() returns text
 language plpgsql security definer set search_path='' as $$
 declare n integer;
 begin
@@ -201,7 +201,7 @@ revoke all on function rc_private.next_suffix() from public,anon,authenticated;
 -- Approving grants the requested role but no permissions and no depots. The System Manager
 -- then opens the Otorisasi Matrix and assigns scope explicitly, so approval alone can never
 -- hand someone another depot's claims.
-create function rc_private.review_registration(p_profile uuid,p_approve boolean,p_note text default null)
+create or replace function rc_private.review_registration(p_profile uuid,p_approve boolean,p_note text default null)
 returns jsonb language plpgsql security definer set search_path='' as $$
 declare target public.profiles%rowtype; assigned text;
 begin
@@ -227,7 +227,7 @@ begin
  return jsonb_build_object('status','success','suffix_num',assigned);
 end $$;
 
-create function public.rc_review_registration(p_profile uuid,p_approve boolean,p_note text default null)
+create or replace function public.rc_review_registration(p_profile uuid,p_approve boolean,p_note text default null)
 returns jsonb language sql security invoker set search_path='' as $$
  select rc_private.review_registration(p_profile,p_approve,p_note);$$;
 revoke all on function rc_private.review_registration(uuid,boolean,text),
@@ -265,7 +265,7 @@ $$;
 
 -- One entry point for both kinds of request, so the old approveProfileRequest route keeps
 -- working unchanged.
-create function public.rc_review_request(p_id text,p_approve boolean)
+create or replace function public.rc_review_request(p_id text,p_approve boolean)
 returns jsonb language plpgsql security invoker set search_path='' as $$
 declare kind text; ref uuid;
 begin

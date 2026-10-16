@@ -112,13 +112,24 @@
                     }
                 }
 
-                const pesan = actionType === 'expired'
+                // Saat approval dimatikan server langsung mengubah statusnya (20261163050000);
+                // teks konfirmasinya mengikuti, supaya tidak menjanjikan approval yang tidak ada.
+                let approvalMati = false;
+                try {
+                    const st = await fetchApp({ action: 'approvalStatus' });
+                    approvalMati = !!(st && st.status === 'success' && st.aktif === false);
+                } catch (e) { /* hanya memengaruhi teks konfirmasi; server tetap yang memutuskan */ }
+                const label = actionType === 'expired' ? 'Expired' : 'On Hold';
+                const pesan = approvalMati
+                    ? rows.length + ' dokumen langsung menjadi ' + label + ' (approval dimatikan).'
+                        + (actionType === 'expired' ? '' : ' Alasan: ' + alasan.trim())
+                    : actionType === 'expired'
                     ? rows.length + ' dokumen diajukan untuk Expired. Status tetap sampai disetujui.'
                     : rows.length + ' dokumen diajukan untuk On Hold. Status tetap sampai disetujui. Alasan: ' + alasan.trim();
                 const setuju = await showConfirmModal({
                     title: actionType === 'expired' ? 'Konfirmasi Expired' : 'Konfirmasi On Hold',
                     message: pesan,
-                    confirmText: 'Ajukan Approval',
+                    confirmText: approvalMati ? 'Proses Sekarang' : 'Ajukan Approval',
                     danger: actionType === 'expired'
                 });
                 if (!setuju) return;
@@ -126,7 +137,7 @@
                 const loaderId = actionType === 'expired' ? 'loaderPostExpired' : 'loaderPostHold';
                 setDisabledSafely('btnPostHold', true); setDisabledSafely('btnPostExpired', true);
                 setHiddenSafely(loaderId, false);
-                showLoadingOverlay(actionType === 'expired'
+                showLoadingOverlay(approvalMati ? 'Memproses ' + label + '...' : actionType === 'expired'
                     ? 'Mengajukan approval Expired...' : 'Mengajukan approval On Hold...');
                 try {
                     const res = await fetchApp({

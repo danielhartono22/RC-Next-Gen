@@ -24,27 +24,68 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const PROJECT_REF = 'vvojshgcduqlugngpzkj';
+
+// ------------------------------------------------------------------------------------------
+// Lingkungan
+// ------------------------------------------------------------------------------------------
+// Ref project tidak lagi ditulis mati di sini. Sejak ada dua lingkungan, satu huruf yang salah
+// berarti migrasi mendarat di database yang salah - dan itu tidak bisa dibatalkan. Ref-nya
+// dibaca dari config/environments.json, dan namanya DICETAK sebelum apa pun dijalankan.
+//
+//   node scripts/apply-sql.mjs berkas.sql              -> lingkungan bawaan pada config
+//   node scripts/apply-sql.mjs --env dev berkas.sql    -> paksa ke dev
+//   node scripts/apply-sql.mjs --env prod berkas.sql   -> paksa ke prod
+const daftarEnv = JSON.parse(
+  await readFile(path.join(root, 'config', 'environments.json'), 'utf8'));
+
+const argEnv = process.argv.indexOf('--env');
+const namaEnv = argEnv >= 0
+  ? process.argv[argEnv + 1]
+  : (daftarEnv.default_supabase_environment || 'prod');
+if (argEnv >= 0) process.argv.splice(argEnv, 2);
+
+const env = (daftarEnv.supabase_projects || {})[namaEnv];
+if (env === undefined) {
+  console.error(`\n  Lingkungan "${namaEnv}" tidak dikenal.`);
+  console.error('  Yang tersedia: '
+    + Object.keys(daftarEnv.supabase_projects || {}).join(', ') + '\n');
+  process.exit(1);
+}
+if (env === null || !env.project_ref) {
+  console.error(`\n  Lingkungan "${namaEnv}" belum punya project Supabase.`);
+  console.error('  Buat project-nya lebih dulu, lalu isikan project_ref pada');
+  console.error('  config/environments.json.\n');
+  process.exit(1);
+}
+
+const PROJECT_REF = env.project_ref;
 const API = `https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query`;
 
-async function bacaToken() {
-  if (process.env.SUPABASE_ACCESS_TOKEN) return process.env.SUPABASE_ACCESS_TOKEN.trim();
+// Tiap lingkungan memakai kredensialnya sendiri. Prod dan dev ternyata berada di AKUN Supabase
+// yang berbeda, jadi satu token tidak menjangkau keduanya - dan itu justru menguntungkan:
+// perintah dev yang tersasar ke prod akan ditolak oleh Supabase sendiri, bukan hanya oleh
+// penjaga di berkas ini. Nama variabelnya ditentukan config/environments.json lewat token_env.
+const namaVar = env.token_env || 'SUPABASE_ACCESS_TOKEN';
+
+async function bacaToken(nama) {
+  if (process.env[nama]) return process.env[nama].trim();
   try {
-    const env = await readFile(path.join(root, '.env'), 'utf8');
-    for (const line of env.split(/\r?\n/)) {
-      const m = line.match(/^\s*SUPABASE_ACCESS_TOKEN\s*=\s*(.+?)\s*$/);
+    const isi = await readFile(path.join(root, '.env'), 'utf8');
+    for (const line of isi.split(/\r?\n/)) {
+      const m = line.match(new RegExp('^\\s*' + nama + '\\s*=\\s*(.+?)\\s*$'));
       if (m) return m[1].replace(/^["']|["']$/g, '');
     }
   } catch { /* .env belum ada */ }
   return null;
 }
 
-const token = await bacaToken();
+const token = await bacaToken(namaVar);
 if (!token) {
-  console.error('\n  SUPABASE_ACCESS_TOKEN belum tersedia.\n');
+  console.error(`\n  ${namaVar} belum tersedia (diperlukan lingkungan "${namaEnv}").\n`);
   console.error('  1. Supabase Dashboard -> Account -> Access Tokens -> Generate new token');
-  console.error('  2. Buat berkas .env di folder project, isinya satu baris:');
-  console.error('       SUPABASE_ACCESS_TOKEN=sbp_xxxxxxxxxxxx');
+  console.error('     Pakai akun yang memiliki project ' + PROJECT_REF + '.');
+  console.error('  2. Tambahkan barisnya ke .env:');
+  console.error(`       ${namaVar}=sbp_xxxxxxxxxxxx`);
   console.error('  3. Jalankan ulang perintah ini.\n');
   console.error('  .env sudah di-gitignore, jadi token tidak akan ikut ter-commit.\n');
   process.exit(1);
@@ -83,7 +124,7 @@ if (process.argv.includes('--check')) {
 } else {
   const berkas = process.argv[2] || path.join(root, 'supabase', 'apply-pending.sql');
   const sql = await readFile(berkas, 'utf8');
-  console.log(`\n  Menjalankan ${path.relative(root, berkas)} (${sql.length} karakter) ke ${PROJECT_REF}...`);
+  console.log(`\n  Menjalankan ${path.relative(root, berkas)} (${sql.length} karakter) ke ${namaEnv.toUpperCase()} (${PROJECT_REF})...`);
   try {
     const hasil = await jalankan(sql);
     console.log('  \x1b[32mBerhasil.\x1b[0m');

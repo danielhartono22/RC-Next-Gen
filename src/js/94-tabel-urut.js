@@ -42,8 +42,14 @@
             // layar hanya diam tanpa dialog dan tanpa pesan galat yang terlihat.
             function rcDialog(judul, html) {
                 document.getElementById('rcDialogTitle').innerText = judul || '';
-                document.getElementById('rcDialogBody').innerHTML = html || '';
+                const body = document.getElementById('rcDialogBody');
+                const modal = document.getElementById('rcDialogModal');
+                body.innerHTML = html || '';
+                // Detail berupa tabel/grafik memerlukan panel lebar; pesan dan formulir pendek
+                // tetap memakai ukuran ringkas. Keduanya selalu dibatasi viewport oleh CSS.
+                modal.classList.toggle('rc-dialog-wide', !!body.querySelector('table, canvas, [data-rc-dialog-wide]'));
                 setHiddenSafely('rcDialogModal', false);
+                rcUkurUlangGrafik(body);
             }
 
             function rcTutupDialog() { setHiddenSafely('rcDialogModal', true); }

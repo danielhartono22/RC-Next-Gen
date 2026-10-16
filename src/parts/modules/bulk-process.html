@@ -24,6 +24,7 @@
                                     <tr>
                                         <th class="p-3.5 text-center w-12"><input type="checkbox" id="cbBulkAll" onchange="toggleAllWorkflow(this, 'cb-bulk', 'btnSubmitBulk', 'bulkSelectedCount')" class="w-4 h-4 rounded text-pink-600"></th>
                                         <th class="p-3.5 text-[10px] font-black text-gray-500 uppercase tracking-wider text-center">TAHAP SAAT INI</th>
+                                        <th class="p-3.5 text-[10px] font-black text-gray-500 uppercase tracking-wider">TGL SUBMIT</th>
                                         <th class="p-3.5 text-[10px] font-black text-gray-500 uppercase tracking-wider">NO DOCUMENT</th><th class="p-3.5 text-[10px] font-black text-gray-500 uppercase tracking-wider">IDENTITAS TOKO</th><th class="p-3.5 text-[10px] font-black text-gray-500 uppercase tracking-wider">NAMA CAMPAIGN</th><th class="p-3.5 text-[10px] font-black text-blue-700 uppercase tracking-wider text-right">TOTAL CB (Rp)</th>
                                     </tr>
                                 </thead>
@@ -33,6 +34,8 @@
                         <div class="flex items-center justify-between bg-pink-50 p-4 rounded-xl border border-pink-100">
                             <p class="text-sm text-pink-900 font-bold"><i class="fas fa-check-circle mr-1"></i> <span id="bulkSelectedCount" class="font-black text-lg">0</span> Dokumen Terpilih</p>
                             <div class="flex gap-3">
+                                <!-- Tolak: kembali ke depot (Not Yet) dari tahap mana pun, dengan alasan. -->
+                                <button type="button" id="btnRejectBulk" onclick="rejectBulkProcess()" disabled class="bg-white border border-red-300 text-red-700 hover:bg-red-50 font-bold py-2.5 px-6 rounded-lg shadow-sm disabled:opacity-40 transition active:scale-95"><i class="fas fa-undo mr-2"></i>Tolak</button>
                                 <button type="button" id="btnSubmitBulk" onclick="submitBulkProcess()" disabled class="bg-pink-600 hover:bg-pink-700 text-white font-bold py-2.5 px-8 rounded-lg shadow-md disabled:bg-gray-400 transition active:scale-95">Bulk Complete</button>
                             </div>
                         </div>

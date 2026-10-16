@@ -85,7 +85,7 @@ alter policy claims_scope on public.claims
 ------------------------------------------------------------------------------------------
 -- 4. Pembacaan master
 ------------------------------------------------------------------------------------------
-create function public.rc_customer_list(p_search text default '',p_offset integer default 0,
+create or replace function public.rc_customer_list(p_search text default '',p_offset integer default 0,
  p_limit integer default 50)
 returns jsonb language plpgsql stable security invoker set search_path='' as $$
 declare v jsonb;
@@ -112,7 +112,7 @@ end $$;
 revoke all on function public.rc_customer_list(text,integer,integer) from public,anon;
 grant execute on function public.rc_customer_list(text,integer,integer) to authenticated;
 
-create function public.rc_campaign_list(p_search text default '',p_offset integer default 0,
+create or replace function public.rc_campaign_list(p_search text default '',p_offset integer default 0,
  p_limit integer default 50)
 returns jsonb language plpgsql stable security invoker set search_path='' as $$
 declare v jsonb;
@@ -149,7 +149,7 @@ alter policy campaigns_scope on public.campaigns
 --
 -- Field yang tidak dikirim sama sekali tidak diubah. Field yang dikirim kosong berarti
 -- dikosongkan, karena itulah cara menghapus nilai yang salah lewat template Excel.
-create function rc_private.customer_upsert(p_rows jsonb) returns jsonb
+create or replace function rc_private.customer_upsert(p_rows jsonb) returns jsonb
 language plpgsql security definer set search_path='' as $$
 declare r jsonb; code text; k text; dibuat integer:=0; diperbarui integer:=0; hasil jsonb:='[]';
  sudah boolean;
@@ -206,12 +206,12 @@ begin
    jsonb_build_object('dibuat',dibuat,'diperbarui',diperbarui));
  return jsonb_build_object('status','success','dibuat',dibuat,'diperbarui',diperbarui,'kode',hasil);
 end $$;
-create function public.rc_customer_upsert(p_rows jsonb) returns jsonb
+create or replace function public.rc_customer_upsert(p_rows jsonb) returns jsonb
 language sql security invoker set search_path='' as $$select rc_private.customer_upsert(p_rows);$$;
 revoke all on function rc_private.customer_upsert(jsonb),public.rc_customer_upsert(jsonb) from public,anon;
 grant execute on function rc_private.customer_upsert(jsonb),public.rc_customer_upsert(jsonb) to authenticated;
 
-create function rc_private.campaign_upsert(p_rows jsonb) returns jsonb
+create or replace function rc_private.campaign_upsert(p_rows jsonb) returns jsonb
 language plpgsql security definer set search_path='' as $$
 declare r jsonb; code text; k text; dibuat integer:=0; diperbarui integer:=0; sudah boolean;
 begin
@@ -262,7 +262,7 @@ begin
    jsonb_build_object('dibuat',dibuat,'diperbarui',diperbarui));
  return jsonb_build_object('status','success','dibuat',dibuat,'diperbarui',diperbarui);
 end $$;
-create function public.rc_campaign_upsert(p_rows jsonb) returns jsonb
+create or replace function public.rc_campaign_upsert(p_rows jsonb) returns jsonb
 language sql security invoker set search_path='' as $$select rc_private.campaign_upsert(p_rows);$$;
 revoke all on function rc_private.campaign_upsert(jsonb),public.rc_campaign_upsert(jsonb) from public,anon;
 grant execute on function rc_private.campaign_upsert(jsonb),public.rc_campaign_upsert(jsonb) to authenticated;
@@ -271,7 +271,7 @@ grant execute on function rc_private.campaign_upsert(jsonb),public.rc_campaign_u
 -- 6. Cashback Compilation
 ------------------------------------------------------------------------------------------
 -- Mengikuti pola Print Document: pencarian terarah, batas baris tegas, hasil terpaginate.
-create function public.rc_compilation_list(p_campaign text default '',p_batch text default '',
+create or replace function public.rc_compilation_list(p_campaign text default '',p_batch text default '',
  p_status text default '',p_search text default '',p_offset integer default 0,p_limit integer default 100)
 returns jsonb language plpgsql stable security invoker set search_path='' as $$
 declare v jsonb; jml bigint;
@@ -326,7 +326,7 @@ grant execute on function public.rc_compilation_list(text,text,text,text,integer
 
 -- Pengarsipan. Bukan DELETE: baris tetap ada, hilang dari seluruh pembacaan lewat RLS, dan
 -- dapat dikembalikan. Hanya System Manager, dan alasan wajib diisi.
-create function rc_private.archive_claims(p_ids uuid[],p_reason text) returns jsonb
+create or replace function rc_private.archive_claims(p_ids uuid[],p_reason text) returns jsonb
 language plpgsql security definer set search_path='' as $$
 declare jml integer;
 begin
@@ -354,13 +354,13 @@ begin
    jsonb_build_object('jumlah',jml,'alasan',btrim(p_reason)));
  return jsonb_build_object('status','success','jumlah',jml);
 end $$;
-create function public.rc_archive_compilation(p_ids uuid[],p_reason text) returns jsonb
+create or replace function public.rc_archive_compilation(p_ids uuid[],p_reason text) returns jsonb
 language sql security invoker set search_path='' as $$select rc_private.archive_claims(p_ids,p_reason);$$;
 revoke all on function rc_private.archive_claims(uuid[],text),public.rc_archive_compilation(uuid[],text) from public,anon;
 grant execute on function rc_private.archive_claims(uuid[],text),public.rc_archive_compilation(uuid[],text) to authenticated;
 
 -- Mengembalikan baris yang terlanjur diarsipkan. Tanpa ini, "arsip bukan hapus" hanya janji.
-create function rc_private.unarchive_claims(p_ids uuid[]) returns jsonb
+create or replace function rc_private.unarchive_claims(p_ids uuid[]) returns jsonb
 language plpgsql security definer set search_path='' as $$
 declare jml integer;
 begin
@@ -374,13 +374,13 @@ begin
  values((select auth.uid()),'compilation_unarchived',jsonb_build_object('jumlah',jml));
  return jsonb_build_object('status','success','jumlah',jml);
 end $$;
-create function public.rc_unarchive_compilation(p_ids uuid[]) returns jsonb
+create or replace function public.rc_unarchive_compilation(p_ids uuid[]) returns jsonb
 language sql security invoker set search_path='' as $$select rc_private.unarchive_claims(p_ids);$$;
 revoke all on function rc_private.unarchive_claims(uuid[]),public.rc_unarchive_compilation(uuid[]) from public,anon;
 grant execute on function rc_private.unarchive_claims(uuid[]),public.rc_unarchive_compilation(uuid[]) to authenticated;
 
 -- Daftar arsip, supaya pengembalian bisa dilakukan tanpa membuka SQL Editor.
-create function public.rc_archived_list(p_offset integer default 0,p_limit integer default 100)
+create or replace function public.rc_archived_list(p_offset integer default 0,p_limit integer default 100)
 returns jsonb language plpgsql stable security invoker set search_path='' as $$
 declare v jsonb;
 begin
@@ -641,7 +641,7 @@ end $$;
 --
 -- Suffix yang sudah pernah dipakai membuat nomor batch tidak boleh dipindahkan ke orang
 -- lain, karena nomor batch lama akan menjadi ambigu. Itu ditolak di sini.
-create function rc_private.set_suffix(p_user_code text,p_suffix text) returns jsonb
+create or replace function rc_private.set_suffix(p_user_code text,p_suffix text) returns jsonb
 language plpgsql security definer set search_path='' as $$
 declare target public.profiles%rowtype; lama text;
 begin
@@ -670,7 +670,7 @@ grant execute on function rc_private.set_suffix(text,text) to authenticated;
 -- Konsol Otorisasi kini ikut mengirim suffix. Fungsi lama dibuang lebih dulu supaya
 -- PostgREST tidak menghadapi dua kandidat dengan nama sama.
 drop function public.rc_legacy_update_access(text,jsonb,text);
-create function public.rc_legacy_update_access(p_user_code text,p_auth jsonb,
+create or replace function public.rc_legacy_update_access(p_user_code text,p_auth jsonb,
  p_depot_codes text default null,p_suffix text default null)
 returns jsonb language plpgsql security invoker set search_path='' as $$
 declare target uuid; target_status text; perms text[]; depot_ids uuid[]; new_status text; code text;
@@ -710,7 +710,7 @@ revoke all on function public.rc_legacy_update_access(text,jsonb,text,text) from
 grant execute on function public.rc_legacy_update_access(text,jsonb,text,text) to authenticated;
 
 -- Daftar suffix yang sudah terpakai, supaya System Manager tidak menebak saat menetapkan.
-create function public.rc_suffix_terpakai() returns jsonb
+create or replace function public.rc_suffix_terpakai() returns jsonb
 language plpgsql stable security invoker set search_path='' as $$
 declare v jsonb;
 begin

@@ -7,11 +7,14 @@
                 const u = (typeof currentManageableUsers !== 'undefined' && kode)
                     ? currentManageableUsers.find(x => String(x.userId) === String(kode.value)) : null;
                 if (typeof applyJurisdictionVisibility === 'function') applyJurisdictionVisibility(u || {});
+                // Hak modul juga mengikuti peran yang baru dipilih (20261162150000).
+                if (s && s.value && typeof rcMatriksUntukPeran === 'function') rcMatriksUntukPeran(s.value);
             }
 
             let noDocTimer; function handleSingleDocInput() { clearTimeout(noDocTimer); noDocTimer = setTimeout(autoFillSingleDoc, 400); }
 
-            function autoFillSingleDoc() {
+            // async sejak master diambil saat perlu, bukan diborong saat login.
+            async function autoFillSingleDoc() {
                 let docVal = document.getElementById('singleNoDoc').value.trim().toUpperCase();
                 let statusEl = document.getElementById('singleDocStatus'), btnPreview = document.getElementById('btnSinglePreview');
                 ['singleToko','singleCamp','singleJenisCb','singleRewardHighlight','singleStatusPajak','singleSubyekPajak'].forEach(id => setTextSafely(id, "-"));
@@ -19,6 +22,7 @@
                 btnPreview.disabled = true;
 
                 if (!docVal) { statusEl.innerText = ""; return; }
+                await pastikanMaster([], [docVal]);
                 let db = globalDocuments.find(d => String(d.noDoc).trim().toUpperCase() === docVal);
                 if (!db) { statusEl.innerHTML = `<span class="bg-orange-100 text-orange-700 px-2 py-0.5 rounded shadow-sm font-bold"><i class="fas fa-exclamation-circle"></i> Tdk Ditemukan</span>`; return; }
 
@@ -58,10 +62,12 @@
                 statusEl.innerHTML = `<span class="bg-green-100 text-green-700 px-2 py-0.5 rounded shadow-sm font-bold"><i class="fas fa-check-circle"></i> Ditemukan & Valid</span>`;
                 btnPreview.disabled = false;
 
+                await pastikanMaster([db.custCode], []);
                 let cmp = globalCampaigns.find(c => c.codeCampaign === db.codeCampaign) || {}; let cst = globalCustomers.find(c => c.custCode === db.custCode) || {};
                 
                 let db_ktp = String(cst.ktp || '').trim(); let db_npwp = String(cst.npwp || '').trim(); let subPajak = "-";
-                if (db_ktp && db_npwp) subPajak = "Check"; else if (db_npwp) subPajak = "Badan"; else if (db_ktp) subPajak = "Pribadi";
+                // NPWP terisi = Badan walaupun KTP juga ada; hanya KTP = Perorangan (20261163110000).
+                if (db_npwp) subPajak = "Badan"; else if (db_ktp) subPajak = "Perorangan";
 
                 document.getElementById('singleToko').innerText = `${db.custCode} - ${normalizeName(db.custName)}`;
                 document.getElementById('singleCamp').innerText = `${db.codeCampaign} - ${db.campaignName}`;
@@ -75,7 +81,7 @@
                 elSp.className = "font-black px-2 py-0.5 rounded text-[10px] uppercase " + (cmp.statusPajak === 'PKP' ? "bg-blue-100 text-blue-700" : "bg-gray-200 text-gray-700");
                 
                 let elSb = document.getElementById('singleSubyekPajak'); elSb.innerText = subPajak;
-                elSb.className = "font-black px-2 py-0.5 rounded text-[10px] uppercase " + (subPajak === 'Badan' ? "bg-purple-100 text-purple-700" : (subPajak === 'Pribadi' ? "bg-orange-100 text-orange-700" : (subPajak==='Check'?"bg-red-500 text-white animate-pulse shadow-sm":"text-gray-800")));
+                elSb.className = "font-black px-2 py-0.5 rounded text-[10px] uppercase " + (subPajak === 'Badan' ? "bg-purple-100 text-purple-700" : (subPajak === 'Perorangan' ? "bg-orange-100 text-orange-700" : (subPajak==='Check'?"bg-red-500 text-white animate-pulse shadow-sm":"text-gray-800")));
 
                 setValueSafely('singleKtp', db_ktp); setValueSafely('singleNpwp', db_npwp);
                 setValueSafely('singleRek', cst.noRek || ''); setValueSafely('singleNamaRek', cst.namaRek || ''); setValueSafely('singleBank', cst.bank || ''); 

@@ -9,7 +9,7 @@ using(user_id=(select auth.uid()) and exists(
 alter policy permissions_self on public.user_permissions
 using(user_id=(select auth.uid()) and exists(
  select 1 from public.profiles p where p.id=(select auth.uid()) and not p.must_change_password));
-create function rc_private.password_changed() returns trigger
+create or replace function rc_private.password_changed() returns trigger
 language plpgsql security definer set search_path='' as $$
 begin
  if new.encrypted_password is distinct from old.encrypted_password
@@ -22,7 +22,7 @@ revoke all on function rc_private.password_changed() from public,anon,authentica
 create trigger rc_auth_password_changed after update of encrypted_password on auth.users
 for each row execute function rc_private.password_changed();
 
-create function public.rc_gross_up_legacy(net numeric,subject text)
+create or replace function public.rc_gross_up_legacy(net numeric,subject text)
 returns numeric language sql immutable security invoker set search_path='' as $$
 select case when coalesce(net,0)<=0 then 0
 when lower(btrim(coalesce(subject,'')))='badan' then net/0.85

@@ -13,17 +13,21 @@
             let reproPending = null;
 
             function switchCompilationTab(tab) {
-                const selected=tab==='repro'?'reprocess':['list','compile','archive'].find(t=>rcCanTab('compilation.'+t));
+                const selected=tab==='repro'?'reprocess':tab==='amend'?'amend':['list','compile','archive'].find(t=>rcCanTab('compilation.'+t));
                 if(!rcEnterTab('compilation',selected))return;
                 setHiddenSafely('cmpPanelCompile', tab !== 'compile');
                 setHiddenSafely('cmpPanelRepro', tab !== 'repro');
+                setHiddenSafely('cmpPanelAmend', tab !== 'amend');
                 const aktif = 'px-5 py-2 text-sm font-bold rounded-lg transition bg-cyan-100 text-cyan-700';
                 const diam = 'px-5 py-2 text-sm font-bold rounded-lg transition text-gray-500 hover:bg-gray-100';
                 const bc = document.getElementById('cmpTabCompile');
                 const br = document.getElementById('cmpTabRepro');
+                const ba = document.getElementById('cmpTabAmend');
                 if (bc) bc.className = tab === 'compile' ? aktif : diam;
                 if (br) br.className = tab === 'repro' ? aktif : diam;
+                if (ba) ba.className = tab === 'amend' ? aktif : diam;
                 if (tab === 'repro') loadReprocessing();
+                if (tab === 'amend') bukaAmendDoc();
             }
 
             async function loadReprocessing() {
@@ -101,7 +105,7 @@
             // harus membuka layar lain.
             const REPRO_HEADER = ['No Doc', 'Code Campaign', 'Nama Campaign', 'Code Cust', 'Nama Cust',
                                   'Total Cashback', 'SO Start', 'SO End', 'Billing Start', 'Billing End',
-                                  'Alasan On Hold'];
+                                  'Alasan On Hold', 'Alasan Reprocessing'];
 
             function downloadReprocessing() {
                 const rows = reproTerpilih();
@@ -110,16 +114,16 @@
                 rows.forEach(function (r) {
                     const tgl = function (v) { return v ? rcTanggalId(v) : ''; };
                     aoa.push([
-                        r.noDoc, r.kodeCampaign, r.namaCampaign, r.kodeToko, r.namaToko,
+                        r.noDoc, rcSelTeks(r.kodeCampaign), r.namaCampaign, rcSelTeks(r.kodeToko), r.namaToko,
                         Math.trunc(Number(r.totalCashback || 0)),
                         tgl(r.soStart), tgl(r.soEnd), tgl(r.billingStart), tgl(r.billingEnd),
-                        r.alasan || ''
+                        r.alasan || '', ''
                     ]);
                 });
                 const ws = XLSX.utils.aoa_to_sheet(aoa);
                 ws['!cols'] = [{ wch: 26 }, { wch: 16 }, { wch: 34 }, { wch: 12 },
                                { wch: 26 }, { wch: 16 }, { wch: 13 }, { wch: 13 },
-                               { wch: 14 }, { wch: 14 }, { wch: 40 }];
+                               { wch: 14 }, { wch: 14 }, { wch: 40 }, { wch: 40 }];
                 // No Doc diformat teks supaya Excel tidak mencoba menafsirkannya.
                 for (let i = 2; i <= aoa.length; i += 1) {
                     const ref = 'A' + i;
@@ -144,6 +148,8 @@
                         const header = rows[0].map(h => String(h || '').trim().toLowerCase());
                         const iDoc = header.indexOf('no doc');
                         const iCb = header.indexOf('total cashback');
+                        // 20261163150000: alasan per baris (opsional); yang kosong memakai alasan di layar.
+                        const iAlasan = header.indexOf('alasan reprocessing');
                         if (iDoc === -1 || iCb === -1) {
                             showNotification('Kolom "No Doc" dan "Total Cashback" wajib ada pada berkas.', 'error');
                             return;
@@ -156,14 +162,16 @@
                                 // Dibersihkan dari pemisah ribuan dan simbol mata uang, karena
                                 // Excel kerap menyimpannya sebagai teks berformat.
                                 totalCashback: String(rcCellText(r[iCb]))
-                                    .replace(/[^0-9,.-]/g, '').replace(/\.(?=\d{3}\b)/g, '').replace(',', '.')
+                                    .replace(/[^0-9,.-]/g, '').replace(/\.(?=\d{3}\b)/g, '').replace(',', '.'),
+                                alasan: iAlasan === -1 ? '' : String(rcCellText(r[iAlasan]) || '').trim()
                             }));
 
                         const kosong = reproPending.filter(r => r.totalCashback === '').length;
                         document.getElementById('reproUploadText').innerText =
                             reproPending.length + ' baris terbaca'
                             + (kosong ? ', ' + kosong + ' tanpa Total Cashback dan akan ditolak' : '')
-                            + '. Dokumen yang berhasil akan kembali ke Not Yet.';
+                            + '. Dokumen yang berhasil akan kembali ke Not Yet dan email Reprocessing dikirim ke depot.'
+                            + (reproPending.some(r => r.alasan) ? ' ' + reproPending.filter(r => r.alasan).length + ' baris membawa Alasan Reprocessing sendiri.' : '');
                         setHiddenSafely('reproUploadInfo', false);
                     } catch (err) {
                         showNotification('Gagal membaca berkas Excel.', 'error');
@@ -180,15 +188,21 @@
 
             async function commitReprocessingUpload() {
                 if (!reproPending || reproPending.length === 0) return;
+                // 20261163150000: alasan wajib - per baris (kolom Alasan Reprocessing) atau di layar.
+                const alasan = String((document.getElementById('reproAlasan') || {}).value || '').trim();
+                if (!alasan && reproPending.some(r => !r.alasan)) {
+                    showNotification('Isi Alasan Reprocessing (atau kolom Alasan Reprocessing di berkas untuk setiap baris).', 'warning');
+                    return;
+                }
                 setDisabledSafely('btnCommitRepro', true);
                 showLoadingOverlay('Memproses revisi...');
                 try {
-                    const res = await fetchApp({ action: 'reprocessingUpload', rows: reproPending });
+                    const res = await fetchApp({ action: 'reprocessingUpload', rows: reproPending, alasan: alasan });
                     if (res.status !== 'success') {
                         showNotification(res.message || 'Gagal memproses.', 'error'); return;
                     }
                     showNotification(res.message, Number(res.jumlahGagal || 0) > 0 ? 'warning' : 'success');
-                    logActivity('Reprocessing Doc: ' + res.berhasil + ' dokumen kembali ke Not Yet');
+                    logActivity('Reprocessing Doc: ' + res.berhasil + ' dokumen kembali ke Not Yet' + (alasan ? '. Alasan: ' + alasan : ''));
 
                     if (Number(res.jumlahGagal || 0) > 0) {
                         rcDialog('Baris yang ditolak',

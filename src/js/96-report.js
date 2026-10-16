@@ -69,6 +69,7 @@
                 try {
                     const res = await fetchApp({ action: 'emailStatus' });
                     if (res.status !== 'success') throw new Error(res.message || 'Gagal memuat status email.');
+                    setHiddenSafely('rtEmailHanyaUji', res.hanyaUji !== true);
 
                     document.getElementById('rtEmailJadwal').innerHTML = (res.pengaturan || []).map(function (p) {
                         // hariList null berarti TIAP HARI. Daftar berisi angka berarti hanya hari

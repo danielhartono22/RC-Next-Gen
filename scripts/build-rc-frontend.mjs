@@ -158,7 +158,25 @@ export async function buildFrontend({ check = false } = {}) {
   await writeFile(path.join(OUT_DIR, 'index.html'), built);
   await copyFile(path.join(root, 'scripts', 'rc-legacy-adapter.js'),
     path.join(OUT_DIR, 'assets', 'rc-legacy-adapter.js'));
-  await copyFile(path.join(root, 'config', 'rc-env.js'), path.join(OUT_DIR, 'assets', 'rc-env.js'));
+  // Konfigurasi peramban mengikuti lingkungan yang diminta. Bawaannya prod, sehingga build
+  // tanpa bendera apa pun tetap menghasilkan halaman produksi persis seperti sebelumnya -
+  // hanya "--env dev" yang menukarnya. Kalau berkas dev diminta tetapi tidak ada, build
+  // BERHENTI: diam-diam jatuh ke config produksi berarti halaman dev berbicara ke database
+  // sungguhan, dan itu tidak boleh terjadi tanpa ada yang tahu.
+  // Vercel menjalankan buildCommand-nya SENDIRI, jadi build lokal tidak pernah ikut terkirim.
+  // Karena itu lingkungan juga dibaca dari variabel RC_ENV_TARGET, yang disetel per project di
+  // Vercel. Tanpa ini, project dev akan selalu membangun ulang dengan config produksi dan
+  // diam-diam berbicara ke database sungguhan.
+  const iEnv = process.argv.indexOf('--env');
+  const envBuild = iEnv >= 0 ? process.argv[iEnv + 1]
+    : (process.env.RC_ENV_TARGET || 'prod');
+  const berkasEnv = envBuild === 'prod' ? 'rc-env.js' : `rc-env.${envBuild}.js`;
+  const asalEnv = path.join(root, 'config', berkasEnv);
+  try {
+    await copyFile(asalEnv, path.join(OUT_DIR, 'assets', 'rc-env.js'));
+  } catch {
+    throw new Error(`config/${berkasEnv} tidak ada; build untuk lingkungan "${envBuild}" dihentikan.`);
+  }
   // Halaman merujuk images/logo.png dan punya fallback ikon bila berkasnya hilang, sehingga
   // logo yang tidak tersalin tidak pernah terlihat sebagai error. Build menyalinnya supaya
   // logo asli yang tampil, bukan fallback itu.

@@ -134,6 +134,30 @@
   }
   function fail(message) { return { status: 'error', message: message }; }
 
+  // Argumen RPC bertahap: ukuran halaman dan kursor "berikutnya" dari halaman sebelumnya.
+  function argHalaman(body, bawaan) {
+    body = body || {};
+    var arg = { p_limit: Number(body.limit) || bawaan };
+    if (body.setelah && body.setelah.waktu) {
+      arg.p_setelah_waktu = body.setelah.waktu;
+      arg.p_setelah_id = body.setelah.id;
+    }
+    return arg;
+  }
+
+  // RPC bertahap dengan cadangan untuk database yang belum dimigrasi (20261162050000).
+  // Bila fungsinya belum menerima kursor, PostgREST menjawab "Could not find the function";
+  // maka versi lama dipanggil tanpa argumen - seluruh data dalam satu jawaban, tanpa
+  // "berikutnya" - sehingga layar memuat satu kali seperti dulu. Dengan begitu frontend ini
+  // aman diterbitkan lebih dulu daripada migrasinya.
+  function rpcHalaman(nama, body, bawaan) {
+    return rpc(nama, argHalaman(body, bawaan)).catch(function (e) {
+      var pesan = String((e && e.message) || '');
+      if (!/Could not find the function/i.test(pesan) || (body && body.setelah)) throw e;
+      return rpc(nama);
+    });
+  }
+
   // Deterministic internal login address; see docs/rc-auth-deployment.md. The user ID stays
   // the credential the person types, and shared business emails never merge two accounts.
   function loginEmail(userCode) {
@@ -278,7 +302,49 @@
   // from the payload and reused until that exact payload succeeds.
   var inFlight = new Map();
 
+  // Server menerima paling banyak 500 dokumen per proses (mutate_claims_unchecked: "Satu proses
+  // maksimal 500 dokumen"). Daftar yang lebih panjang - mis. ratusan No Document yang ditempel
+  // di Mass Process Clearing - dulu ditolak seluruhnya. Sekarang dikirim bertahap, 500 per
+  // panggilan dan berurutan, lalu hasilnya digabung. Setiap tahap tetap satu transaksi dengan
+  // nomor batch-nya sendiri. Bila sebuah tahap gagal sesudah tahap sebelumnya tersimpan,
+  // pesannya menyebut berapa dokumen yang sudah berhasil supaya tidak diposting ulang.
+  var BATAS_PROSES = 500;
+
   function processClaims(action, items, reason) {
+    if (items.length <= BATAS_PROSES) return processClaimsSekali(action, items, reason);
+    var tahap = [];
+    for (var i = 0; i < items.length; i += BATAS_PROSES) tahap.push(items.slice(i, i + BATAS_PROSES));
+    var gabung = { batch: [], count: 0, docs: [], processed: [], grossUpMap: {} };
+    return tahap.reduce(function (janji, bagian) {
+      return janji.then(function () {
+        return processClaimsSekali(action, bagian, reason).then(function (hasil) {
+          var s = hasil.summary;
+          if (s.batchNum && gabung.batch.indexOf(s.batchNum) === -1) gabung.batch.push(s.batchNum);
+          gabung.count += Number(s.successCount) || 0;
+          gabung.docs = gabung.docs.concat(s.successfulDocs);
+          gabung.processed = gabung.processed.concat(s.processed);
+          Object.keys(s.grossUpMap).forEach(function (k) { gabung.grossUpMap[k] = s.grossUpMap[k]; });
+        }, function (e) {
+          if (!gabung.count) throw e;
+          throw new Error(gabung.count + ' dokumen sudah diproses'
+            + (gabung.batch.length ? ' (batch ' + gabung.batch.join(', ') + ')' : '')
+            + '; sisanya gagal: ' + (e && e.message ? e.message : e));
+        });
+      });
+    }, Promise.resolve()).then(function () {
+      return ok({
+        summary: {
+          batchNum: gabung.batch.join(', ') || null,
+          successCount: gabung.count,
+          successfulDocs: gabung.docs,
+          processed: gabung.processed,
+          grossUpMap: gabung.grossUpMap
+        }
+      });
+    });
+  }
+
+  function processClaimsSekali(action, items, reason) {
     var key = action + '|' + JSON.stringify(items) + '|' + reason;
     if (!inFlight.has(key)) inFlight.set(key, crypto.randomUUID());
     var requestId = inFlight.get(key);
@@ -348,10 +414,28 @@
             res = await sb.auth.signInWithPassword({ email: await loginEmail(code), password: String(body.pin) });
             if (!res.error || res.error.code !== 'invalid_credentials') break;
           }
+          if (res.error) {
+            // Salah PIN dicatat server; pada salah ketiga berturut-turut akun di-suspend
+            // (20261162110000). Bila pencatatnya belum ada atau gagal dihubungi, login tetap
+            // berperilaku seperti sebelumnya.
+            if (res.error.code === 'invalid_credentials') {
+              var catat = null;
+              try { catat = await sb.rpc('rc_login_gagal', { p_user_code: entered, p_pin: String(body.pin) }); }
+              catch (e) { catat = null; }
+              if (catat && catat.data && catat.data.suspended) throw new Error(catat.data.message);
+            }
+            throw new Error(signInMessage(res.error));
+          }
+          // PIN diterima: akun suspended tetap ditolak, akun aktif dikosongkan penghitungnya.
+          var cek = null;
+          try { cek = await sb.rpc('rc_login_berhasil'); } catch (e) { cek = null; }
+          if (cek && cek.data && cek.data.akun === 'suspended') {
+            await sb.auth.signOut();
+            throw new Error(cek.data.message);
+          }
           return res;
         })
-        .then(function (res) {
-          if (res.error) throw new Error(signInMessage(res.error));
+        .then(function () {
           return rpc('rc_legacy_bootstrap');
         })
         .then(terimaBootstrap);
@@ -441,6 +525,12 @@
       return processClaims('bulk_rebate', docItems(body.docsToProcess), '');
     },
 
+    // Tolak dari Bulk Process: Rebate di Approved/Released/Claimed kembali ke depot (Not Yet).
+    // Alasannya wajib dan ditolak server bila kosong (20261162120000).
+    bulkReject: function (body) {
+      return processClaims('reject_bulk', docItems(body.docsToProcess), String(body.reason || ''));
+    },
+
     processWorkflow: function (body) {
       var stage = body.workflowType;
       var approve = { release: 'release', claim: 'claim', clearing: 'clearing' };
@@ -457,34 +547,56 @@
         reason = 'Reject pada tahap ' + stage;
       }
       if (!action) return Promise.resolve(fail('Tahap workflow tidak dikenali.'));
-      return processClaims(action, docItems(body.docsToProcess), reason);
+      var items = docItems(body.docsToProcess);
+      // Clearing mencatat tanggal transfer/proses AKTUAL yang dipilih pengguna (Tgl Clearing
+      // (Aktual)), terpisah dari waktu proses di sistem (20261162270000). Dulu tanggal ini
+      // dikirim layar tetapi tidak diteruskan ke server sama sekali.
+      if (action === 'clearing') {
+        var aktual;
+        try { aktual = toIsoDate(body.tglProses); } catch (e) { return Promise.resolve(fail(e.message)); }
+        if (!aktual) return Promise.resolve(fail('Tanggal transfer/proses aktual (Tgl Clearing) wajib diisi.'));
+        items = items.map(function (x) { x.tgl_aktual = aktual; return x; });
+      }
+      return processClaims(action, items, reason);
     },
 
-    getWorkflowData: function () {
-      return rpc('rc_legacy_workflow').then(function (data) {
+    // Satu halaman antrean. body.setelah adalah kursor "berikutnya" dari halaman sebelumnya;
+    // tanpa kursor, halaman pertama. Layar memanggil berulang sampai kursornya habis
+    // (src/js/27-muat-bertahap.js).
+    getWorkflowData: function (body) {
+      return rpcHalaman('rc_legacy_workflow', body, 1000).then(function (data) {
         rememberVersions([].concat(data.releaseData, data.claimFinData, data.clearingData, data.bulkRebateData));
-        // "Kosong" selama ini berarti dua hal yang sangat berbeda: tidak ada datanya, atau
-        // ada tetapi tidak terlihat oleh akun ini. Keduanya tampak identik di layar. Ketika
-        // keempat antrean kosong, tanyakan sebabnya ke server dan tampilkan jawabannya,
-        // daripada membiarkan orang menebak.
-        var total = (data.releaseData || []).length + (data.claimFinData || []).length
-          + (data.clearingData || []).length + (data.bulkRebateData || []).length;
-        if (total > 0) return data;
-        return rpc('rc_workflow_diagnostic')
-          .then(function (d) {
-            data.diagnostic = d;
-            if (typeof window.showNotification === 'function' && d && d.sebab) {
-              window.showNotification(d.sebab, 'warning');
-            }
-            if (window.console && d) console.info('RC diagnostic', d);
-            return data;
-          })
-          .catch(function () { return data; });
+        return data;
       });
     },
-    workflowDiagnostic: function () { return rpc('rc_workflow_diagnostic'); },
+    // "Kosong" selama ini berarti dua hal yang sangat berbeda: tidak ada datanya, atau ada
+    // tetapi tidak terlihat oleh akun ini. Keduanya tampak identik di layar. Layar Workflow
+    // menanyakan sebabnya ke sini setelah seluruh halaman dimuat dan keempat antrean kosong.
+    workflowDiagnostic: function () {
+      return rpc('rc_workflow_diagnostic').then(function (d) {
+        if (typeof window.showNotification === 'function' && d && d.sebab) {
+          window.showNotification(d.sebab, 'warning');
+        }
+        if (window.console && d) console.info('RC diagnostic', d);
+        return d;
+      });
+    },
 
-    getDashboardData: function () { return rpc('rc_legacy_dashboard'); },
+    // Satu halaman Analytics. compileData dulu dikirim server sebagai salinan kedua dari
+    // baris yang sama (join dan penyaring yang sama; dibuktikan di migrasi 20261162050000)
+    // dengan enam kolom yang juga ada di history. Kini disusun di sini dari history,
+    // sehingga yang melintas jaringan hanya satu salinan.
+    getDashboardData: function (body) {
+      return rpcHalaman('rc_legacy_dashboard', body, 1000).then(function (data) {
+        // Server lama masih mengirim compileData sendiri; dipakai apa adanya.
+        if (Array.isArray(data.compileData)) return data;
+        data.compileData = (data.history || []).map(function (h) {
+          return { depotName: h.depot, codeCampaign: h.codeCampaign, campaign: h.campaign,
+                   validYear: h.validYear, reward: h.totalClaim, kodeToko: h.kodeToko };
+        });
+        return data;
+      });
+    },
 
     getLogActivity: function () { return rpc('rc_legacy_logs', { p_days: 30 }); },
 
@@ -598,6 +710,10 @@
       });
     },
     customerUpsert: function (body) { return rpc('rc_customer_upsert', { p_rows: body.rows || [] }); },
+    // Unggahan besar dipecah per 2.000 baris oleh layar. Setiap bagian diperiksa dulu dengan
+    // aturan simpan yang sama persis lalu dibatalkan (20261163130000), supaya satu baris salah
+    // tidak meninggalkan setengah berkas tersimpan.
+    customerUpsertPeriksa: function (body) { return rpc('rc_customer_upsert_periksa', { p_rows: body.rows || [] }); },
     campaignList: function (body) {
       return rpc('rc_campaign_list', {
         p_search: String(body.search || ''), p_offset: Number(body.offset) || 0,
@@ -605,6 +721,20 @@
       });
     },
     campaignUpsert: function (body) { return rpc('rc_campaign_upsert', { p_rows: body.rows || [] }); },
+    // Not Participating per depot/region pada Campaign Master (20261162170000).
+    campaignNp: function (body) { return rpc('rc_campaign_np', { p_campaign: String(body.campaign || '') }); },
+    campaignNpSimpan: function (body) {
+      return rpc('rc_campaign_np_simpan', {
+        p_campaign: String(body.campaign || ''), p_depots: body.depots || [], p_regions: body.regions || [],
+        p_catatan: String(body.catatan || '')
+      });
+    },
+    // Saklar approval di Access Management (20261162180000).
+    approvalStatus: function () { return rpc('rc_approval_status'); },
+    approvalSetelan: function () { return rpc('rc_approval_setelan'); },
+    approvalSetel: function (body) {
+      return rpc('rc_approval_setel', { p_aktif: body.aktif === true, p_catatan: String(body.catatan || '') });
+    },
     campaignDelete: function (body) { return rpc('rc_campaign_delete', { p_codes: asList(body.campaigns) }); },
 
     // ---- Arsip Key Master -------------------------------------------------------------
@@ -788,6 +918,34 @@
     depotGradeList: function () { return rpc('rc_depot_grade_list'); },
     depotGradeSet: function (body) { return rpc('rc_depot_grade_set', { p_rows: body.rows || [] }); },
 
+    // ---- Master diambil saat perlu ---------------------------------------------------
+    // Login tidak lagi mengunduh seluruh daftar pelanggan dan dokumen - dulu 2,8 MB, dan
+    // gagal sama sekali begitu datanya besar. Keduanya hanya dipakai untuk mencari satu
+    // baris berdasarkan kode, jadi yang diambil cukup kode yang benar-benar dipakai.
+    // Sejak 20261162010000 bootstrap tidak lagi mengirim daftar dokumen; dokumen datang HANYA
+    // lewat sini. Versinya wajib dicatat - tanpa itu Posting Claim dan Posting Exception
+    // menolak setiap dokumen dengan "belum dimuat; segarkan data lebih dulu".
+    lookupMaster: function (body) {
+      return rpc('rc_lookup_master', {
+        p_cust: body.custCodes || [], p_doc: body.docNos || [],
+      }).then(function (data) { rememberVersions(data && data.documents); return data; });
+    },
+
+    // ---- Email pengajuan ------------------------------------------------------------
+    // Berbeda dari email otomatis yang terjadwal: surat ini berangkat saat kejadian, jadi
+    // yang diatur di sini hanya sakelar, daftar CC tambahan, dan kirim uji.
+    emailPengajuanBaca:   function () { return rpc('rc_email_pengajuan_baca'); },
+    emailPengajuanSimpan: function (body) {
+      return rpc('rc_email_pengajuan_simpan',
+        { p_aktif: body.aktif === true, p_cc: body.cc || [],
+          p_mode_uji: body.modeUji === true, p_email_uji: body.emailUji || '',
+          // 20261163150000: CC wajib per jenis; null = biarkan seperti semula.
+          p_cc_jenis: body.ccJenis && typeof body.ccJenis === 'object' ? body.ccJenis : null });
+    },
+    emailPengajuanUji:    function (body) {
+      return rpc('rc_email_pengajuan_uji', { p_email: body.email || '' });
+    },
+
     // ---- Email otomatis -------------------------------------------------------------
     emailStatus:         function () { return rpc('rc_email_status'); },
     emailTestConnection: function () { return rpc('rc_email_uji_koneksi'); },
@@ -830,6 +988,17 @@
     },
 
     // Reprocessing Doc: dokumen On Hold yang menunggu revisi nominal.
+    // Document Center > Amend Doc (20261163140000): No Doc + Net CB baru.
+    amendCek: function (body) { return rpc('rc_amend_cek', { p_no_doc: String(body.noDoc || '') }); },
+    // 20261163150000: banyak dokumen sekaligus, masing-masing { noDoc, cbNet, versionNo, alasan };
+    // alasan umum dipakai untuk baris yang alasannya kosong.
+    amendDoc: function (body) {
+      return rpc('rc_amend_doc', { p_items: (body.items || []).map(function (x) {
+        return { noDoc: String(x.noDoc || ''), cbNet: String(x.cbNet == null ? '' : x.cbNet),
+                 versionNo: x.versionNo == null ? null : Number(x.versionNo), alasan: String(x.alasan || '') };
+      }), p_alasan: String(body.alasan || '') });
+    },
+    amendRiwayat: function (body) { return rpc('rc_amend_riwayat', { p_limit: Number(body.limit) || 50 }); },
     reprocessingList: function (body) {
       return rpc('rc_reprocessing_list', {
         p_search: body.search || '', p_offset: 0, p_limit: 2000
@@ -893,11 +1062,30 @@
       return rpc('rc_compilation_list', {
         p_campaign: String(body.campaign || ''), p_batch: String(body.batch || ''),
         p_status: String(body.status || ''), p_search: String(body.search || ''),
-        p_offset: Number(body.offset) || 0, p_limit: Number(body.limit) || 100
+        p_offset: Number(body.offset) || 0, p_limit: Number(body.limit) || 100,
+        p_depot: String(body.depot || ''),
+        // Created On (20261163090000): tanggal ISO dari input tanggal, atau null = tidak disaring.
+        p_dibuat_dari: toIsoDate(body.dibuatDari || '') || null,
+        p_dibuat_sampai: toIsoDate(body.dibuatSampai || '') || null
       });
     },
+    compilationDepots: function () { return rpc('rc_compilation_depots', {}); },
+    // Server mengarsipkan paling banyak 500 baris per panggilan (rc_private.archive_claims);
+    // pilihan Document Center bisa lebih besar, jadi dikirim bertahap dan jumlahnya digabung.
     archiveCompilation: function (body) {
-      return rpc('rc_archive_compilation', { p_ids: body.ids || [], p_reason: String(body.reason || '') });
+      var ids = body.ids || [], alasan = String(body.reason || ''), total = 0, tahap = [];
+      for (var i = 0; i < ids.length; i += BATAS_PROSES) tahap.push(ids.slice(i, i + BATAS_PROSES));
+      if (!tahap.length) tahap.push([]);
+      return tahap.reduce(function (janji, bagian) {
+        return janji.then(function () {
+          return rpc('rc_archive_compilation', { p_ids: bagian, p_reason: alasan }).then(function (hasil) {
+            total += Number(hasil && hasil.jumlah) || 0;
+          }, function (e) {
+            if (!total) throw e;
+            throw new Error(total + ' baris sudah diarsipkan; sisanya gagal: ' + (e && e.message ? e.message : e));
+          });
+        });
+      }, Promise.resolve()).then(function () { return ok({ jumlah: total }); });
     },
     unarchiveCompilation: function (body) {
       return rpc('rc_unarchive_compilation', { p_ids: body.ids || [] });

@@ -91,10 +91,45 @@
             /* Batas tinggi kanvas ketika BUKAN sedang diperbesar. Tanpa batas ini, kanvas
                yang baru kembali dari modal mempertahankan tinggi modalnya dan kartunya
                menjadi raksasa. Di dalam modal batas ini dicabut oleh .rc-card-expanded. */
-            .rc-expand-body { position: relative; }
+            .rc-expand-body { position: relative; min-width: 0; }
             .rc-expand-body > canvas { max-height: 320px; }
-            #cardExpandBody .rc-expand-body > canvas { max-height: none; }
-            #cardExpandBody > .rc-expand-body { height: 100%; }
+            /* Chart Timetable mendapat batas yang pasti sejak render pertama. Sebelumnya tinggi
+               hanya berasal dari atribut canvas; Chart.js sempat membaca wadah yang terlalu
+               kecil lalu baru benar setelah tombol Perbesar memicu resize. */
+            .rc-chart-body { width: 100%; height: clamp(240px, 24vw, 300px); min-height: 240px; }
+            .rc-chart-body > canvas { width: 100% !important; height: 100% !important; max-height: none; }
+
+            /* Isi dialog Perbesar selalu memakai ruang panel yang tersedia. Kelas pembatas
+               seperti max-h-[460px] tetap berguna pada card biasa, tetapi tidak boleh membatasi
+               isi setelah dipindahkan ke dialog. */
+            #cardExpandBody { min-width: 0; min-height: 0; }
+            #cardExpandBody > .rc-expanded-content {
+                width: 100% !important; height: 100% !important; min-width: 0; min-height: 0;
+                max-width: none !important; max-height: none !important; overflow: auto;
+            }
+            #cardExpandBody > .rc-expanded-chart {
+                display: flex; flex-direction: column; overflow: hidden;
+            }
+            #cardExpandBody .rc-expanded-chart canvas {
+                width: 100% !important; height: 100% !important; max-height: none !important;
+            }
+
+            /* Dialog teks tetap ringkas. Begitu isinya tabel atau grafik, rcDialog menambahkan
+               rc-dialog-wide agar lebar panel mengikuti kebutuhan isi, tetapi tetap tidak
+               melewati viewport. */
+            #rcDialogModal > .rc-dialog-panel {
+                width: min(48rem, calc(100vw - 2rem)); max-width: calc(100vw - 2rem);
+            }
+            #rcDialogModal.rc-dialog-wide > .rc-dialog-panel {
+                width: min(76rem, calc(100vw - 2rem));
+            }
+            @media (max-width: 640px) {
+                .rc-chart-body { height: 260px; min-height: 260px; }
+                #rcDialogModal > .rc-dialog-panel,
+                #rcDialogModal.rc-dialog-wide > .rc-dialog-panel {
+                    width: calc(100vw - 1rem); max-width: calc(100vw - 1rem);
+                }
+            }
 
             /* Teks panjang di dalam tabel data DIBUNGKUS, bukan dipotong.
                Pemilik meminta: "untuk data table yang karakternya tidak cukup sesuaikan dengan
@@ -127,4 +162,11 @@
             .scrollbar-hide::-webkit-scrollbar { display: none; }
             .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
             .expanded-details { background-color: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+
+            /* Teks yang sering berubah - jam sesi, indikator muat bertahap - ditampilkan dari
+               atribut data-teks, bukan dari isi elemen. Tailwind versi CDN memindai SEMUA elemen
+               berkelas di dokumen setiap kali isi elemen mana pun berubah; pada tabel puluhan
+               ribu baris satu pemindaian memakan detik, dan jam yang berubah tiap detik membuat
+               browser sibuk terus. Perubahan atribut selain class tidak memicunya. */
+            .rc-teks-atribut::after { content: attr(data-teks); }
         </style>

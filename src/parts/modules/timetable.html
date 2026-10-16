@@ -2,8 +2,9 @@
                 <!-- Susunannya mengikuti TimetableDashboard.html pada RC_Reporting_AppsScript:
                      tujuh kartu KPI, Proporsi Progres, Top 10 Depot Not Yet, Progres per Region,
                      Progres per Campaign, Progres per Depot, lalu matrix Depot x Campaign.
-                     Aturan statusnya diputuskan di server: record Expired DIABAIKAN, dan data
-                     aktual selalu mengungguli tanda Not Achieved. -->
+                     Aturan statusnya diputuskan di server: Expired adalah tahap akhir dan
+                     dihitung selesai bersama Done, dan data aktual selalu mengungguli tanda
+                     Not Achieved. -->
                 <div id="modTimetable" class="module-section hidden max-w-7xl mx-auto px-4">
                     <div class="flex justify-between items-center border-b border-gray-100 pb-4 mb-5">
                         <div>
@@ -26,8 +27,8 @@
                             <select id="ttDepot" onchange="loadTimetable()" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white text-sm font-bold text-gray-700"></select>
                         </div>
                         <div class="w-40 flex-shrink-0">
-                            <label class="block text-xs font-bold text-gray-700 mb-1.5">Tanggal Acuan</label>
-                            <input type="date" id="ttTanggal" onchange="loadTimetable()" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white text-sm font-bold text-gray-700">
+                            <label class="block text-xs font-bold text-gray-700 mb-1.5">Tahun Campaign</label>
+                            <select id="ttTahunCampaign" onchange="loadTimetable()" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white text-sm font-bold text-gray-700"></select>
                         </div>
                         <div class="flex items-end">
                             <label class="flex items-center gap-2 text-sm font-bold text-gray-700 pb-2.5">
@@ -44,25 +45,25 @@
                             <button type="button" onclick="rcToggleCardExpand('ttCardSplit')" title="Perbesar" class="rc-expand-btn absolute top-3 right-3 w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-blue-600 hover:border-blue-300 z-10"><i class="fas fa-expand"></i></button>
                             <h3 class="font-black text-gray-700 mb-1 pr-10">Proporsi Progres</h3>
                             <p class="text-[11px] text-gray-500 mb-3">Cleared = Completed + Not Achieved.</p>
-                            <div class="rc-expand-body"><canvas id="ttChartSplit" height="150"></canvas></div>
+                            <div class="rc-expand-body rc-chart-body"><canvas id="ttChartSplit"></canvas></div>
                         </div>
                         <div id="ttCardNotYet" class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm relative">
                             <button type="button" onclick="rcToggleCardExpand('ttCardNotYet')" title="Perbesar" class="rc-expand-btn absolute top-3 right-3 w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-blue-600 hover:border-blue-300 z-10"><i class="fas fa-expand"></i></button>
                             <h3 class="font-black text-gray-700 mb-1 pr-10">Top 10 Depot dengan Not Yet Terbanyak</h3>
-                            <p class="text-[11px] text-gray-500 mb-3">Dihitung dari seluruh data, sengaja tidak mengikuti filter, karena prioritas ditentukan lintas wilayah.</p>
-                            <div class="rc-expand-body"><canvas id="ttChartNotYet" height="150"></canvas></div>
+                            <p class="text-[11px] text-gray-500 mb-3">Dihitung dari seluruh depot untuk Tahun Campaign yang dipilih; filter Region dan Depot tidak membatasi peringkat.</p>
+                            <div class="rc-expand-body rc-chart-body"><canvas id="ttChartNotYet"></canvas></div>
                         </div>
                         <div id="ttCardRegion" class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm relative">
                             <button type="button" onclick="rcToggleCardExpand('ttCardRegion')" title="Perbesar" class="rc-expand-btn absolute top-3 right-3 w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-blue-600 hover:border-blue-300 z-10"><i class="fas fa-expand"></i></button>
                             <h3 class="font-black text-gray-700 mb-1 pr-10">Progres per Region</h3>
                             <p class="text-[11px] text-gray-500 mb-3">Region diisi lewat Key Master &rarr; Depot Master.</p>
-                            <div class="rc-expand-body"><canvas id="ttChartRegion" height="150"></canvas></div>
+                            <div class="rc-expand-body rc-chart-body"><canvas id="ttChartRegion"></canvas></div>
                         </div>
                         <div id="ttCardCampaign" class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm relative">
                             <button type="button" onclick="rcToggleCardExpand('ttCardCampaign')" title="Perbesar" class="rc-expand-btn absolute top-3 right-3 w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-blue-600 hover:border-blue-300 z-10"><i class="fas fa-expand"></i></button>
                             <h3 class="font-black text-gray-700 mb-1 pr-10">Progres per Campaign</h3>
-                            <p class="text-[11px] text-gray-500 mb-3">Hanya campaign aktif pada tanggal acuan.</p>
-                            <div class="rc-expand-body"><canvas id="ttChartCampaign" height="150"></canvas></div>
+                            <p class="text-[11px] text-gray-500 mb-3">Campaign mengikuti tahun Periode Start pada Campaign Master.</p>
+                            <div class="rc-expand-body rc-chart-body"><canvas id="ttChartCampaign"></canvas></div>
                         </div>
                     </div>
 
@@ -74,7 +75,7 @@
                         <button type="button" onclick="rcToggleCardExpand('ttCardCampaignTabel')" title="Perbesar" class="rc-expand-btn absolute top-3 right-3 w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-blue-600 hover:border-blue-300 z-20"><i class="fas fa-expand"></i></button>
                         <div class="p-5 pb-3">
                             <h3 class="font-black text-gray-700 pr-10">Progres per Campaign</h3>
-                            <p class="text-[11px] text-gray-500 mt-1" id="ttCampaignTabelCatatan">Hanya campaign aktif pada tanggal acuan.</p>
+                            <p class="text-[11px] text-gray-500 mt-1" id="ttCampaignTabelCatatan">Campaign mengikuti tahun Periode Start pada Campaign Master.</p>
                         </div>
                         <div class="rc-expand-body overflow-auto max-h-[460px]">
                             <table class="w-full text-sm" id="ttTableCampaign">

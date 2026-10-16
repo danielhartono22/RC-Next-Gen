@@ -11,7 +11,7 @@ grant all on public.profile_change_requests to service_role;
 create index profile_requests_depot_idx on public.profile_change_requests(depot_id,status,created_at desc);
 create policy request_scope on public.profile_change_requests for select to authenticated using(
 rc_private.can_access(depot_id) and (requester_id=auth.uid() or rc_private.can_access(depot_id,'manage_access')));
-create function rc_private.profile_request(p_depot uuid,p_changes jsonb) returns uuid language plpgsql security definer set search_path='' as $$
+create or replace function rc_private.profile_request(p_depot uuid,p_changes jsonb) returns uuid language plpgsql security definer set search_path='' as $$
 declare v uuid; begin
  if not rc_private.can_access(p_depot) then raise exception 'Access denied' using errcode='42501'; end if;
  if p_changes is null or jsonb_typeof(p_changes)<>'object' or p_changes='{}'::jsonb
@@ -22,7 +22,7 @@ declare v uuid; begin
  insert into public.activity_logs(actor_id,depot_id,event_type,entity_id) values(auth.uid(),p_depot,'profile_request',v);
  return v;
 end $$;
-create function rc_private.review_profile(p_id uuid,p_approve boolean) returns void language plpgsql security definer set search_path='' as $$
+create or replace function rc_private.review_profile(p_id uuid,p_approve boolean) returns void language plpgsql security definer set search_path='' as $$
 declare r public.profile_change_requests%rowtype; begin
  select * into strict r from public.profile_change_requests where id=p_id for update;
  if not rc_private.can_access(r.depot_id,'manage_access') or r.requester_id=auth.uid() then raise exception 'Independent approver required' using errcode='42501'; end if;
@@ -32,16 +32,16 @@ declare r public.profile_change_requests%rowtype; begin
  update public.profile_change_requests set status=case when p_approve then 'approved' else 'rejected' end,reviewer_id=auth.uid(),reviewed_at=now() where id=r.id;
  insert into public.activity_logs(actor_id,depot_id,event_type,entity_id) values(auth.uid(),r.depot_id,'profile_review',r.id);
 end $$;
-create function public.rc_request_profile(p_depot uuid,p_changes jsonb) returns uuid language sql security invoker set search_path='' as $$select rc_private.profile_request(p_depot,p_changes);$$;
-create function public.rc_review_profile(p_id uuid,p_approve boolean) returns void language sql security invoker set search_path='' as $$select rc_private.review_profile(p_id,p_approve);$$;
+create or replace function public.rc_request_profile(p_depot uuid,p_changes jsonb) returns uuid language sql security invoker set search_path='' as $$select rc_private.profile_request(p_depot,p_changes);$$;
+create or replace function public.rc_review_profile(p_id uuid,p_approve boolean) returns void language sql security invoker set search_path='' as $$select rc_private.review_profile(p_id,p_approve);$$;
 revoke all on function rc_private.profile_request(uuid,jsonb),rc_private.review_profile(uuid,boolean),public.rc_request_profile(uuid,jsonb),public.rc_review_profile(uuid,boolean) from public,anon;
 grant execute on function rc_private.profile_request(uuid,jsonb),rc_private.review_profile(uuid,boolean),public.rc_request_profile(uuid,jsonb),public.rc_review_profile(uuid,boolean) to authenticated;
 
-create function rc_private.is_manager() returns boolean language sql stable security definer set search_path='' as $$
+create or replace function rc_private.is_manager() returns boolean language sql stable security definer set search_path='' as $$
 select rc_private.can_access(null,'manage_access') and exists(select 1 from public.profiles where id=auth.uid() and role='system manager');$$;
 revoke all on function rc_private.is_manager() from public,anon;
 grant execute on function rc_private.is_manager() to authenticated;
-create function rc_private.manage_user(p_user uuid,p_status text,p_permissions text[],p_depots uuid[]) returns void language plpgsql security definer set search_path='' as $$
+create or replace function rc_private.manage_user(p_user uuid,p_status text,p_permissions text[],p_depots uuid[]) returns void language plpgsql security definer set search_path='' as $$
 begin
  if not rc_private.is_manager() then raise exception 'Manager required' using errcode='42501'; end if;
  if p_user=auth.uid() then raise exception 'Cannot change own access'; end if;
@@ -57,10 +57,10 @@ begin
  insert into public.user_depot_access select p_user,x from unnest(p_depots) x group by x;
  insert into public.activity_logs(actor_id,event_type,entity_id,details) values(auth.uid(),'access_changed',p_user,jsonb_build_object('status',p_status));
 end $$;
-create function public.rc_manage_user(p_user uuid,p_status text,p_permissions text[],p_depots uuid[]) returns void language sql security invoker set search_path='' as $$select rc_private.manage_user(p_user,p_status,p_permissions,p_depots);$$;
+create or replace function public.rc_manage_user(p_user uuid,p_status text,p_permissions text[],p_depots uuid[]) returns void language sql security invoker set search_path='' as $$select rc_private.manage_user(p_user,p_status,p_permissions,p_depots);$$;
 revoke all on function rc_private.manage_user(uuid,text,text[],uuid[]),public.rc_manage_user(uuid,text,text[],uuid[]) from public,anon;
 grant execute on function rc_private.manage_user(uuid,text,text[],uuid[]),public.rc_manage_user(uuid,text,text[],uuid[]) to authenticated;
-create function rc_private.list_users(p_offset integer) returns jsonb language plpgsql stable security definer set search_path='' as $$
+create or replace function rc_private.list_users(p_offset integer) returns jsonb language plpgsql stable security definer set search_path='' as $$
 declare v jsonb; begin
  if not rc_private.is_manager() then raise exception 'Manager required' using errcode='42501'; end if;
  select coalesce(jsonb_agg(x),'[]') into v from (
@@ -70,6 +70,6 @@ declare v jsonb; begin
  from public.profiles p order by user_code limit 50 offset greatest(p_offset,0)) x;
  return v;
 end $$;
-create function public.rc_list_users(p_offset integer default 0) returns jsonb language sql stable security invoker set search_path='' as $$select rc_private.list_users(p_offset);$$;
+create or replace function public.rc_list_users(p_offset integer default 0) returns jsonb language sql stable security invoker set search_path='' as $$select rc_private.list_users(p_offset);$$;
 revoke all on function rc_private.list_users(integer),public.rc_list_users(integer) from public,anon;
 grant execute on function rc_private.list_users(integer),public.rc_list_users(integer) to authenticated;

@@ -48,10 +48,13 @@ const portArg = args.indexOf('--port');
 const PORT = Number(portArg >= 0 ? args[portArg + 1] : process.env.PORT || 5173);
 const HOST = '127.0.0.1';
 
-// Mirrors the headers in vercel.json. Kept in one place here so local and deployed
-// behaviour cannot silently diverge.
+// CADANGAN SAJA. Header yang sebenarnya dibaca dari vercel.json di bawah - lihat
+// bacaHeaderVercel(). Salinan di sini dulu menjadi satu-satunya sumber, dan justru karena ia
+// salinan kedua ia menyimpang: host Supabase dev ditambahkan ke vercel.json tetapi tidak ke
+// sini, sehingga login di localhost gagal diam-diam sementara situs yang ter-deploy berjalan.
+// Kini ia hanya dipakai bila vercel.json tidak terbaca.
 const SUPABASE_ORIGIN = 'https://vvojshgcduqlugngpzkj.supabase.co';
-const SECURITY_HEADERS = {
+let SECURITY_HEADERS = {
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'DENY',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
@@ -155,6 +158,24 @@ try {
   console.error(`  vercel.json tidak terbaca (${e.message}); rute tambahan dimatikan.`);
 }
 
+// Header keamanan dibaca dari vercel.json, sama seperti rute di atas dan dengan alasan yang
+// sama. Yang diambil adalah blok ber-source "/(.*)" - blok yang berlaku untuk setiap alamat.
+// Header khusus per alamat (Cache-Control) tetap diatur di tempatnya masing-masing.
+try {
+  const cfg = JSON.parse(await readFile(VERCEL_JSON, 'utf8'));
+  const blok = (cfg.headers || []).find((h) => h.source === '/(.*)');
+  if (blok && Array.isArray(blok.headers) && blok.headers.length) {
+    SECURITY_HEADERS = Object.fromEntries(blok.headers
+      // HSTS dilewati: server ini berjalan di http://localhost. Peramban memang mengabaikan
+      // HSTS dari koneksi tidak aman, tetapi mengirimnya tetap tidak ada gunanya dan salinan
+      // lama pun sengaja tidak menyertakannya.
+      .filter((h) => h.key !== 'Strict-Transport-Security')
+      .map((h) => [h.key, h.value]));
+  }
+} catch (e) {
+  console.error(`  header vercel.json tidak terbaca (${e.message}); memakai cadangan.`);
+}
+
 // Sebuah alamat diubah menjadi nama berkas di dalam public/. "/" dan tujuan rewrite yang
 // berupa alamat bersih ("/", "/dashboard") ikut diselesaikan di sini, sehingga rewrite boleh
 // menunjuk alamat - bukan berkas - persis seperti yang dituntut Vercel ketika cleanUrls aktif.
@@ -217,8 +238,24 @@ const server = http.createServer(async (req, res) => {
     return send(500, `Build failed:\n\n${e.message}\n`, { 'Content-Type': 'text/plain; charset=utf-8' });
   }
 
-  const file = resolveRequest(req.url || '/');
+  let file = resolveRequest(req.url || '/');
   if (!file) return send(403, 'Forbidden', { 'Content-Type': 'text/plain; charset=utf-8' });
+
+  // Ketika server dijalankan untuk sebuah lingkungan (RC_ENV_TARGET), config peramban
+  // disajikan LANGSUNG dari sumbernya, bukan dari hasil build di public/.
+  //
+  // Sebabnya nyata dan sudah terjadi: build apa pun yang berjalan di jendela lain - termasuk
+  // `npm test` - menimpa public/assets/rc-env.js dengan config produksi, dan server ini
+  // menyajikan apa yang ada di sana. Akibatnya localhost yang dikira menunjuk dev diam-diam
+  // berpindah ke database sungguhan, tanpa satu pun tanda di layar. Memeriksa sekali saat
+  // start tidak cukup; yang menyelesaikan adalah tidak pernah membaca berkas yang bisa
+  // ditimpa itu.
+  if (process.env.RC_ENV_TARGET && file.endsWith(`assets${path.sep}rc-env.js`)) {
+    const asal = fileURLToPath(
+      new URL(`../config/rc-env.${process.env.RC_ENV_TARGET}.js`, import.meta.url));
+    try { await readFile(asal); file = asal; }
+    catch { /* berkasnya tidak ada; biarkan jatuh ke hasil build seperti biasa */ }
+  }
 
   try {
     const body = await readFile(file);

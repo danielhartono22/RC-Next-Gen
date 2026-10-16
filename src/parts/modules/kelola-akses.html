@@ -1,10 +1,10 @@
                 <!-- MODULE: KELOLA AKSES -->
                 <div id="modManage" class="module-section hidden">
-                    <!-- Modul ini hanya dapat DIUBAH Supervisor dan System Manager. Peran lain
-                         yang diberi aksesnya tetap melihat isinya - mengetahui siapa memegang
-                         apa adalah bagian dari pekerjaan mereka - tetapi tombolnya beku. -->
+                    <!-- Sejak 20261162130000: siapa pun yang diberi modul Access Management dapat
+                         mengubahnya, di dalam jangkauan depotnya. Catatan ini hanya tampil bila
+                         server menyatakan akun ini belum boleh mengubah (canEdit false). -->
                     <p id="mViewerCatatan" class="hidden mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-800 font-bold">
-                        Anda dapat melihat Access Management, tetapi perubahannya ditetapkan Supervisor atau System Manager.
+                        Anda dapat melihat Access Management, tetapi akun ini belum diberi hak mengubahnya.
                     </p>
                     <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                         <div class="flex flex-col sm:flex-row items-center justify-between border-b border-gray-200 p-4 gap-4 bg-gray-50">
@@ -12,7 +12,7 @@
                                 <button onclick="switchManageTab('list')" id="mTabList" class="flex-1 sm:w-32 py-2 px-3 text-xs md:text-sm font-black bg-white shadow-sm rounded-lg text-blue-600 transition">List Akun</button>
                                 <button onclick="switchManageTab('add')" id="mTabAdd" class="flex-1 sm:w-32 py-2 px-3 text-xs md:text-sm font-bold text-gray-500 hover:text-gray-800 transition rounded-lg">Registrasi</button>
                                 <button onclick="switchManageTab('req')" id="mTabReq" class="flex-1 sm:w-32 py-2 px-3 text-xs md:text-sm font-bold text-gray-500 hover:text-gray-800 transition rounded-lg relative">Approval Request <span class="absolute top-1.5 right-1.5 flex h-2.5 w-2.5 hidden"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span></span></button>
-                            <button onclick="switchManageTab('email')" id="mTabEmail" class="py-2 px-3 text-xs md:text-sm font-bold text-gray-500 hover:text-gray-800 transition rounded-lg whitespace-nowrap">Email Otomatis</button><button onclick="switchManageTab('exclude')" id="mTabExclude" class="py-2 px-3 text-xs md:text-sm font-bold text-gray-500 hover:text-gray-800 transition rounded-lg whitespace-nowrap">Exclude Campaign</button><button onclick="switchManageTab('arsip')" id="mTabArsip" class="py-2 px-3 text-xs md:text-sm font-bold text-gray-500 hover:text-gray-800 transition rounded-lg whitespace-nowrap">Arsip Hapus</button><button onclick="switchManageTab('grade')" id="mTabGrade" class="py-2 px-3 text-xs md:text-sm font-bold text-gray-500 hover:text-gray-800 transition rounded-lg whitespace-nowrap">Grade Depot</button></div>
+                            <button onclick="switchManageTab('email')" id="mTabEmail" class="py-2 px-3 text-xs md:text-sm font-bold text-gray-500 hover:text-gray-800 transition rounded-lg whitespace-nowrap">Email Otomatis</button><button onclick="switchManageTab('emailPengajuan')" id="mTabEmailPengajuan" class="py-2 px-3 text-xs md:text-sm font-bold text-gray-500 hover:text-gray-800 transition rounded-lg whitespace-nowrap">Email Pengajuan</button><button onclick="switchManageTab('exclude')" id="mTabExclude" class="py-2 px-3 text-xs md:text-sm font-bold text-gray-500 hover:text-gray-800 transition rounded-lg whitespace-nowrap">Exclude Campaign</button><button onclick="switchManageTab('arsip')" id="mTabArsip" class="py-2 px-3 text-xs md:text-sm font-bold text-gray-500 hover:text-gray-800 transition rounded-lg whitespace-nowrap">Arsip Hapus</button><button onclick="switchManageTab('grade')" id="mTabGrade" class="py-2 px-3 text-xs md:text-sm font-bold text-gray-500 hover:text-gray-800 transition rounded-lg whitespace-nowrap">Grade Depot</button><button onclick="switchManageTab('approval')" id="mTabApproval" class="py-2 px-3 text-xs md:text-sm font-bold text-gray-500 hover:text-gray-800 transition rounded-lg whitespace-nowrap">Approval On/Off</button></div>
                             <button data-rc-baca="1" onclick="fetchManageableData()" class="bg-white border border-gray-300 text-gray-600 hover:bg-blue-50 hover:text-blue-600 text-sm font-bold py-2 px-5 rounded-xl shadow-sm transition flex items-center"><i class="fas fa-sync-alt mr-2"></i> Segarkan Data</button>
                         </div>
 
@@ -62,6 +62,9 @@
                              "sesuatu menunggu persetujuan saya", dan memisahkannya ke dua tab hanya
                              membuat satu di antaranya terlupakan. -->
                         <div id="mContentReq" class="hidden p-6 md:p-8 bg-white min-h-[400px] space-y-8">
+                            <!-- Permintaan ganti/lupa PIN. Diletakkan paling atas: pemiliknya
+                                 tidak dapat bekerja sampai permintaannya diputuskan. -->
+                            <div id="mReqPin"></div>
                             <div id="mReqProfil"></div>
                             <div id="mReqDepot"></div>
                         </div>
@@ -70,6 +73,8 @@
                              memang bersifat administratif - siapa yang menerima apa - bukan bagian
                              dari laporan yang dibaca sehari-hari. -->
                         <div id="mContentEmail" class="hidden p-6 md:p-8 bg-gray-50/50 min-h-[400px] space-y-6">
+                            <!-- 20261163040000: tampil hanya bila server menandai lingkungan ini hanya-email-uji (DEV). -->
+                            <div id="rtEmailHanyaUji" class="hidden text-[11px] bg-indigo-50 border border-indigo-200 text-indigo-800 rounded-xl px-4 py-3 leading-relaxed"><i class="fas fa-flask mr-1.5"></i><strong>Lingkungan DEV: hanya email uji.</strong> Surat untuk alamat depot dan CC tidak pernah dikirim dari lingkungan ini; yang berangkat hanya Test Email dan mode uji ke alamat uji yang Anda isi.</div>
                             <div class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
                                 <div class="flex justify-between items-start mb-4">
                                     <div>
@@ -121,6 +126,93 @@
                                         <tbody id="rtEmailBody"></tbody>
                                     </table>
                                 </div>
+                            </div>
+                        </div>
+
+                        <!-- TAB CONTENT: EMAIL PENGAJUAN -->
+                        <!-- Berbeda dari Email Otomatis yang terjadwal, surat di tab ini berangkat
+                             SAAT KEJADIAN: Submitted, On Hold, Expired, Approval dan Clearing.
+                             Karena itu tidak ada jam maupun hari di sini - yang ada hanya sakelar,
+                             daftar CC tambahan, dan tombol uji. -->
+                        <div id="mContentEmailPengajuan" class="hidden p-6 md:p-8 bg-gray-50/50 min-h-[400px] space-y-6">
+
+                            <div class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
+                                <div class="flex flex-wrap justify-between items-start gap-4 mb-4">
+                                    <div>
+                                        <h3 class="font-black text-gray-700">Email Pengajuan</h3>
+                                        <p class="text-[11px] text-gray-500 mt-1 leading-relaxed">Dikirim saat kejadian, bukan terjadwal: <strong>Submitted</strong>, <strong>On Hold</strong>, <strong>Expired</strong>, <strong>Approval</strong> dan <strong>Clearing</strong>. Satu surat per batch per depot, berisi No Batch, Nama Campaign, Jumlah Toko, Total CB dan Grand Total. Email <strong>Done</strong> (Clearing) hanya ditujukan ke Email Kepala Admin depot (Key Master &gt; Depot Master); bila kosong, ke Email TO depot.</p>
+                                    </div>
+                                    <div class="flex items-center gap-3 flex-shrink-0">
+                                        <span id="epStatusLabel" class="text-xs font-black px-3 py-1.5 rounded-full bg-gray-100 text-gray-500">NONAKTIF</span>
+                                        <button onclick="epToggleAktif()" id="epToggle" class="bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-bold py-2 px-4 rounded-lg transition">Aktifkan</button>
+                                    </div>
+                                </div>
+
+                                <!-- Peringatan ini sengaja tidak bisa ditutup. Alamat pada Depot Master
+                                     adalah alamat orang sungguhan, dan menyalakan sakelar ini berarti
+                                     mereka mulai menerima surat. -->
+                                <div id="epHanyaUji" class="hidden text-[11px] bg-indigo-50 border border-indigo-200 text-indigo-800 rounded-lg px-3 py-2 leading-relaxed mb-4"><i class="fas fa-flask mr-1.5"></i><strong>Lingkungan DEV: hanya email uji.</strong> Surat untuk alamat depot dan CC tidak pernah dikirim dari lingkungan ini; yang berangkat hanya Test Email dan mode uji ke alamat uji yang Anda isi.</div>
+                                <div id="epPeringatan" class="hidden text-[11px] bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-3 py-2 leading-relaxed mb-4"></div>
+
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-xs font-bold text-gray-700 mb-1.5">CC Semua Email (selalu ikut sebagai CC)</label>
+                                        <textarea id="epCcTambahan" rows="4" placeholder="satu alamat per baris, atau dipisah koma" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm font-mono"></textarea>
+                                        <p class="text-[11px] text-gray-500 mt-1.5">Maksimal 50 alamat. Alamat yang sudah menjadi tujuan utama tidak akan diulang di CC.</p>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-bold text-gray-700 mb-1.5">Alamat Uji</label>
+                                        <div class="flex gap-2">
+                                            <input id="epEmailUji" type="email" placeholder="alamat.anda@contoh.com" class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg text-sm">
+                                            <button onclick="epKirimUji()" id="epBtnUji" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold py-2.5 px-4 rounded-lg transition whitespace-nowrap"><i class="fas fa-paper-plane mr-1.5"></i> Kirim Contoh</button>
+                                        </div>
+                                        <p class="text-[11px] text-gray-500 mt-1.5">Tombol ini mengirim satu contoh sekarang juga. Sakelar tidak perlu menyala.</p>
+
+                                        <!-- Mode Uji menguji jalur yang SEBENARNYA: action nyata memicu
+                                             surat nyata, hanya tujuannya yang dibelokkan. Tombol contoh
+                                             di atas tidak membuktikan itu. -->
+                                        <label class="flex items-start gap-2.5 mt-3 p-3 rounded-lg border border-gray-200 bg-gray-50 cursor-pointer">
+                                            <input id="epModeUji" type="checkbox" onchange="epGambarModeUji()" class="mt-0.5 h-4 w-4 rounded border-gray-300">
+                                            <span class="text-[11px] text-gray-700 leading-relaxed">
+                                                <strong class="text-gray-800">Mode Uji</strong> &mdash; setiap Submitted, On Hold, Expired, Approval dan Clearing yang sungguhan tetap mengirim email, tetapi <strong>seluruhnya dibelokkan ke alamat uji di atas</strong>. Depot dan CC tidak menerima apa pun, dan suratnya mencantumkan siapa yang seharusnya menerima.
+                                            </span>
+                                        </label>
+                                        <div id="epStatusUji" class="text-[11px] mt-2 rounded px-2 py-1.5 leading-relaxed bg-gray-100 text-gray-500"></div>
+                                    </div>
+                                </div>
+                                <!-- 20261163150000: CC wajib per jenis email, selain CC semua email di atas. -->
+                                <div class="mt-5 border-t border-gray-100 pt-4">
+                                    <p class="text-xs font-black text-gray-700 mb-1"><i class="fas fa-users mr-1.5 text-gray-400"></i>CC Wajib per Jenis Email</p>
+                                    <p class="text-[11px] text-gray-500 mb-3">Ditambahkan ke CC hanya pada jenis email tersebut. Satu alamat per baris atau dipisah koma; maksimal 30 per jenis.</p>
+                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                        <div><label class="block text-[11px] font-bold text-gray-700 mb-1">CC wajib Pengajuan (approval mati)</label>
+                                            <textarea data-jenis="pengajuan" rows="3" placeholder="satu alamat per baris" class="ep-cc-jenis w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-mono"></textarea></div>
+                                        <div><label class="block text-[11px] font-bold text-gray-700 mb-1">CC wajib Approval &amp; Approved</label>
+                                            <textarea data-jenis="approval" rows="3" placeholder="satu alamat per baris" class="ep-cc-jenis w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-mono"></textarea></div>
+                                        <div><label class="block text-[11px] font-bold text-gray-700 mb-1">CC wajib Done (Clearing)</label>
+                                            <textarea data-jenis="done" rows="3" placeholder="satu alamat per baris" class="ep-cc-jenis w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-mono"></textarea></div>
+                                        <div><label class="block text-[11px] font-bold text-gray-700 mb-1">CC wajib On Hold &amp; Expired</label>
+                                            <textarea data-jenis="hold_expired" rows="3" placeholder="satu alamat per baris" class="ep-cc-jenis w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-mono"></textarea></div>
+                                        <div><label class="block text-[11px] font-bold text-gray-700 mb-1">CC wajib Amend Doc</label>
+                                            <textarea data-jenis="amend" rows="3" placeholder="satu alamat per baris" class="ep-cc-jenis w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-mono"></textarea></div>
+                                        <div><label class="block text-[11px] font-bold text-gray-700 mb-1">CC wajib Reprocessing Doc</label>
+                                            <textarea data-jenis="reprocess" rows="3" placeholder="satu alamat per baris" class="ep-cc-jenis w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-mono"></textarea></div>
+                                    </div>
+                                </div>
+
+                                <div class="flex flex-wrap items-center justify-between gap-3 mt-5 pt-4 border-t border-gray-100">
+                                    <p id="epJejak" class="text-[11px] text-gray-500"></p>
+                                    <button onclick="epSimpan()" id="epBtnSimpan" class="bg-green-600 hover:bg-green-700 text-white text-sm font-bold py-2.5 px-5 rounded-lg transition"><i class="fas fa-save mr-1.5"></i> Simpan</button>
+                                </div>
+                            </div>
+
+                            <!-- Melihat lebih dulu KE SIAPA suratnya pergi. Menyalakan pengiriman tanpa
+                                 bisa memeriksa daftar penerimanya adalah cara termudah mengirim surat
+                                 ke orang yang salah. -->
+                            <div class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
+                                <h3 class="font-black text-gray-700 mb-1">Contoh Penerima</h3>
+                                <p class="text-[11px] text-gray-500 mb-4">Diambil dari satu depot sebagai gambaran. Tiap depot punya daftarnya sendiri: <strong>TO</strong> dari Depot Master. <strong>CC</strong> hanya dari OSC &amp; Supervisor sesuai yurisdiksi dan email tambahan di tab ini &mdash; kolom CC pada Depot Master tidak dipakai.</p>
+                                <div id="epPenerima" class="text-xs text-gray-500">Memuat...</div>
                             </div>
                         </div>
 
@@ -188,7 +280,7 @@
                                 <div class="flex flex-wrap justify-between items-start gap-3 mb-4">
                                     <div>
                                         <h3 class="font-black text-gray-700">Grade Depot</h3>
-                                        <p class="text-[11px] text-gray-500 mt-1">Hanya System Manager yang dapat mengubah Grade. Nilainya tidak ikut jalur persetujuan depot.</p>
+                                        <p class="text-[11px] text-gray-500 mt-1">Pemegang tab Grade Depot dapat mengubah Grade depot dalam jangkauannya. Nilainya tidak ikut jalur persetujuan depot.</p>
                                     </div>
                                     <button onclick="simpanGradeDepot()" id="btnSimpanGrade" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-5 rounded-lg text-sm shadow-md">Simpan Perubahan</button>
                                 </div>
@@ -203,6 +295,30 @@
                                         </tr></thead>
                                         <tbody id="kaGradeBody"></tbody>
                                     </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- TAB CONTENT: APPROVAL ON/OFF (20261162180000) -->
+                        <div id="mContentApproval" class="hidden p-6 md:p-8 bg-gray-50/50 min-h-[400px]">
+                            <div class="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm max-w-3xl">
+                                <h3 class="font-black text-gray-700">Approval Pengajuan Claim</h3>
+                                <p class="text-[11px] text-gray-500 mt-1 leading-relaxed">Saklar ini berlaku untuk seluruh sistem. Saat dimatikan, dokumen yang di-submit depot langsung masuk tahap Release tanpa melalui Management of Approval, dan email pengajuannya berjudul "Pengajuan Claim Depot ...". Dokumen yang sudah diajukan sebelumnya tetap diputuskan lewat Management of Approval. Keputusan On Hold &amp; Expired tidak terpengaruh.</p>
+                                <div class="mt-5 flex flex-wrap items-center gap-3">
+                                    <span id="kaApprovalLencana" class="px-3 py-1.5 rounded-lg text-sm font-black bg-gray-100 text-gray-500">-</span>
+                                    <span id="kaApprovalSejak" class="text-xs text-gray-500"></span>
+                                </div>
+                                <p id="kaApprovalMenunggu" class="mt-3 text-sm text-gray-700"></p>
+                                <div class="mt-5">
+                                    <label class="block text-xs font-bold text-gray-700 mb-1.5">Alasan perubahan (wajib)</label>
+                                    <input id="kaApprovalCatatan" type="text" maxlength="300" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm" placeholder="mis. Approval sementara ditiadakan selama periode closing">
+                                </div>
+                                <div class="mt-4 flex justify-end">
+                                    <button id="btnKaApproval" onclick="ubahSetelanApproval()" class="px-6 py-2.5 font-bold rounded-lg text-sm shadow-md text-white bg-gray-400">-</button>
+                                </div>
+                                <div class="mt-6">
+                                    <p class="text-[10px] font-black uppercase text-gray-500 mb-2">Riwayat perubahan</p>
+                                    <div id="kaApprovalRiwayat" class="text-xs text-gray-600 space-y-1"></div>
                                 </div>
                             </div>
                         </div>

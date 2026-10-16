@@ -97,16 +97,17 @@
                 loadApproval();
             }
 
-            // Overdue hanya untuk peran yang berhak. Tabnya disembunyikan di sini, dan server
-            // menolak permintaannya juga - menyembunyikan tab saja bukan penjagaan.
+            // Overdue tampil bagi yang memegang tab Overdue - tidak lagi ditentukan peran
+            // (20261162130000). Depot Head bawaannya tidak memegangnya (Within Payment Term saja),
+            // tetapi begitu tab itu dicentang di Access Management, Overdue langsung tampil dan
+            // dapat disetujui. Server menolak permintaannya juga bila tab tidak dipegang.
             function apTerapkanPeran() {
-                const peran = String((currentUserData && currentUserData.role) || '').toLowerCase();
-                const hanyaWpt = peran === 'depot head';
+                const hanyaWpt = !rcCanTab('approval.ovd');
                 setHiddenSafely('apTabOvd', hanyaWpt);
                 const catatan = document.getElementById('apPeranCatatan');
                 if (catatan) {
                     catatan.innerText = hanyaWpt
-                        ? 'Depot Head menyetujui dokumen Within Payment Term.' : '';
+                        ? 'Akun ini menyetujui dokumen Within Payment Term.' : '';
                     setHiddenSafely('apPeranCatatan', !hanyaWpt);
                 }
                 if (hanyaWpt && apTab === 'ovd') apTab = 'wpt';
@@ -176,7 +177,24 @@
                 });
             }
 
+            // Approval dapat dimatikan dari Access Management (20261162180000). Antrean di sini
+            // tetap berisi dokumen yang diajukan SEBELUM dimatikan; spanduk menjelaskannya.
+            async function apMuatStatusApproval() {
+                try {
+                    const res = await fetchApp({ action: 'approvalStatus' });
+                    const mati = !!(res && res.status === 'success' && res.aktif === false);
+                    const el = document.getElementById('apApprovalMati');
+                    if (!el) return;
+                    el.innerText = mati
+                        ? 'Approval sedang DIMATIKAN' + (res.sejak ? ' sejak ' + res.sejak : '') + (res.oleh ? ' oleh ' + res.oleh : '')
+                          + '. Pengajuan baru langsung ke Release tanpa approval; yang tampil di sini hanya dokumen yang diajukan sebelumnya dan masih harus diputuskan.'
+                        : '';
+                    setHiddenSafely('apApprovalMati', !mati);
+                } catch (e) { /* spanduk hanya keterangan; antrean tetap dimuat */ }
+            }
+
             async function openApprovalModule() {
+                apMuatStatusApproval();
                 apTerapkanPeran();
                 await apIsiFilterDepot();
                 switchApprovalTab(rcFirstTab('approval',apTab));
@@ -300,6 +318,20 @@
                 loadApproval();
             }
 
+            // Isi kolom pilihan rincian batch, dipakai bersama oleh layar dan berkas unduhan
+            // supaya keduanya tidak pernah berbeda. Kosong dikembalikan sebagai ''.
+            function apNilaiKolom(r, k) {
+                if (k === 'topSelisih') {
+                    const d = r.topSelisih;
+                    if (d === null || d === undefined || d === '') return '';
+                    return Number(d) > 0 ? '+' + Number(d) : String(Number(d));
+                }
+                const v = k === 'submitted' ? r.submittedBy : k === 'posting' ? r.postingDate
+                    : k === 'approved' ? r.approvedBy : k === 'approvedAt' ? r.approvedAt
+                    : k === 'topSetting' ? r.topSetting : k === 'topAktual' ? r.topAktual : '';
+                return (v === null || v === undefined) ? '' : String(v);
+            }
+
             function renderApprovalDocs() {
                 const aktif = apKolomMuat();
                 const judul = ['No Doc', 'Kode Cust', 'Nama Cust', 'Kode Campaign', 'Nama Campaign',
@@ -330,22 +362,14 @@
                         // itulah yang dibaca penyetuju: angka positif berarti meminta kelonggaran.
                         if (c.k === 'topSelisih') {
                             const d = r.topSelisih;
-                            const teks = (d === null || d === undefined) ? '-'
-                                : (Number(d) > 0 ? '+' + Number(d) : String(Number(d)));
                             const warna = (d === null || d === undefined) ? 'text-gray-400'
                                 : Number(d) > 0 ? 'text-red-600 font-black' : 'text-gray-600';
                             ekor += '<td class="p-3 text-center whitespace-nowrap ' + warna + '">'
-                                  + rcEsc(teks) + '</td>';
+                                  + rcEsc(apNilaiKolom(r, c.k) || '-') + '</td>';
                             return;
                         }
-                        const v = c.k === 'submitted' ? (r.submittedBy || '-')
-                            : c.k === 'posting' ? (r.postingDate || '-')
-                            : c.k === 'approved' ? (r.approvedBy || '-')
-                            : c.k === 'approvedAt' ? (r.approvedAt || '-')
-                            : c.k === 'topSetting' ? (r.topSetting || '-')
-                            : c.k === 'topAktual' ? (r.topAktual || '-')
-                            : '-';
-                        ekor += '<td class="p-3 text-center text-gray-700 whitespace-nowrap">' + rcEsc(v) + '</td>';
+                        ekor += '<td class="p-3 text-center text-gray-700 whitespace-nowrap">'
+                              + rcEsc(apNilaiKolom(r, c.k) || '-') + '</td>';
                     });
                     return '<tr class="border-b border-gray-100 hover:bg-pink-50/50' + (r.overdue ? ' bg-red-50/40' : '') + '">'
                         + '<td class="p-3 text-center"><input type="checkbox" class="cb-approval-doc w-4 h-4 rounded" value="'
@@ -514,35 +538,63 @@
             // sedang berlaku, pencarian yang sedang diketik. Mengunduh seluruh data sementara
             // layar menampilkan sebagian hanya menghasilkan berkas yang tidak dikenali
             // pembacanya sendiri.
+            //
+            // Kolom dan isinya mengikuti tabel di layar (pemilik, 12 Oktober 2026: "semua yang
+            // muncul di layar harus sama ketika di download"). Sebelumnya berkas memuat nama kunci
+            // data mentah (noBatch, totalNetCb) dan tab On Hold & Expired malah mengunduh daftar
+            // batch. Nominal bulat seperti di layar; No Doc, batch dan kode sebagai teks.
+            function apKolomUnduh() {
+                const uang = v => ({ t: 'n', v: Math.trunc(Number(v) || 0), z: XLSX_FMT_ACCOUNTING_RP });
+                const isi = v => (v === null || v === undefined) ? '' : String(v);
+                if (apTab === 'history') {
+                    return ['Riwayat Approval', apState.histori || [], [
+                        ['Waktu', h => isi(h.waktu)], ['No Doc', h => rcSelTeks(h.noDoc)],
+                        ['No Batch', h => rcSelTeks(h.noBatch)], ['Depot', h => rcSelTeks(h.kodeDepot)],
+                        ['Tindakan', h => isi(h.tindakan)], ['Dari', h => isi(h.dari)], ['Ke', h => isi(h.ke)],
+                        ['Oleh', h => isi(h.oleh)], ['Alasan', h => isi(h.alasan)]]];
+                }
+                if (apTab === 'hold') {
+                    return ['Approval On Hold Expired', apState.hold || [], [
+                        ['Status Pengajuan', r => isi(r.statusPengajuan || r.statusKini)], ['Asal', r => isi(r.asal)],
+                        ['No Doc', r => rcSelTeks(r.noDoc)], ['Depot', r => rcSelTeks(r.kodeDepot)],
+                        ['Kode Customer', r => rcSelTeks(r.kodeCust)], ['Nama Customer', r => isi(r.namaCust)],
+                        ['Kode Campaign', r => rcSelTeks(r.kodeCampaign)], ['Nama Campaign', r => isi(r.namaCampaign)],
+                        ['Net CB', r => uang(r.netCb)], ['Alasan Terakhir', r => isi(r.alasanTerakhir)],
+                        ['Waktu Alasan', r => isi(r.waktuTerakhir)], ['Oleh', r => isi(r.olehTerakhir)]]];
+                }
+                if (apState.batch) {
+                    const aktif = apKolomMuat();
+                    return ['Batch ' + apState.batch, apSaring(apState.docs, function (r) {
+                        return [r.noDoc, r.kodeCust, r.namaCust, r.kodeCampaign, r.namaCampaign,
+                                r.jenisCb, r.statusPajak, r.topSetting, r.topAktual].join(' ');
+                    }), [
+                        ['No Doc', r => rcSelTeks(r.noDoc)], ['Kode Cust', r => rcSelTeks(r.kodeCust)],
+                        ['Nama Cust', r => isi(r.namaCust)], ['Kode Campaign', r => rcSelTeks(r.kodeCampaign)],
+                        ['Nama Campaign', r => isi(r.namaCampaign)], ['Net CB', r => uang(r.netCb)],
+                        ['Jenis CB', r => isi(r.jenisCb)], ['Status Pajak', r => isi(r.statusPajak)]
+                    ].concat(AP_KOLOM.filter(c => aktif[c.k]).map(c => [c.judul, r => apNilaiKolom(r, c.k)]))];
+                }
+                return [apTab === 'ovd' ? 'Approval Overdue' : 'Approval WPT', apSaring(apState.batches, function (b) {
+                    return [b.noBatch, b.kodeDepot, b.namaDepot, b.submittedBy, b.postingDate].join(' ');
+                }), [
+                    ['No Batch', b => rcSelTeks(b.noBatch)], ['Qty Doc', b => Number(b.qtyDoc || 0)],
+                    ['Qty Cust', b => Number(b.qtyCust || 0)], ['Qty Campaign', b => Number(b.qtyCampaign || 0)],
+                    ['Total Net CB', b => uang(b.totalNetCb)], ['Depot', b => rcSelTeks(b.kodeDepot)],
+                    ['Submitted By', b => isi(b.submittedBy)], ['Posting Date', b => isi(b.postingDate)]]];
+            }
+
             function downloadApprovalExcel() {
                 if (typeof XLSX === 'undefined') {
                     showNotification('Pustaka Excel belum termuat. Muat ulang halaman.', 'error'); return;
                 }
-                let nama, rows;
-                if (apTab === 'history') {
-                    nama = 'Riwayat Approval';
-                    rows = apState.histori;
-                } else if (apState.batch) {
-                    nama = 'Batch ' + apState.batch;
-                    rows = apSaring(apState.docs, function (r) {
-                        return [r.noDoc, r.kodeCust, r.namaCust, r.kodeCampaign, r.namaCampaign,
-                                r.jenisCb, r.statusPajak, r.topSetting, r.topAktual].join(' ');
-                    });
-                } else {
-                    nama = apTab === 'ovd' ? 'Approval Overdue' : 'Approval WPT';
-                    rows = apSaring(apState.batches, function (b) {
-                        return [b.noBatch, b.kodeDepot, b.namaDepot, b.submittedBy, b.postingDate].join(' ');
-                    });
-                }
+                const [nama, rows, kolom] = apKolomUnduh();
                 if (!rows || !rows.length) { showNotification('Tidak ada baris untuk diunduh.', 'warning'); return; }
 
-                const kolom = Object.keys(rows[0]);
-                const aoa = [kolom].concat(rows.map(function (r) {
-                    return kolom.map(function (k) { return rcExportAmount(k,r[k],r); });
-                }));
+                const aoa = [kolom.map(k => k[0])].concat(rows.map(r => kolom.map(k => k[1](r))));
+                const ws = XLSX.utils.aoa_to_sheet(aoa);
+                ws['!cols'] = kolom.map(k => ({ wch: Math.max(12, Math.min(40, k[0].length + 6)) }));
                 const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa),
-                    nama.replace(/[:\\/?*[\]]/g, '-').slice(0, 31));
+                XLSX.utils.book_append_sheet(wb, ws, nama.replace(/[:\\/?*[\]]/g, '-').slice(0, 31));
                 XLSX.writeFile(wb, 'RC_' + nama.replace(/ /g, '_') + '_'
                     + new Date().toISOString().slice(0, 10) + '.xlsx');
                 showNotification(rows.length + ' baris diunduh.', 'success');
@@ -562,8 +614,10 @@
 
                 const catatan = document.getElementById('apHoldCatatan');
                 if (catatan) {
+                    // Sejak 20261162130000 "boleh" berarti memegang tab On Hold & Expired beserta
+                    // izin Approval - catatan ini hanya muncul bila keduanya belum diberikan.
                     catatan.innerText = boleh ? ''
-                        : 'Keputusan On Hold dan Expired ditetapkan Management. Anda dapat melihat '
+                        : 'Akun ini belum diberi akses tab On Hold & Expired. Anda dapat melihat '
                           + 'antreannya, tetapi tombolnya tidak aktif.';
                     setHiddenSafely('apHoldCatatan', boleh);
                 }
@@ -688,7 +742,7 @@
 
             async function kirimHold(docs, mode) {
                 if (!apState.holdBoleh) {
-                    showNotification('Keputusan ini ditetapkan Management.', 'warning'); return;
+                    showNotification('Akun ini belum diberi akses tab On Hold & Expired.', 'warning'); return;
                 }
                 if (!docs.length) { showNotification('Tidak ada dokumen yang dipilih.', 'warning'); return; }
 

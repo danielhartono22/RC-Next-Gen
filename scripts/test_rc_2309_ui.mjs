@@ -7,6 +7,11 @@ const changes=await readFile('src/js/91-rc-2309.js','utf8');
 const analytics=await readFile('src/js/70-analytics.js','utf8');
 const report=await readFile('src/view/js/20-report.js','utf8');
 const adapter=await readFile('scripts/rc-legacy-adapter.js','utf8');
+const timetable=await readFile('src/js/97-timetable.js','utf8');
+const timetableMarkup=await readFile('src/parts/modules/timetable.html','utf8');
+const sharedStyle=await readFile('src/view/parts/style.html','utf8');
+const dialogUi=await readFile('src/js/94-tabel-urut.js','utf8');
+const dialogMarkup=await readFile('src/parts/modals/detail-history.html','utf8');
 const plain=x=>JSON.parse(JSON.stringify(x));
 function page(overrides={}){
  const els=new Map();
@@ -59,6 +64,27 @@ test('Adapter matches SQL profile and CB filter argument names',async()=>{
  await ctx.window.RCBackend.call({action:'depotProfileRequest',kode:'D-1',changes:{grade:'A'}});
  await ctx.window.RCBackend.call({action:'openClaims',cbType:'Rebate Manual',offset:50});
  assert.deepEqual(plain(calls[0]),{name:'rc_depot_profile_request',args:{p_kode:'D-1',p_perubahan:{grade:'A'}}});assert.equal(calls[1].args.p_cb_type,'Rebate Manual');assert.equal(calls[1].args.p_offset,50);
+});
+test('Timetable uses Campaign Year consistently and no longer exposes reference date',()=>{
+ assert.match(timetableMarkup,/Tahun Campaign/);
+ assert.match(timetableMarkup,/id="ttTahunCampaign"/);
+ assert.doesNotMatch(timetableMarkup,/ttTanggal|Tanggal Acuan|tanggal acuan/i);
+ assert.match(timetable,/const pilihanTahun = document\.getElementById\('ttTahunCampaign'\)\.value/);
+ assert.match(timetable,/res\.tahunTersedia/);
+ assert.match(timetable,/res\.tahunCampaign/);
+ assert.match(timetable,/<option value="ALL">Semua Tahun<\/option>/);
+ assert.match(timetable,/tahunCampaign:\s*pilihanTahun\s*\|\|\s*undefined/);
+ assert.match(timetable,/RC_Timetable_' \+ \(ttData\.tahunCampaign === 'ALL' \? 'Semua_Tahun'/);
+ assert.doesNotMatch(timetable,/ttTanggal|tanggal:\s*document\.getElementById|campaign aktif per|tanggal acuan/i);
+});
+test('Timetable cards and dialogs size themselves within their containers',()=>{
+ assert.equal((timetableMarkup.match(/rc-chart-body/g)||[]).length,4);
+ assert.match(sharedStyle,/\.rc-chart-body\s*\{[^}]*height:\s*clamp\(/s);
+ assert.match(sharedStyle,/#cardExpandBody\s*>\s*\.rc-expanded-content/);
+ assert.match(sharedStyle,/#rcDialogModal\.rc-dialog-wide\s*>\s*\.rc-dialog-panel/);
+ assert.match(dialogMarkup,/class="rc-dialog-panel/);
+ assert.match(dialogUi,/classList\.toggle\('rc-dialog-wide'/);
+ assert.match(timetable,/rcUkurUlangGrafik\(document\.getElementById\('modTimetable'\)\)/);
 });
 test('Bulk export writes truncated numeric CB and Gross Up values',async()=>{
  const workflow=await readFile('src/js/65-workflow.js','utf8');let rows;

@@ -206,6 +206,61 @@
                 finally { hideLoadingOverlay(); }
             }
 
+            // ---------- Permintaan ganti / lupa PIN ----------
+            // Antreannya sudah lengkap di server (rc_pin_requests, rc_review_pin) tetapi tidak
+            // pernah tampil di layar mana pun, sehingga permintaan menumpuk tanpa ada yang tahu.
+            // PIN yang diajukan tidak pernah terlihat di sini; yang disimpan hanya hash-nya, dan
+            // berlaku begitu disetujui.
+            async function muatPermintaanPin() {
+                const wadah = document.getElementById('mReqPin');
+                if (!wadah) return;
+                try {
+                    const res = await fetchApp({ action: 'pinRequests' });
+                    if (res.status !== 'success') { wadah.innerHTML = ''; return; }
+                    const rows = res.rows || [];
+                    wadah.innerHTML = '<h3 class="font-black text-gray-700 mb-3"><i class="fas fa-key mr-2 text-orange-500"></i>Permintaan Ganti PIN'
+                        + ' <span class="ml-1 px-2 py-0.5 rounded-full text-[11px] ' + (rows.length ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-500') + '">' + rows.length + '</span></h3>'
+                        + (rows.length === 0
+                            ? '<p class="p-6 text-center text-gray-500 border border-dashed border-gray-200 rounded-xl text-sm">Tidak ada permintaan ganti PIN yang menunggu.</p>'
+                            : '<div class="overflow-auto border border-gray-200 rounded-xl"><table class="w-full text-sm"><thead class="bg-gray-50 text-gray-600"><tr>'
+                                + '<th class="p-3 text-left font-bold">User ID</th><th class="p-3 text-left font-bold">Nama</th>'
+                                + '<th class="p-3 text-left font-bold">Peran / Depot</th><th class="p-3 text-left font-bold">Jenis</th>'
+                                + '<th class="p-3 text-left font-bold">Alasan</th><th class="p-3 text-left font-bold">Diajukan</th>'
+                                + '<th class="p-3 text-center font-bold" data-rc-no-sort="1">Keputusan</th></tr></thead><tbody>'
+                                + rows.map(function (r) {
+                                    return '<tr class="border-b border-gray-100">'
+                                        + '<td class="p-3 font-black text-blue-700">' + rcEsc(r.userId) + '</td>'
+                                        + '<td class="p-3">' + rcEsc(r.namaLengkap || '-') + '</td>'
+                                        + '<td class="p-3 text-xs">' + rcEsc(r.peran || '-') + (r.kodeDepot ? ' / ' + rcEsc(r.kodeDepot) : '') + '</td>'
+                                        + '<td class="p-3 text-xs font-bold">' + (r.jenis === 'lupa' ? 'Lupa PIN' : 'Ganti PIN') + '</td>'
+                                        + '<td class="p-3 text-xs">' + rcEsc(r.alasan || '-') + '</td>'
+                                        + '<td class="p-3 text-xs whitespace-nowrap">' + rcEsc(r.diajukan || '-') + '</td>'
+                                        + '<td class="p-3 text-center whitespace-nowrap">'
+                                        + '<button onclick="tinjauPermintaanPin(\'' + rcEsc(r.id) + '\',true,\'' + rcEsc(r.userId) + '\')" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs mr-1">Setujui</button>'
+                                        + '<button onclick="tinjauPermintaanPin(\'' + rcEsc(r.id) + '\',false,\'' + rcEsc(r.userId) + '\')" class="px-3 py-1.5 bg-white border border-red-200 text-red-700 font-bold rounded-lg text-xs">Reject</button>'
+                                        + '</td></tr>';
+                                }).join('') + '</tbody></table></div>');
+                } catch (e) { wadah.innerHTML = ''; }
+            }
+
+            async function tinjauPermintaanPin(id, setujui, kode) {
+                let catatan = '';
+                if (!setujui) {
+                    catatan = window.prompt('Alasan penolakan permintaan PIN ' + kode + ':', '') || '';
+                    if (!catatan.trim()) { showNotification('Penolakan memerlukan alasan.', 'warning'); return; }
+                }
+                showLoadingOverlay(setujui ? 'Menyetujui PIN baru...' : 'Menolak permintaan...');
+                try {
+                    const res = await fetchApp({ action: 'reviewPin', id: id, approve: setujui, note: catatan });
+                    if (res.status !== 'success') { showNotification(res.message || 'Gagal memproses.', 'error'); return; }
+                    showNotification(res.message, 'success');
+                    logActivity((setujui ? 'Setujui' : 'Tolak') + ' permintaan PIN ' + kode);
+                    muatPermintaanPin();
+                    if (typeof fetchManageableData === 'function') fetchManageableData();
+                } catch (e) { showNotification((e && e.message) || 'Gagal memproses permintaan.', 'error'); }
+                finally { hideLoadingOverlay(); }
+            }
+
             // ---------- Persetujuan perubahan depot ----------
             // Tiap pengajuan ditampilkan sebagai kartu berisi perbandingan nilai lama dan baru.
             // Menampilkan hanya nilai barunya akan memaksa penyetuju membuka Depot Master di
@@ -309,4 +364,60 @@
                     muatGradeDepot();
                 } catch (e) { showNotification('Gagal menyimpan grade depot.', 'error'); }
                 finally { setDisabledSafely('btnSimpanGrade', false); hideLoadingOverlay(); }
+            }
+
+            // ---------- Approval On/Off (20261162180000) ----------
+            // Saklar seluruh sistem. Saat dimatikan, submit langsung ke tahap Release; dokumen yang
+            // sudah diajukan sebelumnya tetap diputuskan lewat Management of Approval.
+            let kaApprovalAktif = true;
+
+            async function muatSetelanApproval() {
+                try {
+                    const res = await fetchApp({ action: 'approvalSetelan' });
+                    if (res.status !== 'success') { showNotification(res.message || 'Gagal memuat setelan approval.', 'error'); return; }
+                    kaApprovalAktif = res.aktif === true;
+                    const lencana = document.getElementById('kaApprovalLencana');
+                    lencana.innerText = kaApprovalAktif ? 'APPROVAL AKTIF' : 'APPROVAL DIMATIKAN';
+                    lencana.className = 'px-3 py-1.5 rounded-lg text-sm font-black '
+                        + (kaApprovalAktif ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-700');
+                    document.getElementById('kaApprovalSejak').innerText = res.diubahPada
+                        ? 'Diubah ' + res.diubahPada + ' oleh ' + (res.diubahOleh || '-') + (res.catatan ? ' — ' + res.catatan : '')
+                        : 'Belum pernah diubah (bawaan: aktif).';
+                    const n = Number(res.menunggu || 0);
+                    document.getElementById('kaApprovalMenunggu').innerText = n > 0
+                        ? n.toLocaleString('id-ID') + ' dokumen dari ' + Number(res.menungguDepot || 0) + ' depot masih menunggu keputusan di Management of Approval.'
+                        : 'Tidak ada dokumen yang menunggu approval.';
+                    const btn = document.getElementById('btnKaApproval');
+                    btn.innerText = kaApprovalAktif ? 'Matikan Approval' : 'Hidupkan Approval';
+                    btn.className = 'px-6 py-2.5 font-bold rounded-lg text-sm shadow-md text-white '
+                        + (kaApprovalAktif ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700');
+                    document.getElementById('kaApprovalRiwayat').innerHTML = (res.riwayat || []).map(function (r) {
+                        return '<div><span class="font-bold">' + rcEsc(r.waktu) + '</span> &middot; ' + rcEsc(r.aksi) + ' oleh '
+                            + rcEsc(r.oleh || '-') + (r.catatan ? ' &mdash; ' + rcEsc(r.catatan) : '') + '</div>';
+                    }).join('') || '<div class="text-gray-400">Belum ada perubahan.</div>';
+                } catch (e) { showNotification('Gagal memuat setelan approval.', 'error'); }
+            }
+
+            async function ubahSetelanApproval() {
+                const catatan = (document.getElementById('kaApprovalCatatan').value || '').trim();
+                if (catatan.length < 3) { showNotification('Isi alasan perubahan lebih dulu.', 'warning'); return; }
+                const target = !kaApprovalAktif;
+                const setuju = await showConfirmModal({
+                    title: target ? 'Hidupkan Approval' : 'Matikan Approval',
+                    message: target
+                        ? 'Pengajuan baru akan kembali menunggu persetujuan di Management of Approval.'
+                        : 'Pengajuan baru langsung ke tahap Release tanpa approval, dan email pengajuannya berjudul "Pengajuan Claim Depot ...". Dokumen yang sudah diajukan tetap harus diputuskan lewat Management of Approval.'
+                });
+                if (!setuju) return;
+                setDisabledSafely('btnKaApproval', true);
+                try {
+                    const res = await fetchApp({ action: 'approvalSetel', aktif: target, catatan: catatan });
+                    if (res.status !== 'success') { showNotification(res.message || 'Gagal mengubah setelan.', 'error'); return; }
+                    showNotification(res.message || 'Tersimpan.', 'success');
+                    logActivity((target ? 'Hidupkan' : 'Matikan') + ' approval: ' + catatan);
+                    document.getElementById('kaApprovalCatatan').value = '';
+                    await muatSetelanApproval();
+                } catch (e) {
+                    showNotification((e && e.message) ? e.message : 'Gagal mengubah setelan.', 'error');
+                } finally { setDisabledSafely('btnKaApproval', false); }
             }

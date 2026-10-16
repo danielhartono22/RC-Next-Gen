@@ -1,6 +1,6 @@
             // Daftar resmi Jenis CB. Penulisannya harus persis seperti di sini; ini yang
             // dipakai validasi grid maupun formulir tunggal, dan server memakai daftar yang sama.
-            const RC_JENIS_CB = ['Transfer', 'CN', 'Rebate', 'Rebate Manual'];
+            const RC_JENIS_CB = ['Transfer', 'CN', 'Voucher', 'Rebate', 'Rebate Manual'];
             // Susunan kolom grid, dipilih menurut mode posting.
             //
             // Posting Exception memakai TABEL YANG SAMA dengan Mass Upload - bukan kotak
@@ -148,11 +148,16 @@
             // Isi otomatis KTP/NPWP/No Rekening/Nama Rekening/Bank dari database begitu No Document diketik/di-paste,
             // supaya data yang sistem sudah punya langsung terlihat di grid (bukan baru muncul saat Preview) -
             // Rekening/Nama Rekening/Bank tetap bisa diedit manual (tidak ditimpa kalau sudah diisi user).
-            function autoFillGridRowFromDoc(tr) {
+            // async sejak master tidak lagi diunduh saat login: barisnya diambil lebih dulu,
+            // baru dicari. Pemanggilnya tidak wajib menunggu - pengisian otomatis yang datang
+            // sepersekian detik kemudian tetap benar, dan tidak ada yang menunggu hasilnya.
+            async function autoFillGridRowFromDoc(tr) {
                 if (!tr) return;
                 let ndInput = tr.querySelector('[name="noDoc"]'); if (!ndInput) return;
                 let nd = ndInput.value.trim().toUpperCase(); if (!nd) return;
+                await pastikanMaster([], [nd]);
                 let db = globalDocuments.find(d => String(d.noDoc).trim().toUpperCase() === nd); if (!db) return;
+                await pastikanMaster([db.custCode], []);
                 let cst = globalCustomers.find(c => c.custCode === db.custCode) || {};
                 let ktpEl = tr.querySelector('[name="ktp"]'), npwpEl = tr.querySelector('[name="npwp"]');
                 let rekEl = tr.querySelector('[name="noRekening"]'), namaRekEl = tr.querySelector('[name="namaRekening"]'), bankEl = tr.querySelector('[name="bank"]');
@@ -191,7 +196,40 @@
             function resetInputGrid() { currentInputRows = 5; initInputGrid(); }
             function cancelPreview() { setHiddenSafely('uploadPreviewContainer', true); setHiddenSafely('tab_mass', currentUploadMode !== 'mass'); setHiddenSafely('tab_single', currentUploadMode !== 'single');  setHiddenSafely('uploadModuleTabs', false); hasMasterUpdateFlag = false; massUploadDataValid = []; }
 
-            function previewUploadData(mode) {
+            // Mengumpulkan seluruh nomor dokumen yang sedang diketik, supaya master-nya dapat
+            // diambil sekali jalan sebelum baris-barisnya diperiksa.
+            function rcNoDocPratinjau(mode) {
+                if (mode === 'single') {
+                    const el = document.getElementById('singleNoDoc');
+                    return el && el.value.trim() ? [el.value] : [];
+                }
+                const trs = document.getElementById('inputGridBody').querySelectorAll('.row-input');
+                const out = [];
+                for (let i = 0; i < currentInputRows; i++) {
+                    if (!trs[i] || trs[i].style.display === 'none') continue;
+                    const el = trs[i].querySelector('input[name="noDoc"]');
+                    if (el && el.value.trim()) out.push(el.value);
+                }
+                return out;
+            }
+
+            // async sejak master diambil saat perlu. Pengambilannya dilakukan SEKALI untuk
+            // seluruh baris sebelum pemeriksaan dimulai - bukan satu permintaan per baris,
+            // yang pada unggahan 500 dokumen berarti 500 perjalanan ke server.
+            async function previewUploadData(mode) {
+                const nd = rcNoDocPratinjau(mode);
+                if (nd.length) {
+                    await pastikanMaster([], nd);
+                    // Pelanggannya baru diketahui setelah dokumennya ada.
+                    const kode = [];
+                    nd.forEach(function (n) {
+                        const db = globalDocuments.find(d =>
+                            String(d.noDoc).trim().toUpperCase() === String(n).trim().toUpperCase());
+                        if (db && db.custCode) kode.push(db.custCode);
+                    });
+                    if (kode.length) await pastikanMaster(kode, []);
+                }
+
                 massUploadDataValid = []; hasMasterUpdateFlag = false; let v = 0;
                 let isSysMgr = currentUserData && (currentUserData.sysRole || currentUserData.role || '').toLowerCase() === 'system manager';
                 let managed = currentUserData.managedDepots ? currentUserData.managedDepots.map(x => String(x).toUpperCase()) : [];
@@ -230,8 +268,9 @@
                     else {
                         let cmp = globalCampaigns.find(c => c.codeCampaign === db.codeCampaign) || {}; let cst = globalCustomers.find(c => c.custCode === db.custCode) || {};
                         let db_ktp = String(cst.ktp || '').trim(), db_npwp = String(cst.npwp || '').trim(), final_subyekpajak = "";
-                        if (db_ktp && db_npwp) { final_subyekpajak = "Check"; isValid = false; trInfo = `<span class="bg-red-100 text-red-700 px-2 py-0.5 rounded shadow-sm font-bold">KTP & NPWP Ganda (Check)</span>`; } 
-                        else if (db_npwp) { final_subyekpajak = "Badan"; } else if (db_ktp) { final_subyekpajak = "Perorangan"; } 
+                        // 20261163110000: NPWP terisi = Badan walaupun KTP juga ada (KTP hanya tampil di Customer
+                        // Master, tidak dipakai dokumen). Dulu baris ini ditolak "KTP & NPWP Ganda".
+                        if (db_npwp) { final_subyekpajak = "Badan"; } else if (db_ktp) { final_subyekpajak = "Perorangan"; } 
                         else { isValid = false; trInfo = `<span class="bg-red-100 text-red-700 px-2 py-0.5 rounded shadow-sm font-bold">KTP/NPWP Kosong (Update DB)</span>`; }
 
                         let ex_norek = inputData.norek, ex_namarek = inputData.namarek, ex_bank = inputData.bank, in_top = parseFloat(inputData.top), in_tglLunas = normalizeDateUI(inputData.tglLunas);

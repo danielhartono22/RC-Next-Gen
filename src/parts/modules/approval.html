@@ -8,6 +8,8 @@
                      Dua tampilan: daftar batch, lalu rincian dokumen sebuah batch. Menyetujui
                      dan menolak dapat dilakukan dari keduanya, satu per satu maupun massal. -->
                 <div id="modApproval" class="module-section hidden max-w-7xl mx-auto px-4">
+                    <!-- Muncul bila approval dimatikan di Access Management (20261162180000). -->
+                    <div id="apApprovalMati" class="hidden mb-4 p-3 bg-amber-50 border border-amber-300 rounded-xl text-sm text-amber-900 font-bold"></div>
                     <div class="flex border-b border-gray-200 mb-0">
                         <button onclick="switchApprovalTab('wpt')" data-rc-tab="approval.wpt" id="apTabWpt"
                             class="sub-tab-btn px-6 py-3 font-bold text-sm border-b-2 border-pink-600 text-pink-700">Within Payment Term</button>

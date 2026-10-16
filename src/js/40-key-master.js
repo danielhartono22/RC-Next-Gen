@@ -1,6 +1,13 @@
             let rcMasterState = { customer: { offset: 0, rows: [] }, campaign: { offset: 0, rows: [] } };
             let rcCompState = { offset: 0, rows: [], canArchive: false, campaigns: [] };
             let rcPendingUpload = { Customer: null, Campaign: null };
+            // Nomor baris Excel tiap baris rcPendingUpload, untuk menunjuk baris yang ditolak server.
+            let rcPendingBaris = { Customer: null, Campaign: null };
+            // Customer Master boleh puluhan ribu baris: layar memecahnya per RC_BAGIAN_UNGGAH baris
+            // (batas satu panggilan server). Campaign tetap satu kiriman.
+            const RC_BAGIAN_UNGGAH = 2000;
+            const RC_MAKS_BARIS = { Customer: 50000, Campaign: 2000 };
+            const RC_MAKS_MB = { Customer: 20, Campaign: 5 };
             let rcEditorKind = null, rcEditorRow = null;
 
             function openRcModule(mod) {
@@ -17,7 +24,7 @@
                     switchKeyMasterTab(selected);
                 } else if (mod === 'compilation') {
                     document.getElementById('modCompilation').classList.remove('hidden');
-                    initCompilation(); switchCompilationTab(selected==='reprocess'?'repro':'compile'); if(selected==='archive')toggleArchivedList();
+                    initCompilation(); switchCompilationTab(selected==='reprocess'?'repro':selected==='amend'?'amend':'compile'); if(selected==='archive')toggleArchivedList();
                 } else if (mod === 'approval') {
                     document.getElementById('modApproval').classList.remove('hidden');
                     openApprovalModule();
@@ -54,6 +61,20 @@
                     let res = await fetchApp({ action: 'customerList', search: document.getElementById('customerSearch').value.trim(), offset: offset });
                     if (res.status !== 'success') { showNotification(res.message || "Gagal memuat.", "error"); return; }
                     rcMasterState.customer = { offset: offset, rows: res.rows || [] };
+                    // Customer tanpa Kode Depot tidak pernah muncul di daftar (RLS), jadi hanya
+                    // server yang dapat memberitahukannya (20261163090000).
+                    const tdp = res.tanpaDepot || {};
+                    const elTdp = document.getElementById('customerTanpaDepot');
+                    if (elTdp) {
+                        if (Number(tdp.jumlah || 0) > 0) {
+                            elTdp.innerHTML = '<i class="fas fa-triangle-exclamation mr-1.5"></i><b>' + Number(tdp.jumlah).toLocaleString('id-ID')
+                                + ' customer belum punya Kode Depot</b> sehingga tidak terlihat di daftar maupun di modul lain. '
+                                + 'Pulihkan lewat Tambah (Customer Code yang sama + Kode Depot) atau unggah template dengan kolom Kode Depot. '
+                                + '<span class="text-amber-700">' + (tdp.kode || []).slice(0, 10).map(rcEsc).join('; ')
+                                + (Number(tdp.jumlah) > 10 ? '; ...' : '') + '</span>';
+                            setHiddenSafely('customerTanpaDepot', false);
+                        } else setHiddenSafely('customerTanpaDepot', true);
+                    }
                     let html = '';
                     (res.rows || []).forEach((r, i) => {
                         let badge = r.subyekPajak === 'Badan' ? 'bg-purple-100 text-purple-700'
@@ -76,8 +97,7 @@
                     });
                     document.getElementById('customerTableBody').innerHTML = html
                         || '<tr><td colspan="13" class="p-8 text-center text-gray-500">Tidak ada data.</td></tr>';
-                    const cbAllCust = document.getElementById('cbCustomerAll');
-                    if (cbAllCust) cbAllCust.checked = false;
+                    rcPilihanPulihkan('cb-customer', 'cbCustomerAll');
                     updateCustomerArsipCount();
                     renderRcPager('customerPager', offset, (res.rows || []).length, res.total, 'loadCustomerMaster');
                 } catch (e) { showNotification("Gagal memuat Customer Master.", "error"); }
@@ -96,7 +116,8 @@
                         let jc = String(r.jenisCb || '').toLowerCase();
                         let jcCls = jc === 'transfer' ? 'bg-green-100 text-green-800'
                                   : (jc === 'cn' ? 'bg-yellow-100 text-yellow-800'
-                                  : (jc === 'rebate' ? 'bg-pink-100 text-pink-800' : 'bg-red-100 text-red-700'));
+                                  : (jc === 'rebate' ? 'bg-pink-100 text-pink-800'
+                                  : (jc === 'voucher' ? 'bg-indigo-100 text-indigo-800' : 'bg-red-100 text-red-700')));
                         let st = String(r.status || 'active').toLowerCase();
                         let stCls = RC_STATUS_CAMPAIGN[st] ? RC_STATUS_CAMPAIGN[st].kelas : 'bg-gray-100 text-gray-600';
                         let stLbl = RC_STATUS_CAMPAIGN[st] ? RC_STATUS_CAMPAIGN[st].label : st;
@@ -125,6 +146,7 @@
                                  ? rcEsc((r.billingStart || '?') + ' s/d ' + (r.billingEnd || '?')) : '-') + '</td>'
                             + '<td class="p-3 text-center"><span class="' + jcCls + ' px-2 py-1 rounded text-[10px] font-black uppercase">' + rcEsc(r.jenisCb || 'BELUM DIISI') + '</span></td>'
                             + '<td class="p-3 text-center text-xs">' + rcLabelPajak(r.statusPajak) + '</td>'
+                            + '<td class="p-3 text-center">' + kolomNotParticipating(r) + '</td>'
                             + '<td class="p-3 text-center font-bold text-gray-700">' + rcEsc(r.jumlahClaim) + '</td>'
                             + '<td class="p-3 text-right font-black text-gray-700" data-sort="' + Number(r.nilaiClaim || 0) + '">' + rcEsc(rcMoney(r.nilaiClaim)) + '</td>'
                             + '<td class="p-3 text-center">' + kolomMemo(r, i) + '</td>'
@@ -133,22 +155,26 @@
                             + '<td class="p-3 text-center"><button onclick="openRcRowEditor(\'campaign\',' + i + ')" class="px-3 py-1.5 bg-white border border-gray-300 hover:bg-emerald-50 text-emerald-700 font-bold rounded-lg text-xs">Ubah</button></td></tr>';
                     });
                     document.getElementById('campaignTableBody').innerHTML = html
-                        || '<tr><td colspan="13" class="p-8 text-center text-gray-500">Tidak ada data.</td></tr>';
-                    const semua = document.getElementById('cbCampaignAll'); if (semua) semua.checked = false;
+                        || '<tr><td colspan="16" class="p-8 text-center text-gray-500">Tidak ada data.</td></tr>';
+                    rcPilihanPulihkan('cb-campaign', 'cbCampaignAll');
                     updateCampaignHapusCount();
                     renderRcPager('campaignPager', offset, (res.rows || []).length, res.total, 'loadCampaignMaster');
                 } catch (e) { showNotification("Gagal memuat Campaign Master.", "error"); }
                 finally { hideLoadingOverlay(); }
             }
 
-            function renderRcPager(containerId, offset, shown, total, fnName) {
+            // langkah = jumlah baris per halaman. Bawaannya 50 (Customer/Campaign Master);
+            // Document Center menampilkan 100, dan dulu tombolnya tetap melangkah 50 sehingga
+            // setiap halaman berikutnya mengulang 50 baris terakhir halaman sebelumnya.
+            function renderRcPager(containerId, offset, shown, total, fnName, langkah) {
+                langkah = langkah || 50;
                 let el = document.getElementById(containerId); if (!el) return;
                 let from = total === 0 ? 0 : offset + 1, to = offset + shown;
                 el.innerHTML = '<div class="flex justify-between items-center text-xs text-gray-600 bg-white p-3 border rounded-xl">'
                     + '<span>Menampilkan <b>' + from + '</b> - <b>' + to + '</b> dari <b>' + total + '</b></span>'
                     + '<span class="flex gap-2">'
-                    + '<button ' + (offset === 0 ? 'disabled' : '') + ' onclick="' + fnName + '(' + Math.max(0, offset - 50) + ')" class="px-3 py-1.5 bg-white border rounded-lg disabled:opacity-40">Sebelumnya</button>'
-                    + '<button ' + (to >= total ? 'disabled' : '') + ' onclick="' + fnName + '(' + (offset + 50) + ')" class="px-3 py-1.5 bg-white border rounded-lg disabled:opacity-40">Berikutnya</button>'
+                    + '<button ' + (offset === 0 ? 'disabled' : '') + ' onclick="' + fnName + '(' + Math.max(0, offset - langkah) + ')" class="px-3 py-1.5 bg-white border rounded-lg disabled:opacity-40">Sebelumnya</button>'
+                    + '<button ' + (to >= total ? 'disabled' : '') + ' onclick="' + fnName + '(' + (offset + langkah) + ')" class="px-3 py-1.5 bg-white border rounded-lg disabled:opacity-40">Berikutnya</button>'
                     + '</span></div>';
             }
 
@@ -179,8 +205,9 @@
                 document.querySelectorAll('.cb-customer').forEach(c => { c.checked = nyala; });
                 updateCustomerArsipCount();
             }
+            // Jumlahnya mencakup pilihan di semua halaman (28-pilihan-lintas-halaman.js).
             function updateCustomerArsipCount() {
-                const n = document.querySelectorAll('.cb-customer:checked').length;
+                const n = rcPilihanSerap('cb-customer', null, 'cbCustomerAll');
                 setTextSafely('customerArsipCount', n);
                 setDisabledSafely('btnArsipCustomer', n === 0);
             }
@@ -203,10 +230,13 @@
             };
 
             async function kmArsipkan(jenis) {
-                const kode = [];
-                document.querySelectorAll('.' + KM_ARSIP_KELAS[jenis] + ':checked')
-                    .forEach(c => { if (!c.disabled) kode.push(c.value); });
+                // Seluruh pilihan, termasuk yang dicentang di halaman lain.
+                const kode = rcPilihanKunci(KM_ARSIP_KELAS[jenis]);
                 if (!kode.length) { showNotification('Tidak ada baris yang dipilih.', 'error'); return; }
+                if (kode.length > 200) {
+                    showNotification(kode.length + ' baris dipilih; satu kali arsip maksimal 200 baris. Kurangi pilihannya lebih dulu.', 'warning');
+                    return;
+                }
 
                 // window.prompt dipakai di sini karena itulah cara modul lain meminta alasan -
                 // Posting Exception dan penghapusan akun. Ia mengembalikan null bila dibatalkan.
@@ -221,6 +251,7 @@
                     const res = await fetchApp({ action: 'masterArchive', jenis: jenis, kode: kode, alasan: alasan || '' });
                     if (res.status !== 'success') { showNotification(res.message || 'Gagal mengarsipkan.', 'error'); return; }
                     kmLaporkanHasil(res);
+                    rcPilihanKosongkan(KM_ARSIP_KELAS[jenis]);
                     await KM_MUAT[jenis]();
                 } catch (e) { showNotification('Gagal mengarsipkan.', 'error'); }
                 finally { hideLoadingOverlay(); }
@@ -314,7 +345,7 @@
             }
 
             function updateCampaignHapusCount() {
-                const n = document.querySelectorAll('.cb-campaign:checked').length;
+                const n = rcPilihanSerap('cb-campaign', null, 'cbCampaignAll');
                 setTextSafely('campaignArsipCount', n);
                 setDisabledSafely('btnArsipCampaign', n === 0);
                 const el = document.getElementById('campaignHapusCount'); if (el) el.innerText = n;
@@ -322,8 +353,7 @@
             }
 
             async function hapusCampaignTerpilih() {
-                const kode = [];
-                document.querySelectorAll('.cb-campaign:checked').forEach(c => kode.push(c.value));
+                const kode = rcPilihanKunci('cb-campaign');
                 if (kode.length === 0) return;
                 const setuju = await showConfirmModal({
                     title: 'Konfirmasi Hapus Campaign',
@@ -349,6 +379,7 @@
                                 + '<td class="p-2 text-red-700">' + rcEsc(g.sebab) + '</td></tr>').join('')
                             + '</tbody></table>');
                     }
+                    rcPilihanKosongkan('cb-campaign');
                     loadCampaignMaster(rcMasterState.campaign.offset);
                 } catch (e) { showNotification('Gagal menghapus campaign.', 'error'); }
                 finally { hideLoadingOverlay(); }
@@ -413,7 +444,10 @@
 
             // ---------- Editor satu baris ----------
             const RC_FIELDS = {
-                customer: [['custCode','Customer Code',true],['custName','Nama Pelanggan',true],['top','TOP',false],
+                // Kode Depot (20261163090000): tanpa kaitan depot, customer tidak terlihat oleh
+                // siapa pun, jadi toko baru tampak "tidak tersimpan". Wajib, satu atau lebih kode.
+                customer: [['custCode','Customer Code',true],['custName','Nama Pelanggan',true],
+                           ['kodeDepot','Kode Depot',true],['top','TOP',false],
                            ['ktp','No KTP',false],['npwp','No NPWP',false],['namaRek','Nama Rekening',false],
                            ['noRek','Nomor Rekening',false],['bank','Nama Bank',false],['contactPerson','Contact Person',false]],
                 // Unsur keempat menandai jenis kolom. Tanpa penanda, seluruh kolom dirender
@@ -428,7 +462,7 @@
                            ['periodStart','Periode Campaign Start',false],['periodEnd','Periode Campaign End',false],
                            ['soStart','Periode SO Start',false],['soEnd','Periode SO End',false],
                            ['billingStart','Periode Billing Start',false],['billingEnd','Periode Billing End',false],
-                           ['jenisCb','Jenis CB (Transfer / CN / Rebate)',false],['statusPajak','Status Pajak',false]]
+                           ['jenisCb','Jenis CB (Transfer / CN / Voucher / Rebate)',false],['statusPajak','Status Pajak',false]]
             };
 
             function openRcRowEditor(kind, index) {
@@ -441,6 +475,7 @@
                 RC_FIELDS[kind].forEach(f => {
                     let key = f[0], label = f[1], required = f[2];
                     let val = rcEditorRow ? (rcEditorRow[key] || '') : '';
+                    if (key === 'kodeDepot' && rcEditorRow) val = (rcEditorRow.depotCodes || []).join(', ');
                     // Kode pelanggan dan kode campaign adalah identitas baris. Mengubahnya akan
                     // memutus kaitan dengan claim yang sudah ada, jadi pada mode ubah field itu
                     // dibuat readonly, bukan disabled: nilainya tetap terbaca, dapat disalin,
@@ -472,10 +507,15 @@
                         + (identitas ? ' inputmode="numeric" autocomplete="off"' : '')
                         + ' class="w-full px-4 py-2.5 border rounded-lg text-sm bg-gray-50 focus:bg-white'
                         + (kunci ? ' bg-gray-100 text-gray-600 cursor-not-allowed' : '')
-                        + (identitas ? ' font-mono tracking-wide' : '') + '"></div>';
+                        + (identitas ? ' font-mono tracking-wide' : '') + '">'
+                        + (key === 'kodeDepot'
+                            ? '<p class="text-[11px] text-gray-500 mt-1">Satu atau lebih kode dari Depot Master, dipisah koma (contoh: 4A, 5K). '
+                              + 'Toko hanya terlihat oleh depot yang tercantum di sini.</p>'
+                            : '')
+                        + '</div>';
                 });
                 if (kind === 'customer') {
-                    html += '<p class="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg p-3">Subyek pajak tidak diisi manual. NPWP terisi berarti <b>Badan</b>, hanya KTP berarti <b>Perorangan</b>. Mengisi keduanya akan menolak upload klaim pelanggan ini.</p>';
+                    html += '<p class="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg p-3">Subyek pajak tidak diisi manual. NPWP terisi berarti <b>Badan</b>; bila KTP juga diisi, KTP hanya tersimpan di sini dan tidak dipakai di dokumen klaim. Hanya KTP berarti <b>Perorangan</b>. Tanpa KTP maupun NPWP, upload klaim pelanggan ini ditolak.</p>';
                 }
                 if (kind === 'campaign') {
                     // Memo hanya dapat dilampirkan pada campaign yang sudah tersimpan: jalur
@@ -516,7 +556,9 @@
                 try {
                     let res = await fetchApp({ action: kind === 'customer' ? 'customerUpsert' : 'campaignUpsert', rows: [row] });
                     if (res.status === 'success') {
-                        showNotification("Data master tersimpan.", "success");
+                        if ((res.tanpaDepot || []).length) showNotification('Tersimpan, tetapi ' + res.tanpaDepot.join(', ')
+                            + ' belum punya Kode Depot sehingga tidak terlihat. Isi Kode Depot lalu simpan lagi.', 'warning');
+                        else showNotification("Data master tersimpan.", "success");
                         logActivity('Ubah ' + kind + ' master: ' + row[RC_FIELDS[kind][0][0]]);
                         closeRcRowEditor();
                         if (kind === 'customer') loadCustomerMaster(rcMasterState.customer.offset);
@@ -533,9 +575,11 @@
 
             // ---------- Mass upload ----------
             const RC_TEMPLATE = {
-                Customer: { headers: ['Customer Code','Customer Name','TOP','No KTP','No NPWP','Nama Rekening','Nomor Rekening','Nama Bank','Contact Person'],
-                            keys: ['custCode','custName','top','ktp','npwp','namaRek','noRek','bank','contactPerson'],
-                            contoh: ['C00123','TOKO MAJU JAYA','30','','012345678901234','TOKO MAJU JAYA','0081234567','BCA','Budi 0812xxxx'] },
+                // Kode Depot wajib untuk customer baru (20261163090000); lebih dari satu dipisah koma.
+                // Pada customer lama, kolom kosong membiarkan kaitan depotnya seperti semula.
+                Customer: { headers: ['Customer Code','Customer Name','Kode Depot','TOP','No KTP','No NPWP','Nama Rekening','Nomor Rekening','Nama Bank','Contact Person'],
+                            keys: ['custCode','custName','kodeDepot','top','ktp','npwp','namaRek','noRek','bank','contactPerson'],
+                            contoh: ['C00123','TOKO MAJU JAYA','4A','30','','012345678901234','TOKO MAJU JAYA','0081234567','BCA','Budi 0812xxxx'] },
                 // Urutan kolom template MENGIKUTI urutan keys di bawahnya; menambah satu tanpa
                 // yang lain akan menggeser seluruh pembacaan. Keduanya diubah bersama di sini.
                 Campaign: { headers: ['Code Campaign','Nama Campaign','Periode Start','Periode End',
@@ -576,7 +620,7 @@
             function previewRcUpload(kind, fileInput) {
                 let file = fileInput.files && fileInput.files[0];
                 if (!file) return;
-                if (file.size > 5 * 1024 * 1024) { showNotification("File maksimal 5 MB.", "error"); fileInput.value = ''; return; }
+                if (file.size > RC_MAKS_MB[kind] * 1024 * 1024) { showNotification("File maksimal " + RC_MAKS_MB[kind] + " MB.", "error"); fileInput.value = ''; return; }
                 let t = RC_TEMPLATE[kind];
                 let reader = new FileReader();
                 reader.onload = function (e) {
@@ -591,7 +635,7 @@
                             if (pos >= 0) colMap[t.keys[pos]] = i;
                         });
                         if (colMap[t.keys[0]] === undefined) { showNotification("Kolom kunci tidak ditemukan.", "error"); return; }
-                        let out = [], beresiko = [];
+                        let out = [], baris = [], beresiko = [];
                         for (let i = hIdx + 1; i < rows.length; i++) {
                             let raw = rows[i]; if (!raw) continue;
                             let obj = {}, kosong = true;
@@ -599,22 +643,47 @@
                                 let cell = colMap[k] === undefined ? '' : raw[colMap[k]];
                                 if (rcPrecisionRisk(cell)) beresiko.push('baris ' + (i + 1) + ' kolom ' + k);
                                 let v = rcCellText(cell);
-                                obj[k] = v; if (v) kosong = false;
+                                if (v) kosong = false;
+                                // Customer Master (pemilik, 16 Oktober 2026): "jika yg diupload kosong maka akan
+                                // menggunakan data yang lama". Sel kosong tidak dikirim, dan server membiarkan
+                                // kolom yang tidak dikirim. "-" berarti sengaja dikosongkan. Formulir Ubah tetap
+                                // mengirim semua kolom, jadi masih bisa mengosongkan.
+                                if (kind === 'Customer' && k !== t.keys[0]) {
+                                    if (v === '') return;
+                                    if (v === '-') { obj[k] = ''; return; }
+                                }
+                                obj[k] = v;
                             });
                             if (kosong) continue;
                             if (!obj[t.keys[0]]) { showNotification("Baris " + (i + 1) + ": " + t.headers[0] + " kosong.", "error"); return; }
-                            out.push(obj);
+                            out.push(obj); baris.push(i + 1);
                         }
                         if (out.length === 0) { showNotification("Tidak ada baris data.", "warning"); return; }
-                        if (out.length > 2000) { showNotification("Maksimal 2000 baris per unggahan.", "error"); return; }
+                        if (out.length > RC_MAKS_BARIS[kind]) {
+                            showNotification("Maksimal " + RC_MAKS_BARIS[kind].toLocaleString('id-ID') + " baris per unggahan.", "error"); return; }
                         if (beresiko.length > 0) {
                             showNotification("Ada angka terlalu panjang sehingga digitnya bisa berubah: "
                                 + beresiko.slice(0, 3).join(', ') + ". Format kolom itu sebagai Teks di Excel lalu ulangi.", "error");
                             return;
                         }
                         rcPendingUpload[kind] = out;
+                        rcPendingBaris[kind] = baris;
+                        const tanpaDepot = kind === 'Customer' ? out.filter(o => !o.kodeDepot).length : 0;
+                        // Kode yang muncul lebih dari sekali: baris paling bawah yang berlaku (disimpan terakhir).
+                        const hitung = {};
+                        out.forEach(o => { const k = String(o[t.keys[0]] || '').trim().toUpperCase(); hitung[k] = (hitung[k] || 0) + 1; });
+                        const ganda = Object.keys(hitung).filter(k => hitung[k] > 1);
+                        const bagian = Math.ceil(out.length / RC_BAGIAN_UNGGAH);
                         document.getElementById(kind.toLowerCase() + 'UploadText').innerText =
-                            out.length + ' baris siap disimpan. Kode yang sudah ada akan ditimpa oleh data ini.';
+                            out.length.toLocaleString('id-ID') + ' baris siap disimpan. '
+                            + (kind === 'Customer' ? 'Untuk kode yang sudah ada, kolom terisi menimpa data lama, kolom kosong memakai data lama, dan "-" mengosongkan.'
+                                : 'Kode yang sudah ada akan ditimpa oleh data ini.')
+                            + (bagian > 1 ? ' Disimpan otomatis dalam ' + bagian + ' bagian @ ' + RC_BAGIAN_UNGGAH.toLocaleString('id-ID')
+                                + ' baris; seluruh berkas diperiksa dulu, jadi bila ada satu baris salah tidak ada yang tersimpan.' : '')
+                            + (ganda.length ? ' ' + ganda.length + ' kode muncul lebih dari sekali (mis. ' + ganda.slice(0, 3).join(', ')
+                                + '); baris paling bawah yang berlaku.' : '')
+                            + (tanpaDepot ? ' ' + tanpaDepot + ' baris tanpa Kode Depot: customer BARU di antaranya akan ditolak, '
+                                + 'customer lama tetap memakai depot yang sudah tercatat.' : '');
                         setHiddenSafely(kind.toLowerCase() + 'UploadInfo', false);
                     } catch (err) { showNotification("File tidak dapat dibaca.", "error"); }
                 };
@@ -623,6 +692,7 @@
 
             function cancelMasterUpload(kind) {
                 rcPendingUpload[kind] = null;
+                rcPendingBaris[kind] = null;
                 setHiddenSafely(kind.toLowerCase() + 'UploadInfo', true);
                 let f = document.getElementById(kind.toLowerCase() + 'File'); if (f) f.value = '';
             }
@@ -630,19 +700,85 @@
             function commitCustomerUpload() { commitRcUpload('Customer', 'customerUpsert', loadCustomerMaster); }
             function commitCampaignUpload() { commitRcUpload('Campaign', 'campaignUpsert', loadCampaignMaster); }
 
+            // Pesan galat server menyebut Customer Code; tambahkan nomor baris Excel-nya.
+            function rcBarisDariPesan(pesan, rows, baris, kunci) {
+                const teks = String(pesan || '').toUpperCase();
+                for (let i = 0; i < rows.length; i++) {
+                    const kode = String(rows[i][kunci] || '').trim().toUpperCase();
+                    if (!kode) continue;
+                    const pola = new RegExp('(^|[^A-Z0-9])' + kode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '([^A-Z0-9]|$)');
+                    if (pola.test(teks)) return ' (baris Excel ' + baris[i] + ')';
+                }
+                return '';
+            }
+
+            // Unggahan lebih dari RC_BAGIAN_UNGGAH baris (Customer Master): semua bagian DIPERIKSA
+            // dulu dengan aturan simpan yang sama lalu dibatalkan server, baru disimpan bagian demi
+            // bagian. Simpan Customer Master menimpa data yang sama, jadi mengulang berkas yang sama
+            // setelah gangguan jaringan aman.
+            async function commitRcUploadBertahap(kind, action, reload, rows, baris) {
+                const n = rows.length, kunci = RC_TEMPLATE[kind].keys[0];
+                const jumlahBagian = Math.ceil(n / RC_BAGIAN_UNGGAH);
+                const potong = i => rows.slice(i * RC_BAGIAN_UNGGAH, (i + 1) * RC_BAGIAN_UNGGAH);
+                const rentang = i => (i * RC_BAGIAN_UNGGAH + 1).toLocaleString('id-ID') + '-' + Math.min(n, (i + 1) * RC_BAGIAN_UNGGAH).toLocaleString('id-ID');
+                for (let i = 0; i < jumlahBagian; i++) {
+                    showLoadingOverlay('Memeriksa ' + kind + ' Master: bagian ' + (i + 1) + ' dari ' + jumlahBagian + ' (baris data ' + rentang(i) + ' dari ' + n.toLocaleString('id-ID') + ')...');
+                    const res = await fetchApp({ action: action + 'Periksa', rows: potong(i) });
+                    if (res.status !== 'success') {
+                        const b = baris.slice(i * RC_BAGIAN_UNGGAH, (i + 1) * RC_BAGIAN_UNGGAH);
+                        showNotification('Tidak ada yang disimpan. ' + (res.message || 'Pemeriksaan gagal.') + rcBarisDariPesan(res.message, potong(i), b, kunci)
+                            + '. Perbaiki berkas lalu unggah ulang.', 'error');
+                        return;
+                    }
+                }
+                let dibuat = 0, diperbarui = 0, tanpa = [];
+                for (let i = 0; i < jumlahBagian; i++) {
+                    showLoadingOverlay('Menyimpan ' + kind + ' Master: bagian ' + (i + 1) + ' dari ' + jumlahBagian + ' (baris data ' + rentang(i) + ' dari ' + n.toLocaleString('id-ID') + ')...');
+                    const res = await fetchApp({ action: action, rows: potong(i) });
+                    if (res.status !== 'success') {
+                        showNotification('Bagian ' + (i + 1) + ' dari ' + jumlahBagian + ' gagal: ' + (res.message || 'Gagal menyimpan.')
+                            + '. ' + (i > 0 ? 'Baris data 1-' + (i * RC_BAGIAN_UNGGAH).toLocaleString('id-ID') + ' sudah tersimpan. ' : '')
+                            + 'Unggah ulang berkas yang sama; baris yang sudah tersimpan aman ditimpa ulang.', 'error');
+                        logActivity('Mass upload ' + kind + ' Master terhenti di bagian ' + (i + 1) + '/' + jumlahBagian + ': ' + n + ' baris');
+                        reload(0);
+                        return;
+                    }
+                    dibuat += res.dibuat || 0; diperbarui += res.diperbarui || 0; tanpa = tanpa.concat(res.tanpaDepot || []);
+                }
+                showNotification(dibuat.toLocaleString('id-ID') + ' baris baru, ' + diperbarui.toLocaleString('id-ID') + ' diperbarui (' + jumlahBagian + ' bagian).'
+                    + (tanpa.length ? ' ' + tanpa.length + ' customer belum punya Kode Depot sehingga tidak terlihat: '
+                        + tanpa.slice(0, 5).join(', ') + (tanpa.length > 5 ? ', ...' : '') : ''), tanpa.length ? "warning" : "success");
+                logActivity('Mass upload ' + kind + ' Master: ' + n + ' baris dalam ' + jumlahBagian + ' bagian');
+                cancelMasterUpload(kind); reload(0);
+            }
+
             async function commitRcUpload(kind, action, reload) {
                 let rows = rcPendingUpload[kind];
                 if (!rows) return;
+                const bertahap = rows.length > RC_BAGIAN_UNGGAH;
                 let confirmed = await showConfirmModal({ title: "Konfirmasi Upload Master",
-                    message: rows.length + " baris akan disimpan ke " + kind + " Master.\n\nKode yang sudah ada akan DITIMPA oleh data dari file ini.",
+                    message: rows.length.toLocaleString('id-ID') + " baris akan disimpan ke " + kind + " Master.\n\n"
+                        + (kind === 'Customer' ? "Kode yang sudah ada: kolom terisi MENIMPA data lama, kolom kosong memakai data lama, \"-\" mengosongkan."
+                            : "Kode yang sudah ada akan DITIMPA oleh data dari file ini.")
+                        + (bertahap ? "\n\nBerkas besar: diperiksa seluruhnya dulu, lalu disimpan otomatis dalam "
+                            + Math.ceil(rows.length / RC_BAGIAN_UNGGAH) + " bagian. Jangan tutup halaman sampai selesai." : ""),
                     confirmText: "Ya, Simpan", danger: false });
                 if (!confirmed) return;
                 setDisabledSafely('btnCommit' + kind, true);
                 showLoadingOverlay("Menyimpan " + kind + " Master...");
+                if (bertahap) {
+                    try { await commitRcUploadBertahap(kind, action, reload, rows, rcPendingBaris[kind] || []); }
+                    catch (e) { showNotification("Gagal terhubung ke server. Unggah ulang berkas yang sama; baris yang sudah tersimpan aman ditimpa ulang.", "error"); }
+                    finally { setDisabledSafely('btnCommit' + kind, false); hideLoadingOverlay(); }
+                    return;
+                }
                 try {
                     let res = await fetchApp({ action: action, rows: rows });
                     if (res.status === 'success') {
-                        showNotification((res.dibuat || 0) + " baris baru, " + (res.diperbarui || 0) + " diperbarui.", "success");
+                        const tanpa = res.tanpaDepot || [];
+                        showNotification((res.dibuat || 0) + " baris baru, " + (res.diperbarui || 0) + " diperbarui."
+                            + (tanpa.length ? ' ' + tanpa.length + ' customer belum punya Kode Depot sehingga tidak terlihat: '
+                                + tanpa.slice(0, 5).join(', ') + (tanpa.length > 5 ? ', ...' : '') : ''), tanpa.length ? "warning" : "success");
                         logActivity('Mass upload ' + kind + ' Master: ' + rows.length + ' baris');
                         cancelMasterUpload(kind); reload(0);
                     } else { showNotification(res.message || "Gagal menyimpan.", "error"); }

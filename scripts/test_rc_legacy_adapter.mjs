@@ -186,3 +186,224 @@ test('sign up refuses a short PIN and a mismatched confirmation before any netwo
   assert.equal(mismatch.status, 'error');
   assert.match(mismatch.message, /tidak sama/);
 });
+
+// ---------------------------------------------------------------------------------------
+// Muat bertahap (20261162050000): kursor diteruskan apa adanya, compileData disusun dari
+// history, dan database yang belum dimigrasi tetap dilayani versi lamanya.
+// ---------------------------------------------------------------------------------------
+function halamanBackend(jawab) {
+  const panggilan = [];
+  const c = { window: {}, crypto: webcrypto, TextEncoder,
+    __testClient: { rpc: async (nama, arg) => { panggilan.push({ nama, arg: plain(arg || {}) }); return jawab(nama, arg || {}); } } };
+  vm.createContext(c);
+  vm.runInContext(code.replace('var clientPromise = null;', 'var clientPromise = Promise.resolve(__testClient);'), c);
+  return { call: c.window.RCBackend.call, panggilan };
+}
+
+test('workflow pages forward page size and cursor unchanged', async () => {
+  const kosong = { status: 'success', releaseData: [], claimFinData: [], clearingData: [], bulkRebateData: [], dimuat: 0, berikutnya: null };
+  const { call, panggilan } = halamanBackend(() => ({ data: kosong }));
+  await call({ action: 'getWorkflowData', limit: 300 });
+  await call({ action: 'getWorkflowData', setelah: { waktu: '2026-09-29T01:02:03.456789+00:00', id: 'a1b2' } });
+  assert.deepEqual(panggilan, [
+    { nama: 'rc_legacy_workflow', arg: { p_limit: 300 } },
+    { nama: 'rc_legacy_workflow', arg: { p_limit: 1000, p_setelah_waktu: '2026-09-29T01:02:03.456789+00:00', p_setelah_id: 'a1b2' } }
+  ]);
+});
+
+test('analytics compileData is built from the same history rows', async () => {
+  const h = { noDoc: 'N1', depot: 'Depot Satu', codeCampaign: 'C1', campaign: 'Campaign Satu',
+              validYear: '2026', totalClaim: 1500.5, kodeToko: 'T1', status: 'Done' };
+  const { call } = halamanBackend(() => ({ data: { status: 'success', history: [h], dimuat: 1, berikutnya: null } }));
+  const res = await call({ action: 'getDashboardData' });
+  assert.deepEqual(plain(res.compileData), [
+    { depotName: 'Depot Satu', codeCampaign: 'C1', campaign: 'Campaign Satu', validYear: '2026', reward: 1500.5, kodeToko: 'T1' }
+  ]);
+});
+
+test('an unmigrated database falls back to the single-call RPC', async () => {
+  const dariServer = [{ depotName: 'D', codeCampaign: 'C', campaign: 'X', validYear: '2025', reward: 1, kodeToko: 'T' }];
+  const { call, panggilan } = halamanBackend((nama, arg) => arg.p_limit
+    ? { error: { message: 'Could not find the function public.rc_legacy_dashboard(p_limit) in the schema cache' } }
+    : { data: { status: 'success', history: [], compileData: dariServer } });
+  const res = await call({ action: 'getDashboardData', limit: 300 });
+  assert.equal(res.status, 'success');
+  assert.deepEqual(plain(res.compileData), dariServer);
+  assert.deepEqual(panggilan.map((p) => p.arg), [{ p_limit: 300 }, {}]);
+});
+
+test('a failure on a later page is reported, never silently replaced', async () => {
+  const { call, panggilan } = halamanBackend(() => ({ error: { message: 'Could not find the function public.rc_legacy_workflow' } }));
+  const res = await call({ action: 'getWorkflowData', setelah: { waktu: '2026-09-29T00:00:00+00:00', id: 'x' } });
+  assert.equal(res.status, 'error');
+  assert.equal(panggilan.length, 1);
+});
+
+// ---------------------------------------------------------------------------------------
+// Akun suspended (20261162110000): salah PIN dicatat server, akun suspended tidak bisa masuk.
+// ---------------------------------------------------------------------------------------
+function loginBackend(jawabAuth, jawabRpc) {
+  const panggilan = []; let keluar = 0;
+  const c = { window: {}, crypto: webcrypto, TextEncoder,
+    __testClient: {
+      auth: { signInWithPassword: async () => jawabAuth(), signOut: async () => { keluar++; return {}; } },
+      rpc: async (nama, arg) => { panggilan.push({ nama, arg: plain(arg || {}) }); return jawabRpc(nama, arg || {}); } } };
+  vm.createContext(c);
+  vm.runInContext(code.replace('var clientPromise = null;', 'var clientPromise = Promise.resolve(__testClient);'), c);
+  return { call: c.window.RCBackend.call, panggilan, keluar: () => keluar };
+}
+
+test('a third wrong PIN reports the suspension from the server', async () => {
+  const { call, panggilan } = loginBackend(
+    () => ({ error: { code: 'invalid_credentials', message: 'Invalid login credentials' } }),
+    (nama) => nama === 'rc_login_gagal' ? { data: { status: 'success', suspended: true, message: 'Akun di-suspend karena salah PIN 3 kali berturut-turut.' } } : { data: {} });
+  const res = await call({ action: 'login', userid: 'qa-user', pin: 'salah123' });
+  assert.equal(res.status, 'error');
+  assert.match(res.message, /di-suspend/);
+  assert.deepEqual(panggilan.map((p) => p.nama), ['rc_login_gagal']);
+  assert.deepEqual(panggilan[0].arg, { p_user_code: 'qa-user', p_pin: 'salah123' });
+});
+
+test('a correct PIN on a suspended account is refused and the session closed', async () => {
+  const { call, panggilan, keluar } = loginBackend(
+    () => ({ data: { session: {} } }),
+    (nama) => nama === 'rc_login_berhasil' ? { data: { status: 'success', akun: 'suspended', message: 'Akun di-suspend karena salah PIN berulang.' } } : { data: {} });
+  const res = await call({ action: 'login', userid: 'QA-USER', pin: 'benar123' });
+  assert.equal(res.status, 'error');
+  assert.match(res.message, /di-suspend/);
+  assert.equal(keluar(), 1);
+  assert.ok(!panggilan.some((p) => p.nama === 'rc_legacy_bootstrap'));
+});
+
+// Regresi prod 6 Oktober 2026: sejak bootstrap tidak lagi mengirim dokumen, lookupMaster satu-
+// satunya sumber dokumen di Mass Upload. Versinya harus tercatat supaya Posting Claim jalan.
+test('documents fetched by lookupMaster can be posted right away', async () => {
+  const panggilan = [];
+  const c = { window: {}, crypto: webcrypto, TextEncoder,
+    __testClient: { rpc: async (nama, arg) => {
+      panggilan.push({ nama, arg: plain(arg || {}) });
+      if (nama === 'rc_lookup_master') {
+        return { data: { status: 'success', customers: [], documents: [{ noDoc: 'NPC/CMP/PSN/326B/23767', versionNo: 4 }] } };
+      }
+      return { data: { processed: [{ no_doc: 'NPC/CMP/PSN/326B/23767', status: 'submitted', version_no: 5 }], batch: 'B1', count: 1 } };
+    } } };
+  vm.createContext(c);
+  vm.runInContext(code.replace('var clientPromise = null;', 'var clientPromise = Promise.resolve(__testClient);'), c);
+  const cari = await c.window.RCBackend.call({ action: 'lookupMaster', custCodes: [], docNos: ['NPC/CMP/PSN/326B/23767'] });
+  assert.equal(cari.status, 'success');
+  const res = await c.window.RCBackend.call({ action: 'submitData', data: [{ noDoc: 'npc/cmp/psn/326b/23767 ' }] });
+  assert.equal(res.status, 'success');
+  const kirim = panggilan.find((p) => p.nama === 'rc_process_claims');
+  assert.deepEqual(kirim.arg.p_items.map((x) => [x.no_doc, x.version_no]), [['npc/cmp/psn/326b/23767', 4]]);
+});
+
+test('bulk reject sends reject_bulk with the reason and the loaded versions', async () => {
+  const panggilan = [];
+  const c = { window: {}, crypto: webcrypto, TextEncoder,
+    __testClient: { rpc: async (nama, arg) => { panggilan.push({ nama, arg: plain(arg || {}) });
+      return { data: { processed: [{ no_doc: 'DOC-R1', status: 'not_yet', version_no: 8 }], batch: null, count: 1 } }; } } };
+  vm.createContext(c);
+  vm.runInContext(code.replace('var clientPromise = null;', 'var clientPromise = Promise.resolve(__testClient);'), c);
+  c.window.RCBackend._test.setVersion('DOC-R1', 7);
+  const res = await c.window.RCBackend.call({ action: 'bulkReject', docsToProcess: ['DOC-R1'], reason: 'Data toko salah' });
+  assert.equal(res.status, 'success');
+  assert.equal(panggilan[0].nama, 'rc_process_claims');
+  assert.equal(panggilan[0].arg.p_action, 'reject_bulk');
+  assert.equal(panggilan[0].arg.p_reason, 'Data toko salah');
+  assert.deepEqual(panggilan[0].arg.p_items.map((x) => [x.no_doc, x.version_no]), [['DOC-R1', 7]]);
+});
+
+// Server menerima paling banyak 500 dokumen per proses. Mass Process Clearing dengan ratusan No
+// Document dulu ditolak seluruhnya ("Satu proses maksimal 500 dokumen"); kini dikirim bertahap.
+function prosesBackend(jawab) {
+  const panggilan = [];
+  const c = { window: {}, crypto: webcrypto, TextEncoder,
+    __testClient: { rpc: async (nama, arg) => { panggilan.push({ nama, arg: plain(arg || {}) }); return jawab(panggilan.length, arg || {}); } } };
+  vm.createContext(c);
+  vm.runInContext(code.replace('var clientPromise = null;', 'var clientPromise = Promise.resolve(__testClient);'), c);
+  const docs = [];
+  for (let i = 1; i <= 1234; i++) { const d = 'NPC/CMP/UJI/0001/' + i; docs.push(d); c.window.RCBackend._test.setVersion(d, 3); }
+  return { call: c.window.RCBackend.call, panggilan, docs };
+}
+
+test('more than 500 documents are posted in stages of 500 and merged', async () => {
+  const { call, panggilan, docs } = prosesBackend((ke, arg) => ({ data: {
+    batch: 'B' + ke, count: arg.p_items.length,
+    processed: arg.p_items.map((x) => ({ no_doc: x.no_doc, status: 'done', gross_up: 0, version_no: 4 })) } }));
+  const res = await call({ action: 'processWorkflow', workflowType: 'clearing', actionType: 'approve', tglProses: '10-10-2026', docsToProcess: docs });
+  assert.equal(res.status, 'success');
+  assert.deepEqual(panggilan.map((p) => p.arg.p_items.length), [500, 500, 234]);
+  assert.ok(panggilan.every((p) => p.nama === 'rc_process_claims' && p.arg.p_action === 'clearing'));
+  assert.equal(new Set(panggilan.map((p) => p.arg.p_request_id)).size, 3, 'setiap tahap punya request id sendiri');
+  assert.equal(res.summary.successCount, 1234);
+  assert.equal(res.summary.successfulDocs.length, 1234);
+  assert.equal(res.summary.batchNum, 'B1, B2, B3');
+});
+
+test('a failing later stage reports what was already posted', async () => {
+  const { call, panggilan, docs } = prosesBackend((ke, arg) => ke === 2
+    ? { error: { message: 'Customer Master 644012 belum tersedia; klaim tidak dapat diproses.' } }
+    : { data: { batch: 'B' + ke, count: arg.p_items.length,
+        processed: arg.p_items.map((x) => ({ no_doc: x.no_doc, status: 'done', version_no: 4 })) } });
+  const res = await call({ action: 'processWorkflow', workflowType: 'clearing', actionType: 'approve', tglProses: '10-10-2026', docsToProcess: docs });
+  assert.equal(res.status, 'error');
+  assert.equal(panggilan.length, 2, 'tahap sesudah yang gagal tidak dikirim');
+  assert.match(res.message, /^500 dokumen sudah diproses \(batch B1\); sisanya gagal: Customer Master 644012 belum tersedia/);
+});
+
+// Clearing meneruskan Tgl Clearing (Aktual) ke server sebagai tgl_aktual setiap dokumen.
+test('clearing forwards the actual transfer date chosen on screen', async () => {
+  const { call, panggilan, docs } = prosesBackend((ke, arg) => ({ data: { batch: 'B1', count: arg.p_items.length,
+    processed: arg.p_items.map((x) => ({ no_doc: x.no_doc, status: 'done', version_no: 4 })) } }));
+  const res = await call({ action: 'processWorkflow', workflowType: 'clearing', actionType: 'approve', tglProses: '10-10-2026', docsToProcess: docs.slice(0, 3) });
+  assert.equal(res.status, 'success');
+  assert.deepEqual(panggilan[0].arg.p_items.map((x) => x.tgl_aktual), ['2026-10-10', '2026-10-10', '2026-10-10']);
+});
+
+test('clearing without an actual date is refused before any network call', async () => {
+  const { call, panggilan, docs } = prosesBackend(() => ({ data: {} }));
+  const res = await call({ action: 'processWorkflow', workflowType: 'clearing', actionType: 'approve', tglProses: '', docsToProcess: docs.slice(0, 1) });
+  assert.equal(res.status, 'error');
+  assert.match(res.message, /wajib diisi/);
+  assert.equal(panggilan.length, 0);
+  // Tahap lain tidak membawa tanggal aktual.
+  await call({ action: 'processWorkflow', workflowType: 'release', actionType: 'approve', docsToProcess: docs.slice(0, 1) });
+  assert.equal(panggilan.length, 1);
+  assert.equal(panggilan[0].arg.p_items[0].tgl_aktual, undefined);
+});
+
+// Document Center: filter Depot diteruskan sebagai p_depot (kode depot), dan daftar pilihannya
+// diambil dari server (20261163040000).
+test('document center forwards the depot filter and loads the depot choices', async () => {
+  const { call, panggilan } = prosesBackend(() => ({ data: { status: 'success', rows: [], total: 0 } }));
+  await call({ action: 'compilationList', campaign: 'CA1', depot: '4A', batch: '', status: '', search: '', offset: 0 });
+  assert.equal(panggilan[0].nama, 'rc_compilation_list');
+  assert.equal(panggilan[0].arg.p_depot, '4A');
+  assert.equal(panggilan[0].arg.p_campaign, 'CA1');
+  await call({ action: 'compilationList', campaign: '', offset: 0 });
+  assert.equal(panggilan[1].arg.p_depot, '', 'tanpa pilihan depot berarti semua depot');
+  await call({ action: 'compilationDepots' });
+  assert.equal(panggilan[2].nama, 'rc_compilation_depots');
+});
+
+// Document Center: arsip lebih dari 500 baris dikirim bertahap per 500 dan jumlahnya digabung.
+test('document center archives more than 500 rows in stages of 500', async () => {
+  const { call, panggilan } = prosesBackend((ke, arg) => ({ data: { status: 'success', jumlah: arg.p_ids.length } }));
+  const ids = Array.from({ length: 1234 }, (_, i) => 'id-' + i);
+  const res = await call({ action: 'archiveCompilation', ids, reason: 'uji' });
+  assert.equal(res.status, 'success');
+  assert.equal(res.jumlah, 1234);
+  assert.deepEqual(panggilan.map((p) => [p.nama, p.arg.p_ids.length, p.arg.p_reason]),
+    [['rc_archive_compilation', 500, 'uji'], ['rc_archive_compilation', 500, 'uji'], ['rc_archive_compilation', 234, 'uji']]);
+});
+
+// Document Center: filter Created On diteruskan sebagai tanggal ISO, kosong = null (20261163090000).
+test('document center forwards the created-on date range', async () => {
+  const { call, panggilan } = prosesBackend(() => ({ data: { status: 'success', rows: [], total: 0 } }));
+  await call({ action: 'compilationList', dibuatDari: '2026-10-01', dibuatSampai: '2026-10-14', offset: 0 });
+  assert.equal(panggilan[0].arg.p_dibuat_dari, '2026-10-01');
+  assert.equal(panggilan[0].arg.p_dibuat_sampai, '2026-10-14');
+  await call({ action: 'compilationList', dibuatDari: '', offset: 0 });
+  assert.equal(panggilan[1].arg.p_dibuat_dari, null);
+  assert.equal(panggilan[1].arg.p_dibuat_sampai, null);
+});

@@ -1,9 +1,10 @@
             // ============================================================================
             // MODUL TIMETABLE - matrix depot x campaign, Not Achieved, exclude campaign
             // ============================================================================
-            // Status setiap sel diputuskan di server mengikuti aturan PRD sistem lama, termasuk
-            // dua hal yang mudah salah bila dihitung ulang di browser: record Expired DIABAIKAN,
-            // dan data aktual selalu mengungguli tanda Not Achieved. Layar ini hanya menggambar.
+            // Status setiap sel diputuskan di server, termasuk dua hal yang mudah salah bila
+            // dihitung ulang di browser: Expired adalah tahap akhir dan dihitung SELESAI bersama
+            // Done (20261163040000; dulu diabaikan), dan data aktual selalu mengungguli tanda
+            // Not Achieved. Layar ini hanya menggambar.
 
             let ttData = null;
 
@@ -11,7 +12,9 @@
                 'Not Yet':      'bg-red-500 text-white',
                 'Compiled':     'bg-orange-400 text-white',
                 'Completed':    'bg-green-500 text-white',
-                'Not Achieved': 'bg-white text-gray-400 border border-gray-300'
+                'Not Achieved': 'bg-white text-gray-400 border border-gray-300',
+                // Not Participating diatur di Campaign Master (20261162170000); dihitung seperti NA.
+                'Not Participating': 'bg-gray-200 text-gray-500 border border-gray-300'
             };
 
             // Sama seperti Report: pilihan filter diturunkan dari data yang ada pada matrix,
@@ -33,32 +36,48 @@
                         .map(r => ({ v: r, t: r })), 'Semua Region');
                 isi('ttDepot', (res.depots || [])
                         .map(d => ({ v: d.kodeDepot, t: d.kodeDepot + ' - ' + d.namaDepot })), 'Semua Depot');
+
+                // Tahun selalu dikirim server dari seluruh Campaign Master, tidak mengikuti
+                // Region/Depot. Acuannya sama dengan Report: tahun Periode Start; Periode End
+                // hanya menjadi fallback untuk data lama yang belum mempunyai Periode Start.
+                const tahun = document.getElementById('ttTahunCampaign');
+                const daftarTahun = (res.tahunTersedia || []).map(String);
+                const tahunTerpilih = String(res.tahunCampaign || daftarTahun[0] || '');
+                tahun.innerHTML = '<option value="ALL">Semua Tahun</option>'
+                    + daftarTahun.map(y => '<option value="' + rcEsc(y) + '">' + rcEsc(y) + '</option>').join('');
+                tahun.value = tahunTerpilih;
             }
 
             async function loadTimetable() {
                 showLoadingOverlay();
                 try {
+                    const pilihanTahun = document.getElementById('ttTahunCampaign').value;
                     const res = await fetchApp({
                         action: 'timetableMatrix',
                         filter: {
                             region: document.getElementById('ttRegion').value,
                             depot: document.getElementById('ttDepot').value,
-                            tanggal: document.getElementById('ttTanggal').value
+                            // Saat select belum diisi pada pemuatan pertama, properti ini
+                            // dihilangkan agar server memakai tahun default. Sesudahnya ALL
+                            // dikirim eksplisit ketika pengguna memilih Semua Tahun.
+                            tahunCampaign: pilihanTahun || undefined
                         }
                     });
                     if (res.status !== 'success') throw new Error(res.message || 'Gagal memuat Timetable.');
                     ttData = res;
 
-                    // Campaign aktif berubah mengikuti tanggal acuan, jadi daftar penandaannya
+                    // Campaign berubah mengikuti Tahun Campaign, jadi daftar penandaannya
                     // diisi ulang setiap kali - bukan sekali di awal.
 
                     const catatan = [];
-                    catatan.push(`${res.campaignAktif || 0} campaign aktif per ${rcEsc(String(res.tanggal || '-'))}`);
+                    const labelTahun = String(res.tahunCampaign || '') === 'ALL'
+                        ? 'semua tahun' : 'tahun ' + rcEsc(String(res.tahunCampaign || '-'));
+                    catatan.push(`${res.campaignJumlah ?? res.campaignAktif ?? 0} campaign ${labelTahun}`);
                     catatan.push(`${(res.depots || []).length} depot`);
                     if (res.campaignTanpaPeriode) {
                         // Ini perlu terlihat: campaign tanpa periode tidak pernah masuk penyebut,
                         // sehingga Compile % akan terlihat lebih tinggi daripada kenyataannya.
-                        catatan.push(`${res.campaignTanpaPeriode} campaign tanpa periode (tidak dihitung)`);
+                        catatan.push(`${res.campaignTanpaPeriode} campaign tanpa tahun (tidak dihitung)`);
                     }
                     if (res.campaignDikecualikan) catatan.push(`${res.campaignDikecualikan} dikecualikan`);
                     document.getElementById('ttRingkas').innerText = catatan.join(' · ');
@@ -75,6 +94,9 @@
                     renderTimetable();
                     renderTimetableCampaignTabel();
                     muatDetailNotAchieved();
+                    // Pastikan Chart.js membaca batas card yang sudah final. Ini diperlukan saat
+                    // modul baru saja berubah dari hidden menjadi terlihat.
+                    rcUkurUlangGrafik(document.getElementById('modTimetable'));
                 } catch (e) {
                     showNotification((e && e.message) ? e.message : 'Gagal memuat Timetable.', 'error');
                 } finally { hideLoadingOverlay(); }
@@ -244,9 +266,9 @@
                 // terpisah dari Completed karena keduanya berbeda arti: Cleared memasukkan
                 // Not Achieved, yaitu depot yang memang tidak mengikuti campaign itu.
                 const kartu = [
-                    ['Campaign Aktif', Number(k.campaign || 0).toLocaleString('id-ID'), (k.depot || 0) + ' depot dipantau', 'text-blue-700'],
-                    ['Completed', Number(k.completed || 0).toLocaleString('id-ID'), 'klaim selesai semua', 'text-green-700'],
-                    ['Not Achieved', Number(k.notAchieved || 0).toLocaleString('id-ID'), 'tidak ikut campaign', 'text-gray-600'],
+                    ['Campaign ' + (ttData && ttData.tahunCampaign === 'ALL' ? 'Semua Tahun' : (ttData && ttData.tahunCampaign ? ttData.tahunCampaign : 'Terpilih')), Number(k.campaign || 0).toLocaleString('id-ID'), (k.depot || 0) + ' depot dipantau', 'text-blue-700'],
+                    ['Completed', Number(k.completed || 0).toLocaleString('id-ID'), 'semua klaim Done / Expired', 'text-green-700'],
+                    ['Not Achieved', Number(k.notAchieved || 0).toLocaleString('id-ID'), 'tidak ikut campaign (termasuk NP)', 'text-gray-600'],
                     ['Cleared', Number(k.cleared || 0).toLocaleString('id-ID'), ttPersen(Number(k.clearedPct || 0) * 100) + ' dari total', 'text-emerald-700'],
                     ['Compiled', Number(k.compiled || 0).toLocaleString('id-ID'), ttPersen(Number(k.compiledPct || 0) * 100) + ' dari total', 'text-orange-700'],
                     ['Not Yet', Number(k.notYet || 0).toLocaleString('id-ID'), ttPersen(Number(k.notYetPct || 0) * 100) + ' dari total', 'text-red-600'],
@@ -341,9 +363,9 @@
                 document.getElementById('ttDepotBody').innerHTML = depots.map(function (d) {
                     const selesai = Number(d.completedPersen || 0) >= 100;
                     return '<tr class="border-b border-gray-100 hover:bg-amber-50">'
-                        + '<td class="p-3"><button type="button" onclick="ttBukaDetailDepot(&#39;' + rcEsc(d.kodeDepot) + '&#39;)" class="text-left hover:underline">'
-                        + '<span class="font-black text-blue-700">' + rcEsc(d.kodeDepot) + '</span>'
-                        + '<span class="text-gray-500 text-xs block">' + rcEsc(d.namaDepot) + '</span></button></td>'
+                        + '<td class="p-3">' + rcTautTeks('ttBukaDetailDepot(&#39;' + rcEsc(d.kodeDepot) + '&#39;)',
+                            '<span class="font-black text-blue-700">' + rcEsc(d.kodeDepot) + '</span>'
+                            + '<span class="text-gray-500 text-xs block">' + rcEsc(d.namaDepot) + '</span>', 'block text-left hover:underline') + '</td>'
                         + '<td class="p-3 text-gray-600">' + rcEsc(d.region) + '</td>'
                         + '<td class="p-3 text-right text-green-700 font-bold">' + Number(d.completed || 0) + '</td>'
                         + '<td class="p-3 text-right text-gray-600">' + Number(d.notAchieved || 0) + '</td>'
@@ -387,7 +409,7 @@
                         if (status === 'Completed') r.completed += 1;
                         else if (status === 'Compiled') r.compiled += 1;
                         else if (status === 'Not Yet') r.notYet += 1;
-                        else if (status === 'Not Achieved') r.notAchieved += 1;
+                        else if (status === 'Not Achieved' || status === 'Not Participating') r.notAchieved += 1;
                         r.total += 1;
                     });
                 });
@@ -407,9 +429,9 @@
                 document.getElementById('ttCampaignBody').innerHTML = baris.map(function (r) {
                     const selesai = Number(r.persen || 0) >= 100;
                     return '<tr class="border-b border-gray-100 hover:bg-amber-50">'
-                        + '<td class="p-3"><button type="button" onclick="ttBukaDetailCampaign(&#39;' + rcEsc(r.kode) + '&#39;)" class="text-left hover:underline">'
-                        + '<span class="font-black text-blue-700">' + rcEsc(r.kode) + '</span>'
-                        + '<span class="text-gray-500 text-xs block">' + rcEsc(r.nama) + '</span></button></td>'
+                        + '<td class="p-3">' + rcTautTeks('ttBukaDetailCampaign(&#39;' + rcEsc(r.kode) + '&#39;)',
+                            '<span class="font-black text-blue-700">' + rcEsc(r.kode) + '</span>'
+                            + '<span class="text-gray-500 text-xs block">' + rcEsc(r.nama) + '</span>', 'block text-left hover:underline') + '</td>'
                         + '<td class="p-3 text-right text-green-700 font-bold">' + r.completed + '</td>'
                         + '<td class="p-3 text-right text-orange-700">' + r.compiled + '</td>'
                         + '<td class="p-3 text-right text-red-600 font-bold">' + r.notYet + '</td>'
@@ -421,7 +443,8 @@
                 }).join('') || '<tr><td colspan="7" class="p-6 text-center text-gray-400">Tidak ada campaign yang cocok dengan filter.</td></tr>';
 
                 setTextSafely('ttCampaignTabelCatatan',
-                    'Hanya campaign aktif pada tanggal acuan. ' + baris.length + ' campaign x '
+                    (ttData.tahunCampaign === 'ALL' ? 'Semua Tahun Campaign' : 'Tahun Campaign ' + rcEsc(String(ttData.tahunCampaign || '-'))) + '. '
+                    + baris.length + ' campaign x '
                     + depots.length + ' depot dalam yurisdiksi Anda.');
 
                 rcAktifkanUrutSemua('ttCardCampaignTabel');
@@ -461,9 +484,9 @@
                     const sel = d.sel || {};
                     return '<tr class="hover:bg-amber-50">'
                         + '<td class="p-2 sticky left-0 bg-white z-10 border-b border-r border-gray-200" style="width:200px">'
-                        + '<button type="button" onclick="ttBukaDetailDepot(&#39;' + rcEsc(d.kodeDepot) + '&#39;)" class="text-left hover:underline">'
-                        + '<span class="font-black text-blue-700">' + rcEsc(d.kodeDepot) + '</span>'
-                        + '<span class="text-gray-500 block text-[10px]">' + rcEsc(d.namaDepot) + ' &middot; ' + rcEsc(d.region) + '</span></button></td>'
+                        + rcTautTeks('ttBukaDetailDepot(&#39;' + rcEsc(d.kodeDepot) + '&#39;)',
+                            '<span class="font-black text-blue-700">' + rcEsc(d.kodeDepot) + '</span>'
+                            + '<span class="text-gray-500 block text-[10px]">' + rcEsc(d.namaDepot) + ' &middot; ' + rcEsc(d.region) + '</span>', 'block text-left hover:underline') + '</td>'
                         + '<td class="p-2 text-center border-b border-gray-200 font-bold">' + (d.compilePersen === null ? '-' : d.compilePersen + '%') + '</td>'
                         + '<td class="p-2 text-center border-b border-r border-gray-200 font-bold ' + (Number(d.completedPersen) >= 100 ? 'text-green-700' : 'text-gray-700') + '">'
                         + (d.completedPersen === null ? '-' : d.completedPersen + '%') + '</td>'
@@ -471,7 +494,7 @@
                             const s = sel[c.kode] || 'Not Yet';
                             return '<td class="p-0 border-b border-gray-200" style="width:' + LEBAR_CAMPAIGN + 'px"><div class="m-1 h-6 rounded flex items-center justify-center text-[9px] font-black '
                                 + (TT_WARNA[s] || 'bg-gray-100') + '" title="' + rcEsc(d.kodeDepot) + ' x ' + rcEsc(c.kode) + ': ' + rcEsc(s) + '">'
-                                + (s === 'Not Achieved' ? 'NA' : '') + '</div></td>';
+                                + (s === 'Not Achieved' ? 'NA' : (s === 'Not Participating' ? 'NP' : '')) + '</div></td>';
                         }).join('')
                         + '</tr>';
                 }).join('') || '<tr><td colspan="' + (campaigns.length + 3) + '" class="p-6 text-center text-gray-400">Tidak ada depot yang cocok dengan filter.</td></tr>';
@@ -510,7 +533,7 @@
                                 ? '<button type="button" onclick="ttTandaiPasangan(&#39;' + rcEsc(r.kodeDepot) + '&#39;,&#39;'
                                   + rcEsc(r.kodeCampaign) + '&#39;,false)" '
                                   + 'class="px-3 py-1.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold rounded-lg text-xs">Batalkan</button>'
-                                : '<span class="text-gray-300 text-xs" title="Hanya OSC ke atas yang dapat membatalkan">-</span>')
+                                : '<span class="text-gray-300 text-xs" title="Membatalkan butuh akses Timetable">-</span>')
                             + '</td></tr>';
                     }).join('') || '<tr><td colspan="6" class="p-6 text-center text-gray-400">Belum ada pasangan yang ditandai Not Achieved.</td></tr>';
 
@@ -518,7 +541,7 @@
                     if (catatan) {
                         catatan.innerText = rows.length + ' pasangan ditandai. '
                             + 'Pasangan yang ditandai tidak dapat di-compile maupun di-upload sampai tandanya dibatalkan'
-                            + (ttNaBolehBatalkan ? '.' : ' oleh OSC ke atas.');
+                            + (ttNaBolehBatalkan ? '.' : ' oleh pemegang akses Timetable.');
                     }
                     rcAktifkanUrutSemua('ttCardNotAchieved');
                 } catch (e) { showNotification('Gagal memuat Detail Not Achieved.', 'error'); }
@@ -541,6 +564,10 @@
 
             // Satu tombol untuk satu pasangan, bentuknya mengikuti status pasangan itu.
             function ttTombolTandai(kodeDepot, kodeCampaign, status) {
+                // Not Participating ditetapkan di Campaign Master, bukan ditandai dari sini.
+                if (status === 'Not Participating') {
+                    return '<span class="text-gray-400 text-[11px]" title="Diatur di Key Master > Campaign Master">NP (Campaign Master)</span>';
+                }
                 const na = status === 'Not Achieved';
                 // Diperiksa lebih dulu daripada apa pun: depot di luar jangkauan bertindak tidak
                 // ditawari tombol sama sekali, apa pun statusnya dan apa pun perannya.
@@ -550,7 +577,7 @@
                         ? '<button type="button" onclick="ttTandaiPasangan(&#39;' + rcEsc(kodeDepot) + '&#39;,&#39;'
                           + rcEsc(kodeCampaign) + '&#39;,false)" class="px-3 py-1 bg-white border border-gray-300 '
                           + 'hover:bg-gray-50 text-gray-700 font-bold rounded-lg text-[11px]">Batalkan</button>'
-                        : '<span class="text-gray-300 text-[11px]" title="Hanya OSC ke atas yang dapat membatalkan">terkunci</span>';
+                        : '<span class="text-gray-300 text-[11px]" title="Membatalkan butuh akses Timetable">terkunci</span>';
                 }
                 // Pasangan yang sudah punya data klaim tidak ditawari penandaan: tandanya tidak
                 // akan berefek, dan menawarkan tombol yang pasti sia-sia hanya membingungkan.
@@ -600,13 +627,13 @@
                     depots = depots.filter(d => Number(d.completedPersen || 0) < 100);
                 }
 
-                const urutan = { 'Not Yet': 0, 'Compiled': 1, 'Completed': 2, 'Not Achieved': 3 };
+                const urutan = { 'Not Yet': 0, 'Compiled': 1, 'Completed': 2, 'Not Achieved': 3, 'Not Participating': 3 };
                 let completed = 0, compiled = 0, notYet = 0, na = 0;
                 depots.forEach(function (d) {
                     const s = (d.sel || {})[c.kode] || 'Not Yet';
                     if (s === 'Completed') completed += 1;
                     else if (s === 'Compiled') compiled += 1;
-                    else if (s === 'Not Achieved') na += 1;
+                    else if (s === 'Not Achieved' || s === 'Not Participating') na += 1;
                     else notYet += 1;
                 });
 
@@ -667,7 +694,7 @@
                 const campaigns = ttData.campaigns || [];
                 const sel = d.sel || {};
 
-                const urutan = { "Not Yet": 0, "Compiled": 1, "Completed": 2, "Not Achieved": 3 };
+                const urutan = { "Not Yet": 0, "Compiled": 1, "Completed": 2, "Not Achieved": 3, "Not Participating": 3 };
                 const baris = campaigns.slice().sort(function (a, b) {
                     // Yang belum selesai ditaruh di atas: itu yang perlu ditindaklanjuti.
                     const sa = sel[a.kode] || "Not Yet", sb = sel[b.kode] || "Not Yet";
@@ -709,7 +736,7 @@
                     + '<th class="p-2 text-left text-[10px] font-black uppercase">Periode</th>'
                     + '<th class="p-2 text-center text-[10px] font-black uppercase">Status</th>'
                     + '<th class="p-2 text-center text-[10px] font-black uppercase">Not Achieved</th>'
-                    + '</tr></thead><tbody>' + (baris || '<tr><td colspan="5" class="p-4 text-center text-gray-400">Tidak ada campaign aktif.</td></tr>')
+                    + '</tr></thead><tbody>' + (baris || '<tr><td colspan="5" class="p-4 text-center text-gray-400">Tidak ada campaign pada tahun terpilih.</td></tr>')
                     + '</tbody></table></div>');
             }
 
@@ -726,13 +753,21 @@
             function downloadTimetableExcel() {
                 if (!ttData) { showNotification('Belum ada data untuk diekspor.', 'warning'); return; }
                 const campaigns = ttData.campaigns || [];
+                // Sama dengan matrix di layar: penyaring "hanya yang belum selesai" ikut berlaku,
+                // dan persen ditulis seperti tampilannya ("-" bila belum ada, selain itu n%).
+                let depots = ttData.depots || [];
+                if (document.getElementById('ttHanyaBelum').checked) {
+                    depots = depots.filter(d => Number(d.completedPersen || 0) < 100);
+                }
+                const persen = v => (v === null || v === undefined) ? '-'
+                    : { t: 'n', v: Number(v) / 100, z: Number.isInteger(Number(v)) ? '0%' : '0.0#%' };
                 const aoa = [['Kode Depot', 'Nama Depot', 'Region', 'Compile %', 'Completed %']
                     .concat(campaigns.map(c => c.kode))];
-                (ttData.depots || []).forEach(d => {
-                    aoa.push([d.kodeDepot, d.namaDepot, d.region, d.compilePersen, d.completedPersen]
+                depots.forEach(d => {
+                    aoa.push([rcSelTeks(d.kodeDepot), d.namaDepot, rcSelTeks(d.region), persen(d.compilePersen), persen(d.completedPersen)]
                         .concat(campaigns.map(c => (d.sel || {})[c.kode] || 'Not Yet')));
                 });
                 const wb = XLSX.utils.book_new();
                 XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'Timetable');
-                XLSX.writeFile(wb, 'RC_Timetable.xlsx');
+                XLSX.writeFile(wb, 'RC_Timetable_' + (ttData.tahunCampaign === 'ALL' ? 'Semua_Tahun' : String(ttData.tahunCampaign || 'Campaign')) + '.xlsx');
             }

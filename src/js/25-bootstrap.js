@@ -43,7 +43,7 @@
 
             function startRuntimeCounter() {
                 if (runtimeInterval) clearInterval(runtimeInterval); let sT = Date.now(); let cE = document.getElementById('runtimeCounter');
-                if (cE) { runtimeInterval = setInterval(() => { let d = Math.floor((Date.now() - sT) / 1000); let h = String(Math.floor(d / 3600)).padStart(2, '0'); let m = String(Math.floor((d % 3600) / 60)).padStart(2, '0'); let s = String(d % 60).padStart(2, '0'); cE.innerText = `${h}:${m}:${s}`; }, 1000); }
+                if (cE) { runtimeInterval = setInterval(() => { let d = Math.floor((Date.now() - sT) / 1000); let h = String(Math.floor(d / 3600)).padStart(2, '0'); let m = String(Math.floor((d % 3600) / 60)).padStart(2, '0'); let s = String(d % 60).padStart(2, '0'); cE.dataset.teks = `${h}:${m}:${s}`; }, 1000); }
             }
 
             function normalizeName(name) { if (!name) return ""; let n = name.toString().trim(); if (n.toLowerCase().indexOf("jatiasih") !== -1) { n = n.replace(/jatiasih/gi, "Bekasi"); } return n; }
@@ -84,18 +84,19 @@
 
             // Tombol "Refresh Data" di modul Claim Upload - memuat ulang daftar dokumen (status terbaru)
             // dari server tanpa perlu logout/login ulang. Endpoint ringan, hanya sheet Compile.
+            // Sejak master diambil saat perlu, globalDocuments dan globalCustomers adalah CACHE
+            // pencarian, bukan salinan seluruh isi server. Menyegarkan berarti mengosongkan cache
+            // itu: baris berikutnya yang dicari akan diambil ulang dengan status terbaru. Dulu
+            // tombol ini mengunduh seluruh daftar dokumen - pada data besar puluhan ribu baris,
+            // untuk mencari segelintir yang sedang diketik.
             async function refreshUploadDocuments() {
-                setDisabledSafely('btnRefreshUploadDocs', true);
-                showLoadingOverlay("Menyegarkan data dokumen...");
-                try {
-                    let res = await fetchApp({ action: 'refreshDocuments' });
-                    if (res.status === 'success') {
-                        globalDocuments = res.documents || [];
-                        globalDocuments.forEach(d => d.status = normalizeClaimStatus(d.status));
-                        showNotification("Data dokumen berhasil disegarkan.", "success");
-                    } else { showNotification(res.message || "Gagal menyegarkan data.", "error"); }
-                } catch (e) { showNotification("Terjadi kesalahan saat menyegarkan data.", "error"); }
-                finally { setDisabledSafely('btnRefreshUploadDocs', false); hideLoadingOverlay(); }
+                globalDocuments = [];
+                globalCustomers = [];
+                if (typeof rcMasterDiminta !== 'undefined') {
+                    rcMasterDiminta.cust.clear();
+                    rcMasterDiminta.doc.clear();
+                }
+                showNotification("Data dokumen akan dimuat ulang dengan status terbaru.", "success");
             }
 
             function normalizeMonthUI(val) {

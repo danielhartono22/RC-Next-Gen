@@ -653,17 +653,42 @@
             //
             // Setiap bagian menjadi satu sheet. Bagian yang kosong dilewati, bukan menghasilkan
             // sheet kosong yang membuat orang mengira datanya hilang.
+            // Elemen ketiga: judul kolom khusus lembar itu, karena istilah di layar berbeda per
+            // tabel - netClaimed tampil sebagai "Done" di tabel Region, Depot dan Campaign, tetapi
+            // "Net Claimed" di Cost Center.
             const RT_SHEET = [
                 ['KPI',                  (d) => rtKpiBaris(d.dashboard)],
                 ['Tren Bulanan',         (d) => (d.dashboard && d.dashboard.trenBulanan) || []],
-                ['Sebaran Status',       (d) => (d.dashboard && d.dashboard.status_distribusi) || []],
-                ['Aging',                (d) => (d.dashboard && d.dashboard.aging) || []],
-                ['Per Region',           (d) => (d.dashboard && d.dashboard.region) || []],
-                ['Per Depot',            (d) => (d.dashboard && d.dashboard.depot) || []],
-                ['Performa per Campaign',(d) => (d.dashboard && d.dashboard.campaign) || []],
-                ['Cost Center 1',        (d) => (d.cc1 && d.cc1.rows) || []],
-                ['Cost Center 2',        (d) => (d.cc2 && d.cc2.rows) || []]
+                // Mengikuti cara baca yang sedang tampil (By Pending Group / By Stage), bukan
+                // status mentah, supaya berkasnya sama dengan grafik di layar.
+                ['Sebaran Status',       (d) => d.dashboard ? rtBarisStatus().map(b => ({ status: b.status, qty: b.qty, nilai: b.nilai })) : [],
+                                         { qty: 'Dokumen' }],
+                ['Aging',                (d) => (d.dashboard && d.dashboard.aging) || [], { qty: 'Dokumen' }],
+                ['Per Region',           (d) => (d.dashboard && d.dashboard.region) || [],
+                                         { netClaimed: 'Done', outstandingValue: 'Outstanding', clearingRate: 'Clearing' }],
+                ['Per Depot',            (d) => (d.dashboard && d.dashboard.depot) || [],
+                                         { netClaimed: 'Done', outstandingQty: 'Outstanding (dok)', outstandingValue: 'Outstanding', clearingRate: 'Clearing' }],
+                ['Performa per Campaign',(d) => (d.dashboard && d.dashboard.campaign) || [], { netClaimed: 'Done' }],
+                ['Cost Center 1',        (d) => (d.cc1 && d.cc1.rows) || [], { qty: 'Qty', clearingRate: 'Clearing' }],
+                ['Cost Center 2',        (d) => (d.cc2 && d.cc2.rows) || [], { qty: 'Qty', clearingRate: 'Clearing' }]
             ];
+
+            // Judul kolom berkas memakai istilah yang sama dengan tabel di layar, bukan nama
+            // kunci data. Kunci yang tidak terdaftar di sini tetap ditulis apa adanya.
+            const RT_JUDUL_KOLOM = {
+                kodeDepot: 'Kode Depot', namaDepot: 'Nama Depot', region: 'Region',
+                kodeCampaign: 'Kode Campaign', namaCampaign: 'Nama Campaign',
+                qty: 'Klaim', netCb: 'Net CB', netClaimed: 'Net Claimed', grossClaimed: 'Gross Claimed',
+                cbExpired: 'CB Expired', outstandingQty: 'Outstanding', outstandingValue: 'Outstanding Amt',
+                outstandingRate: 'Outstanding %', clearingRate: 'Clearing Rate',
+                bulan: 'Periode', label: 'Bulan', namaBulan: 'Bulan', nilai: 'Nilai',
+                kelompok: 'Umur', status: 'Status'
+            };
+
+            const RT_URUT_KOLOM = ['Keterangan', 'Nilai', 'bulan', 'namaBulan', 'label', 'kelompok', 'status',
+                'kodeDepot', 'namaDepot', 'region', 'kodeCampaign', 'namaCampaign', 'qty', 'netCb', 'netClaimed',
+                'grossClaimed', 'cbExpired', 'outstandingQty', 'outstandingValue', 'outstandingRate', 'clearingRate', 'nilai'];
+            function rtUrutKolom(k) { const i = RT_URUT_KOLOM.indexOf(k); return i < 0 ? RT_URUT_KOLOM.length : i; }
 
             // KPI berupa satu objek, bukan daftar baris. Diubah menjadi pasangan nama-nilai
             // supaya ia dapat dibaca di dalam sheet seperti tabel lainnya.
@@ -708,9 +733,13 @@
                 RT_SHEET.forEach(function (s) {
                     const rows = s[1](rtData) || [];
                     if (!rows.length) return;
-                    const kolom = Object.keys(rows[0]);
-                    const aoa = [kolom].concat(rows.map(function (r) {
-                        return kolom.map(function (k) { return rcExportAmount(k,r[k],r); });
+                    // Urutan kolom mengikuti tabel di layar (pengenal dulu, lalu angka), bukan
+                    // urutan kunci di data; kunci yang tidak dikenal menyusul di belakang.
+                    const kolom = Object.keys(rows[0]).sort((a, b) => rtUrutKolom(a) - rtUrutKolom(b));
+                    const aoa = [kolom.map(k => (s[2] && s[2][k]) || RT_JUDUL_KOLOM[k] || k)].concat(rows.map(function (r) {
+                        return kolom.map(function (k) {
+                            return /^kode/i.test(k) ? rcSelTeks(r[k]) : rcExportAmount(k, r[k], r);
+                        });
                     }));
                     // Nama sheet Excel dibatasi 31 karakter dan tidak boleh memuat : \ / ? * [ ]
                     const nama = s[0].replace(/[:\/?*\[\]]/g, '-').slice(0, 31);

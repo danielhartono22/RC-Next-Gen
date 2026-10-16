@@ -1,11 +1,34 @@
+            // Dropdown filter Cashback List dan Summary, dijaga selama sisa halaman dimuat.
+            const RC_DASH_DROPDOWN = ['histOscDropdown', 'histDepotDropdown', 'histCampDropdown',
+                                      'sumOscDropdown', 'sumDepotDropdown', 'sumCampDropdown', 'sumYearDropdown'];
+
             async function fetchDashboardData() {
                 showLoadingOverlay("Mengkalkulasi Analitik & Historikal...");
+                let overlay = true;
+                const role = currentUserData.sysRole || currentUserData.role || '';
+                const hist = [], comp = [];
                 try {
-                    let role = currentUserData.sysRole || currentUserData.role || '';
-                    let res = await fetchApp({ action: 'getDashboardData', requesterId: currentUserData.userId, requesterRole: role, managedDepots: currentUserData.managedDepots });
-                    if (res.status === 'success') { globalHistoryData = res.history || []; globalHistoryData.forEach(d => d.status = normalizeClaimStatus(d.status)); globalCompileData = res.compileData || []; populateDashFilters(); renderHistoryTable(true); renderSummary(); }
-                    else throw new Error(res.message || "Unidentified Server Error");
-                } catch (e) { showNotification(e.message || "Gagal memuat data dashboard.", "error"); renderHistoryTable(true); renderSummary(); } finally { hideLoadingOverlay(); }
+                    // Seluruh klaim dimuat per halaman (lihat 27-muat-bertahap.js). Tabel dan
+                    // ringkasan diperbarui saat halaman berdatangan; angka ringkasan baru final
+                    // setelah indikator di pojok kanan bawah hilang.
+                    await rcMuatBertahap({
+                        kunci: 'analytics', label: 'Data analitik',
+                        ambil: (setelah, pertama) => fetchApp({ action: 'getDashboardData', requesterId: currentUserData.userId, requesterRole: role, managedDepots: currentUserData.managedDepots, setelah: setelah, limit: pertama ? 300 : 1000 }),
+                        terima: (res) => {
+                            const h = res.history || [];
+                            h.forEach(d => d.status = normalizeClaimStatus(d.status));
+                            hist.push(...h); comp.push(...(res.compileData || []));
+                            globalHistoryData = hist; globalCompileData = comp;
+                        },
+                        gambar: (pertama) => {
+                            const pilihan = pertama ? null : rcSimpanPilihanMulti(RC_DASH_DROPDOWN);
+                            populateDashFilters();
+                            if (pilihan) rcPulihkanPilihanMulti(pilihan);
+                            renderHistoryTable(pertama); renderSummary();
+                            if (overlay) { hideLoadingOverlay(); overlay = false; }
+                        }
+                    });
+                } catch (e) { showNotification(e.message || "Gagal memuat data dashboard.", "error"); renderHistoryTable(true); renderSummary(); } finally { if (overlay) hideLoadingOverlay(); }
             }
 
             function populateDashFilters() {
@@ -56,7 +79,7 @@
                     let bdgColor = rcStatusClass(r.status);
                     let bdg = `<span class="px-2 py-1 ${bdgColor} text-[10px] rounded uppercase font-bold">${r.status}</span>`;
                     const rowIndex=globalHistoryData.indexOf(r);
-                    rowsHtml += `<tr class="hover:bg-slate-50 border-b border-gray-100"><td class="p-3 text-xs font-black text-blue-700 rc-wrap">${rcEsc(r.noDoc)}</td><td class="p-3 rc-wrap"><button class="text-blue-600 text-xs" onclick="rcHistoryCustomer(${rowIndex})">${rcEsc(r.kodeToko)}</button></td><td class="p-3 rc-wrap"><button class="font-bold text-sm" onclick="rcHistoryCustomer(${rowIndex})">${rcEsc(r.namaToko)}</button></td><td class="p-3 rc-wrap text-xs">${rcEsc(r.codeCampaign)}</td><td class="p-3 rc-wrap text-sm">${rcEsc(r.campaign)}</td><td class="p-3 text-right font-black text-red-600">${rcMoney(r.totalClaim)}</td><td class="p-3 text-center">${bdg}</td><td class="p-3 rc-time text-xs">${rcHistoryDates(r)}</td><td class="p-3"><button onclick="toggleRowDetails('hist-detail-${rowIndex}')" class="bg-blue-50 text-blue-600 font-bold px-3 py-1.5 rounded-lg text-xs">Details</button></td></tr><tr id="hist-detail-${rowIndex}" class="hidden expanded-details"><td colspan="9" class="p-4 bg-gray-50"><div class="grid grid-cols-1 md:grid-cols-3 gap-3">${rcHistoryDetails(r)}</div></td></tr>`;
+                    rowsHtml += `<tr class="hover:bg-slate-50 border-b border-gray-100"><td class="p-3 text-xs font-black text-blue-700 rc-wrap">${rcEsc(r.noDoc)}</td><td class="p-3 rc-wrap">${rcTautTeks('rcHistoryCustomer(' + rowIndex + ')', rcEsc(r.kodeToko), 'text-blue-600 text-xs hover:underline')}</td><td class="p-3 rc-wrap">${rcTautTeks('rcHistoryCustomer(' + rowIndex + ')', rcEsc(r.namaToko), 'font-bold text-sm hover:underline')}</td><td class="p-3 rc-wrap text-xs">${rcEsc(r.codeCampaign)}</td><td class="p-3 rc-wrap text-sm">${rcEsc(r.campaign)}</td><td class="p-3 text-right font-black text-red-600">${rcMoney(r.totalClaim)}</td><td class="p-3 text-center">${bdg}</td><td class="p-3 rc-time text-xs">${rcHistoryDates(r)}</td><td class="p-3 text-xs rc-wrap">${rcRemarkHtml(r.remark)}</td><td class="p-3"><button onclick="toggleRowDetails('hist-detail-${rowIndex}')" class="bg-blue-50 text-blue-600 font-bold px-3 py-1.5 rounded-lg text-xs">Details</button></td></tr><tr id="hist-detail-${rowIndex}" class="hidden expanded-details"><td colspan="10" class="p-4 bg-gray-50"><div class="grid grid-cols-1 md:grid-cols-3 gap-3">${rcHistoryDetails(r)}</div></td></tr>`;
                 });
                 tb.innerHTML = rowsHtml; renderHistoryPagination(totalItems, totalPages);
             }
@@ -183,6 +206,9 @@
             function classifyCellForExcel(text) {
                 let t = (text === null || text === undefined) ? '' : String(text).trim();
                 if (t === '' || t === '-') return { v: t, fmt: null };
+                // Angka berawalan nol (kode, KTP, NPWP, No Rekening) adalah teks: menjadikannya
+                // angka membuang nol di depannya, dan isi berkas tidak lagi sama dengan layar.
+                if (/^0\d/.test(t)) return { v: t, fmt: null, text: true };
                 let pctMatch = t.match(/^-?\d+(\.\d+)?%$/);
                 if (pctMatch) { let num = parseFloat(t.replace('%', '')); if (!isNaN(num)) return { v: num, fmt: XLSX_FMT_PERCENT }; }
                 let cleaned = t.replace(/rp/gi, '').trim();

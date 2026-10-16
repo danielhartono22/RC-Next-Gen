@@ -1,10 +1,11 @@
 // Shared display and access rules for the 23 September release.
-const RC_CB_LABELS = ['Transfer', 'CN', 'Rebate', 'Rebate Manual'];
+// Voucher kategori sendiri sejak 20261163100000 (alurnya sama dengan Rebate Manual); dulu
+// hanya nama lain Transfer.
+const RC_CB_LABELS = ['Transfer', 'CN', 'Voucher', 'Rebate', 'Rebate Manual'];
 function rcCbLabel(value) {
     const raw = String(value || '').trim();
     const key = raw.toLowerCase();
     if (['ra07','ra7','rebate manual'].includes(key)) return 'Rebate Manual';
-    if (key === 'voucher') return 'Transfer';
     return RC_CB_LABELS.find(v => v.toLowerCase() === key) || raw;
 }
 function rcDisplayDate(value, withTime = false) {
@@ -32,9 +33,37 @@ function rcDetailCard(title, value) {
 function rcHistoryDates(r) {
     return [['Submitted',r.submittedAt||r.tglUpload],['Approved',r.approvedAt||r.tglApprove],['Process OSC — Released',r.releasedAt||r.tglRelease],['Process OSC — Claimed',r.claimedAt||r.tglClaim],['Bulk Process',r.bulkProcessedAt||r.tglBulk],['Done',r.doneAt||r.tglClearing]].map(([k,v])=>'<div class="mb-1"><span class="text-gray-400">'+k+': </span>'+rcEsc(rcDisplayDate(v,true))+'</div>').join('');
 }
+// "Process by" memuat pelaku setiap tahap (permintaan pemilik 9 Oktober 2026), bukan hanya
+// pelaku terakhir. Tahap tanpa pelaku tercatat - mis. data impor spreadsheet lama - ditulis "-".
+// Server lama yang belum mengirim pelaku per tahap tetap menampilkan pelaku terakhirnya.
+function rcProsesSemuaTahap(r) {
+    if (!('submittedBy' in r)) return r.processBy;
+    return [['Submitted',r.submittedBy],['Approved',r.approvedBy],['Released',r.releasedBy],['Claimed',r.claimedBy],['Clearing',r.clearedBy]]
+        .map(([k,v])=>k+': '+(String(v||'').trim()||'-')).join('\n');
+}
+// Remark boleh lebih dari satu kejadian (20261163150000): satu per baris; Doc Amendment merah.
+// Teks di dalam <button> tidak bisa diblok untuk disalin. Tautan teks di tabel memakai span
+// ber-role button; klik diabaikan bila pengguna sedang memblok teks (16 Oktober 2026).
+function rcAdaSeleksi() { try { return String(window.getSelection ? window.getSelection() : '').trim() !== ''; } catch (e) { return false; } }
+function rcTautTeks(aksi, isi, kelas) {
+    return '<span role="button" tabindex="0" onclick="if(rcAdaSeleksi())return;' + aksi + '" onkeydown="if(event.key===&#39;Enter&#39;)this.click()" class="cursor-pointer select-text ' + (kelas || '') + '">' + isi + '</span>';
+}
+function rcRemarkHtml(remark) {
+    const isi = String(remark || '').split(', ').map(x => x.trim()).filter(Boolean);
+    if (!isi.length) return '<span class="text-gray-300">-</span>';
+    return isi.map(x => '<span class="block font-bold ' + (/^Doc Amendment/.test(x) ? 'text-red-600' : 'text-amber-700') + '">' + rcEsc(x) + '</span>').join('');
+}
+// Pelaku Amend (20261163150000) ditampilkan merah di Process by, sesudah tahap-tahap biasa.
+function rcAmendBarisHtml(r) {
+    return (Array.isArray(r.amendBy) ? r.amendBy : []).map(a => '<span class="block text-red-600 font-bold">Amend (' + rcEsc(a.dari || '-') + '): '
+        + rcEsc(a.oleh || '-') + (a.waktu ? ' &middot; ' + rcEsc(a.waktu) : '') + '</span>').join('');
+}
+function rcDetailCardHtml(title, html) {
+    return '<div class="bg-white p-3 rounded-lg shadow-sm border border-gray-200 min-w-0"><span class="font-bold text-gray-500 block mb-1 uppercase text-[10px]">'+rcEsc(title)+'</span><div class="text-xs font-semibold break-words">'+(html || '-')+'</div></div>';
+}
 function rcHistoryDetails(r) {
     const batches = [['Submitted',r.batchUpload],['Released',r.batchRelease],['Claimed',r.batchClaim],['Done',r.batchClearing]].map(([k,v])=>k+': '+(v||'-')).join('\n');
-    return rcDetailCard('No Batch',batches)+rcDetailCard('SO Date Start / End',rcDisplayDate(r.soStart)+'\n'+rcDisplayDate(r.soEnd))+rcDetailCard('Billing Date Start / End',rcDisplayDate(r.billingStart)+'\n'+rcDisplayDate(r.billingEnd))+rcDetailCard('Remark',r.remark)+rcDetailCard('Process by',r.processBy)+rcDetailCard('Jenis CB',rcCbLabel(r.jenisCb));
+    return rcDetailCard('No Batch',batches)+rcDetailCard('SO Date Start / End',rcDisplayDate(r.soStart)+'\n'+rcDisplayDate(r.soEnd))+rcDetailCard('Billing Date Start / End',rcDisplayDate(r.billingStart)+'\n'+rcDisplayDate(r.billingEnd))+rcDetailCardHtml('Remark',rcRemarkHtml(r.remark))+rcDetailCardHtml('Process by',String(rcProsesSemuaTahap(r)||'-').split('\n').map(x=>'<span class="block">'+rcEsc(x)+'</span>').join('')+rcAmendBarisHtml(r))+rcDetailCard('Jenis CB',rcCbLabel(r.jenisCb));
 }
 
 let rcActiveContext = {module:'Home',tab:'Home'};
@@ -57,7 +86,7 @@ const RC_TAB_BUTTONS = {
     'process.claimFin':'subnav_claimFin','process.clearing':'subnav_clearing',
     'analytics.history':'subnav_history','analytics.summary':'subnav_summary',
     'keyMaster.customer':'kmTabCustomer','keyMaster.campaign':'kmTabCampaign','keyMaster.depot':'kmTabDepot',
-    'access.list':'mTabList','access.add':'mTabAdd','access.req':'mTabReq','access.email':'mTabEmail','access.exclude':'mTabExclude','access.arsip':'mTabArsip','access.grade':'mTabGrade',
+    'access.list':'mTabList','access.add':'mTabAdd','access.req':'mTabReq','access.email':'mTabEmail','access.emailPengajuan':'mTabEmailPengajuan','access.exclude':'mTabExclude','access.arsip':'mTabArsip','access.grade':'mTabGrade','access.approval':'mTabApproval',
     'report.dashboard':'rtTabDashboard','report.cc1':'rtTabCc1','report.cc2':'rtTabCc2',
     'people.osc':'peopleTabOsc','people.supervisor':'peopleTabSupervisor'
 };
@@ -74,26 +103,53 @@ applyRoleBasedUI=function(user){rcOriginalApplyRoleUI(user);rcApplyTabUI();};
 const rcOriginalLogActivity=logActivity;
 logActivity=function(detail){
     if (!currentUserData) return;
-    const batch=String(detail||'').match(/(?:No Batch|Batch)\s*:\s*([^\s,;]+)/i)?.[1] || '';
+    // Satu proses bisa membawa beberapa batch berurutan sama yang hanya beda digit kejadian
+    // (020521610260003, 120521610260003) - seluruh daftarnya masuk kolom Batch (20261163160000).
+    const batch=String(detail||'').match(/(?:No Batch|Batch)\s*:\s*([^\s,;]+(?:\s*,\s*[^\s,;]{12,})*)/i)?.[1] || '';
     return fetchApp({action:'logActivity',detail:detail,module:rcActiveContext.module,tab:rcActiveContext.tab,batch:batch,stage:rcActiveContext.tab}).catch(()=>{});
 };
 
+// Tab yang bawaannya MATI (tab_rights): hanya tercentang bila memang sudah diberi, termasuk saat
+// mendaftarkan akun baru. Tab lain bawaannya tercentang mengikuti modulnya (20261163140000).
+const RC_TAB_OPTIN=['access.approval','compilation.amend'];
+// Izin modul akun saat dialog dibuka - acuan ketika peran diganti bolak-balik di dialog.
+let rcMatriksIzinAwal=new Set();
 async function renderPermissionMatrix(user) {
     const host=document.getElementById('editModuleMatrix');if(!host)return;
+    if(!user||!user.__ulang)rcMatriksIzinAwal=new Set(user?.permissions||[]);
     try {
         if(!rcPermissionCatalog){const r=await fetchApp({action:'permissionCatalog'});if(r.status!=='success')throw Error(r.message||'Katalog izin gagal dimuat');rcPermissionCatalog=r.rows;}
         const held=user?.permissions||[],role=(user?.sysRole||user?.role||'').toLowerCase();
         host.innerHTML=rcPermissionCatalog.map(c=>{
             const intrinsic=role==='system manager'||role==='depot head'||role==='management'||(role==='supervisor'&&c.key==='n')||!c.code;
             const on=intrinsic||held.includes(c.code);
-            return '<fieldset class="border border-gray-200 rounded-xl p-3"><legend class="text-xs font-black px-1">'+rcEsc(c.modul)+'</legend><label class="flex gap-2 text-xs font-bold mb-3"><input type="checkbox" class="perm-matrix rounded" data-permkey="'+rcEsc(c.key)+'" '+(on?'checked ':'')+(intrinsic?'disabled ':'')+'onchange="rcMatrixModuleChanged(this)"> Izin modul</label><label class="flex gap-2 text-xs text-blue-700 mb-2"><input type="checkbox" '+((c.tabs||[]).every(t=>user?.tabs?.[t.code]!==false)&&on?'checked ':'')+'onchange="rcMatrixCheckTabs(this)"> Pilih semua tab</label>'+ (c.tabs||[]).map(t=>'<label class="flex gap-2 text-xs py-1"><input class="perm-tab rounded text-pink-600" data-tabcode="'+rcEsc(t.code)+'" type="checkbox" '+(on&&user?.tabs?.[t.code]!==false?'checked ':'')+(!on?'disabled ':'')+(role==='system manager'?'disabled ':'')+'>'+rcEsc(t.title)+'</label>').join('')+'</fieldset>';
+            return '<fieldset class="border border-gray-200 rounded-xl p-3"><legend class="text-xs font-black px-1">'+rcEsc(c.modul)+'</legend><label class="flex gap-2 text-xs font-bold mb-3"><input type="checkbox" class="perm-matrix rounded" data-permkey="'+rcEsc(c.key)+'" '+(on?'checked ':'')+(intrinsic?'disabled ':'')+'onchange="rcMatrixModuleChanged(this)"> Izin modul</label><label class="flex gap-2 text-xs text-blue-700 mb-2"><input type="checkbox" '+((c.tabs||[]).every(t=>user?.tabs?.[t.code]!==false)&&on?'checked ':'')+'onchange="rcMatrixCheckTabs(this)"> Pilih semua tab</label>'+ (c.tabs||[]).map(t=>'<label class="flex gap-2 text-xs py-1"><input class="perm-tab rounded text-pink-600" data-tabcode="'+rcEsc(t.code)+'" type="checkbox" '+(on&&(RC_TAB_OPTIN.includes(t.code)?user?.tabs?.[t.code]===true:user?.tabs?.[t.code]!==false)?'checked ':'')+(!on?'disabled ':'')+(role==='system manager'?'disabled ':'')+'>'+rcEsc(t.title)+'</label>').join('')+'</fieldset>';
         }).join('');
     } catch(e) {rcPermissionCatalog=null;host.innerHTML='<p class="text-red-600 text-sm">'+rcEsc(e.message)+'. Buka ulang sebelum menyimpan.</p>';}
 }
 function rcMatrixModuleChanged(input){input.closest('fieldset').querySelectorAll('.perm-tab').forEach(e=>{e.disabled=!input.checked;e.checked=input.checked;});}
 function rcMatrixCheckTabs(input){input.closest('fieldset').querySelectorAll('.perm-tab').forEach(e=>{if(!e.disabled)e.checked=input.checked;});}
 function rcMatrixValues(){const o={};document.querySelectorAll('.perm-matrix').forEach(e=>o[e.dataset.permkey]=e.checked?'Yes':'No');return o;}
-function rcTabMatrixValues(){const o={};document.querySelectorAll('.perm-tab').forEach(e=>o[e.dataset.tabcode]=e.checked);return o;}
+// Tab dari modul yang tidak dicentang (kotaknya nonaktif) TIDAK dikirim. Dulu dikirim sebagai
+// "mati" eksplisit, sehingga ketika peran akun itu kemudian memegang modul tersebut - misalnya
+// diangkat menjadi Depot Head yang memegang seluruh izin - tabnya tetap tertutup walau di
+// Access Management tampak terbuka (20261162150000).
+function rcTabMatrixValues(){const o={};document.querySelectorAll('.perm-tab').forEach(e=>{if(!e.disabled)o[e.dataset.tabcode]=e.checked;});return o;}
+// Peran diganti di dialog: matriks digambar ulang untuk peran BARU dengan pilihan yang sudah dibuat
+// tetap dipertahankan - modul yang dicentang tetap dicentang, tab yang sengaja dimatikan tetap mati.
+// Depot Head bawaannya tanpa Overdue dan On Hold & Expired kecuali tab itu memang sudah dicentang.
+async function rcMatriksUntukPeran(peran){
+    const host=document.getElementById('editModuleMatrix');if(!host||!rcPermissionCatalog)return;
+    const izin=[],tabs={};
+    // Modul yang kotaknya nonaktif melekat pada peran sebelumnya, bukan pilihan; untuknya dipakai
+    // izin saat dialog dibuka, supaya admin -> Depot Head -> admin kembali ke pilihan semula.
+    host.querySelectorAll('.perm-matrix').forEach(e=>{const c=rcPermissionCatalog.find(x=>x.key===e.dataset.permkey);if(c&&c.code&&(e.disabled?rcMatriksIzinAwal.has(c.code):e.checked))izin.push(c.code);});
+    host.querySelectorAll('.perm-tab').forEach(e=>{if(!e.disabled&&!e.checked)tabs[e.dataset.tabcode]=false;});
+    if(String(peran||'').toLowerCase()==='depot head'){
+        host.querySelectorAll('.perm-tab').forEach(e=>{if(['approval.ovd','approval.hold'].includes(e.dataset.tabcode)&&!(!e.disabled&&e.checked))tabs[e.dataset.tabcode]=false;});
+    }
+    await renderPermissionMatrix({__ulang:true,sysRole:peran,role:peran,permissions:izin,tabs:tabs});
+}
 
 function rcWorkflowFilter(prefix,type){
     const wrap=document.getElementById(prefix+'Search')?.closest('.flex.flex-wrap');if(!wrap||document.getElementById(prefix+'CbType'))return;

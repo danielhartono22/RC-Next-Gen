@@ -3,7 +3,7 @@
 alter function rc_private.mutate_claims(text,jsonb,uuid,text) rename to mutate_claims_unchecked;
 revoke all on function rc_private.mutate_claims_unchecked(text,jsonb,uuid,text) from public,anon,authenticated;
 
-create function rc_private.mutate_claims(p_action text,p_items jsonb,p_request_id uuid,p_reason text)
+create or replace function rc_private.mutate_claims(p_action text,p_items jsonb,p_request_id uuid,p_reason text)
 returns jsonb language plpgsql security definer set search_path='' as $$
 declare item jsonb; field record; month_value jsonb;
 begin

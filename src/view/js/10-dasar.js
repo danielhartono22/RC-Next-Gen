@@ -169,9 +169,27 @@
                 const isi = kartu.querySelector('.rc-expand-body') || kartu;
                 const penanda = document.createComment('rc-expand-placeholder');
                 isi.parentNode.insertBefore(penanda, isi);
-                rcExpandAsal = { isi: isi, penanda: penanda, kelas: isi.className };
+                const wadahKanvas = [];
+                isi.querySelectorAll('canvas').forEach(function (canvas) {
+                    const wadah = canvas.parentElement;
+                    if (wadah && wadah !== isi && !wadahKanvas.some(x => x.el === wadah)) {
+                        wadahKanvas.push({ el: wadah, gaya: wadah.getAttribute('style') });
+                    }
+                });
+                rcExpandAsal = {
+                    isi: isi, penanda: penanda, kelas: isi.className,
+                    gaya: isi.getAttribute('style'), wadahKanvas: wadahKanvas
+                };
 
-                isi.className = 'w-full h-full';
+                isi.classList.add('rc-expanded-content');
+                if (isi.querySelector('canvas')) {
+                    isi.classList.add('rc-expanded-chart');
+                    wadahKanvas.forEach(function (x) {
+                        x.el.style.height = '100%';
+                        x.el.style.minHeight = '0';
+                        x.el.style.flex = '1 1 auto';
+                    });
+                }
                 document.getElementById('cardExpandBody').appendChild(isi);
                 setHiddenSafely('cardExpandModal', false);
                 document.body.classList.add('rc-has-expanded');
@@ -180,8 +198,12 @@
 
             function rcTutupCardExpand() {
                 if (!rcExpandAsal) return;
-                const { isi, penanda, kelas } = rcExpandAsal;
+                const { isi, penanda, kelas, gaya, wadahKanvas } = rcExpandAsal;
                 isi.className = kelas;
+                if (gaya === null) isi.removeAttribute('style'); else isi.setAttribute('style', gaya);
+                (wadahKanvas || []).forEach(function (x) {
+                    if (x.gaya === null) x.el.removeAttribute('style'); else x.el.setAttribute('style', x.gaya);
+                });
                 penanda.parentNode.insertBefore(isi, penanda);
                 penanda.remove();
                 rcExpandAsal = null;
@@ -225,9 +247,37 @@
                 n.style.display = 'flex'; setTimeout(() => { n.classList.remove('scale-100'); n.classList.add('scale-95', 'opacity-0'); setTimeout(() => { n.style.display = 'none'; n.classList.remove('opacity-0'); }, 300); }, 5000);
             }
 
-            // Export nominal as integer rupiah; percentages and identifiers keep their meaning.
+            // Sel Excel untuk unduhan yang harus SAMA dengan layar. Pemilik, 12 Oktober 2026:
+            // "semua yang muncul di layar harus sama ketika di download".
+            //   rcSelTeks    identitas dan kode (KTP, NPWP, No Rekening, No Doc, kode toko) selalu
+            //                teks, sehingga Excel tidak membuang nol di depan atau mengubah digit
+            //                ke-16 menjadi 0.
+            //   rcSelPersen  rasio 0..1 tampil seperti layar (rtPersen), mis. 87,7%, tetapi tetap
+            //                angka yang dapat dihitung.
+            function rcSelTeks(v) {
+                if (v === null || v === undefined || v === '') return '';
+                return { t: 's', v: String(v), z: '@' };
+            }
+            function rcSelPersen(rasio) {
+                const n = Number(rasio);
+                return Number.isFinite(n) ? { t: 'n', v: n, z: '0.0%' } : '';
+            }
+
+            // Nominal ditulis sebagai rupiah bulat seperti di layar (Math.trunc); rasio sebagai persen.
             function rcExportAmount(key, value, row) {
                 if(typeof value !== 'number' || !Number.isFinite(value)) return value;
-                if(/persen|percent|pct|rate|%/i.test(key+' '+(row && row.Keterangan || '')))return value;
-                return /cashback|gross|cbnet|totalclaim|reward|nilai|value|totalTagih|nominal|cb after|cb before/i.test(key) ? Math.trunc(value) : value;
+                if(/rate$/i.test(key) || /rate$/i.test(row && row.Keterangan || '')) return rcSelPersen(value);
+                if(/persen|percent|pct|%/i.test(key+' '+(row && row.Keterangan || '')))return value;
+                return /cashback|gross|cb|claimed|expired|outstanding|reward|nilai|value|tagih|nominal|amount/i.test(key+' '+(row && row.Keterangan || '')) ? Math.trunc(value) : value;
             }
+
+            // Penanda lingkungan DEV. Situs dev dan produksi tampak identik, sehingga mudah
+            // tertukar - padahal akun uji dev tidak ada di produksi dan sebaliknya. Pita ini
+            // hanya muncul bila config yang dimuat menyatakan environment 'dev'; tampilan
+            // produksi tidak berubah sama sekali.
+            document.addEventListener('DOMContentLoaded', function () {
+                if (!window.RC_ENV || window.RC_ENV.environment !== 'dev') return;
+                document.body.insertAdjacentHTML('afterbegin',
+                    '<div id="rcPitaDev" class="bg-yellow-300 text-yellow-900 text-center text-xs font-black tracking-widest py-1">'
+                    + 'LINGKUNGAN DEV · database rc-next-gen-dev · data rekayasa, bukan data produksi</div>');
+            });

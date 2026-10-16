@@ -70,6 +70,14 @@ end $$;
 ------------------------------------------------------------------------------------------
 -- Pemetaan diambil dari kolom DC, Depot Name dan Abbr pada ListCampaign.csv. Hanya depot
 -- yang memang ada di master yang terisi, dan yang sudah punya Abbr tidak ditimpa.
+--
+-- Kolomnya dipastikan ada lebih dulu. Pada produksi ia memang sudah ada - dibuat migrasi
+-- 20260926 yang, menurut urutan nama berkas, justru berjalan SESUDAH migrasi ini. Urutan itu
+-- tidak pernah menjadi masalah ketika produksi dibangun bertahap, tetapi membuat rangkaian
+-- migrasi mustahil diputar ulang pada database kosong. Baris ini menutup celah itu tanpa
+-- mengubah apa pun di produksi.
+alter table public.depots add column if not exists abbr text;
+
 do $rc_abbr$
 declare pasangan text[][]:=array[
  ['1A','JKT/TU'],['1B','BHG'],['1C','CKP'],['1D','THK'],['1E','CKR'],['1F','BDG'],

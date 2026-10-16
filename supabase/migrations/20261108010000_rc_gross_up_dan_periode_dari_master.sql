@@ -96,9 +96,14 @@ begin
   select pg_get_functiondef(p.oid) into src
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'rc_private' and p.proname = 'compile_upload';
-  if src is null then raise exception 'rc_private.compile_upload tidak ditemukan.'; end if;
-
-  if position('gross_claimed' in src) > 0 then
+  -- Pada database yang dibangun dari nol, fungsi ini BELUM ADA di titik ini: ia hanya dibuat
+  -- migrasi 20261152010000, jauh sesudahnya. Di produksi ia lahir di luar riwayat migrasi dan
+  -- sudah ada, sehingga cabang ini tidak pernah terpicu di sana. Menolak di sini membuat seluruh
+  -- rangkaian migrasi mustahil diputar ulang - padahal versi akhir fungsinya ditulis atas
+  -- keadaan produksi yang sudah memuat tambalan ini.
+  if src is null then
+    raise notice 'rc_private.compile_upload belum ada; tambalan dilewati (versi akhirnya dari 20261152010000).';
+  elsif position('gross_claimed' in src) > 0 then
     raise notice 'compile_upload sudah memakai gross_claimed; dilewati.';
   else
     baru := src;

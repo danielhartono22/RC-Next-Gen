@@ -1,4 +1,4 @@
-            const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyaYkDLi2i3O8Aprc5V80prTbvzrG1IlCQ_xRKCVsclHu_58_-6wjwQtbmjqxVjmYgw/exec";
+            const SCRIPT_URL = ""; // Apps Script URL dihapus dari repo publik
             let debounceTimer; 
             function debounceSearch(callback, delay = 300) { clearTimeout(debounceTimer); debounceTimer = setTimeout(callback, delay); }
             function triggerFilterCallback(fnKey) {

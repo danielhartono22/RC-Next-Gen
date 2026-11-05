@@ -407,3 +407,16 @@ test('document center forwards the created-on date range', async () => {
   assert.equal(panggilan[1].arg.p_dibuat_dari, null);
   assert.equal(panggilan[1].arg.p_dibuat_sampai, null);
 });
+
+// Document Center: Tahun Campaign diteruskan sebagai p_tahun; 0 = periode kosong, kosong = null (20261163770000).
+test('document center forwards the campaign year', async () => {
+  const { call, panggilan } = prosesBackend(() => ({ data: { status: 'success', rows: [], total: 0 } }));
+  await call({ action: 'compilationList', tahun: '2025', offset: 0 });
+  assert.equal(panggilan[0].arg.p_tahun, 2025);
+  await call({ action: 'compilationList', tahun: '0', offset: 0 });
+  assert.equal(panggilan[1].arg.p_tahun, 0, 'periode kosong');
+  await call({ action: 'compilationList', tahun: '', offset: 0 });
+  assert.equal(panggilan[2].arg.p_tahun, null);
+  await call({ action: 'compilationList', offset: 0 });
+  assert.equal(panggilan[3].arg.p_tahun, null);
+});

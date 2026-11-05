@@ -1217,7 +1217,9 @@
         p_depot: String(body.depot || ''),
         // Created On (20261163090000): tanggal ISO dari input tanggal, atau null = tidak disaring.
         p_dibuat_dari: toIsoDate(body.dibuatDari || '') || null,
-        p_dibuat_sampai: toIsoDate(body.dibuatSampai || '') || null
+        p_dibuat_sampai: toIsoDate(body.dibuatSampai || '') || null,
+        // Tahun Campaign (20261163770000): tahun Periode Campaign, 0 = periode kosong, kosong = semua tahun.
+        p_tahun: /^\d{1,4}$/.test(String(body.tahun || '')) ? Number(body.tahun) : null
       });
     },
     compilationDepots: function () { return rpc('rc_compilation_depots', {}); },

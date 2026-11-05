@@ -11,6 +11,7 @@
                                 o.textContent = c.codeCampaign + ' - ' + c.campaignName + ' (' + c.jumlahClaim + ')';
                                 sel.appendChild(o);
                             });
+                            compIsiTahun();
                         }
                     } catch (e) { showNotification("Gagal memuat daftar campaign.", "error"); }
                 }
@@ -37,7 +38,8 @@
             // permintaan diberi nomor urut; jawaban yang datang sesudah permintaan yang lebih
             // baru diabaikan, supaya hasil ketikan lama tidak menimpa hasil ketikan terakhir.
             let rcCompMuatKe = 0;
-            const COMP_PILIH_MAKS = 5000;   // Pilih semua hasil
+            const COMP_PILIH_MAKS = 10000;  // Pilih semua hasil (20261163770000; sebelumnya 5.000)
+            const COMP_PILIH_PER = 2000;    // baris per panggilan server saat memilih semua hasil
             const COMP_ARSIP_MAKS = 2000;   // satu kali arsip
 
             function compFilterLayar() {
@@ -47,10 +49,34 @@
                     batch: document.getElementById('compBatch').value.trim(),
                     status: document.getElementById('compStatus').value,
                     search: document.getElementById('compSearch').value.trim(),
+                    tahun: (document.getElementById('compTahun') || {}).value || '', // 20261163770000
                     // Created On (20261163090000): yyyy-mm-dd dari input tanggal; kosong = tidak disaring.
                     dibuatDari: (document.getElementById('compDibuatDari') || {}).value || '',
                     dibuatSampai: (document.getElementById('compDibuatSampai') || {}).value || ''
                 };
+            }
+
+            // 20261163770000: Tahun Campaign = tahun Periode Campaign (sama dengan Claim Process);
+            // "Periode kosong" = campaign tanpa Periode Campaign. Pilihan Campaign ikut menyempit.
+            function compTahunDari(tgl) { const m = String(tgl || '').match(/\b(19|20)\d{2}\b/); return m ? m[0] : ''; }
+            function compIsiTahun() {
+                const el = document.getElementById('compTahun'); if (!el) return;
+                const camps = rcCompState.campaigns || [], lama = el.value;
+                const tahun = [...new Set(camps.map(c => compTahunDari(c.periodStart)).filter(Boolean))].sort().reverse();
+                el.innerHTML = '<option value="">-- Semua Tahun Campaign --</option>' + tahun.map(t => '<option value="' + t + '">' + t + '</option>').join('')
+                    + (camps.some(c => !compTahunDari(c.periodStart)) ? '<option value="0">Periode kosong</option>' : '');
+                el.value = lama;
+            }
+            function compGantiTahun() {
+                const th = (document.getElementById('compTahun') || {}).value || '', sel = document.getElementById('compCampaign');
+                if (sel) {
+                    const lama = sel.value;
+                    const camps = (rcCompState.campaigns || []).filter(c => !th || (th === '0' ? !compTahunDari(c.periodStart) : compTahunDari(c.periodStart) === th));
+                    sel.innerHTML = '<option value="">-- Semua Campaign --</option>' + camps.map(c => '<option value="' + rcEsc(c.codeCampaign) + '">'
+                        + rcEsc(c.codeCampaign + ' - ' + c.campaignName + ' (' + c.jumlahClaim + ')') + '</option>').join('');
+                    sel.value = camps.some(c => c.codeCampaign === lama) ? lama : '';
+                }
+                loadCompilation(0);
             }
 
             // Kotak teks: mencari setengah detik setelah pengguna berhenti mengetik.
@@ -248,7 +274,7 @@
             }
 
             // Memilih SELURUH baris hasil filter terakhir, bukan hanya halaman yang tampil. Diambil
-            // dari server per 500 baris memakai filter yang sama persis dengan tabel.
+            // dari server per 2.000 baris (20261163770000; dulu 500) memakai filter yang sama persis dengan tabel.
             async function compPilihSemuaHasil() {
                 const total = Number(rcCompState.total) || 0;
                 if (!total) return;
@@ -262,8 +288,9 @@
                 try {
                     const peta = rcPilihanPeta('cb-comp');
                     let n = 0;
-                    for (let offset = 0; offset < total; offset += 500) {
-                        const res = await fetchApp(Object.assign({ action: 'compilationList', offset: offset, limit: 500 }, filter));
+                    for (let offset = 0; offset < total; offset += COMP_PILIH_PER) {
+                        if (offset > 0) showLoadingOverlay('Memilih ' + total.toLocaleString('id-ID') + ' baris... (' + offset.toLocaleString('id-ID') + ' dimuat)');
+                        const res = await fetchApp(Object.assign({ action: 'compilationList', offset: offset, limit: COMP_PILIH_PER }, filter));
                         if (res.status !== 'success') throw new Error(res.message || 'Gagal memuat hasil filter.');
                         const rows = res.rows || [];
                         rows.forEach(r => { peta.set(String(r.id), r); n++; });

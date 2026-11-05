@@ -17,6 +17,9 @@
                             class="sub-tab-btn px-6 py-3 font-bold text-sm border-b-2 border-transparent text-gray-500">Overdue</button>
                         <button onclick="switchApprovalTab('hold')" data-rc-tab="approval.hold" id="apTabHold"
                             class="sub-tab-btn px-6 py-3 font-bold text-sm border-b-2 border-transparent text-gray-500">On Hold &amp; Expired</button>
+                        <!-- 20261163170000: pengajuan toko Bad Debt (bila Approval Bad Debt menyala); hanya bila dicentang. -->
+                        <button onclick="switchApprovalTab('baddebt')" data-rc-tab="approval.baddebt" id="apTabBaddebt"
+                            class="sub-tab-btn px-6 py-3 font-bold text-sm border-b-2 border-transparent text-gray-500">Bad Debt</button>
                         <button onclick="switchApprovalTab('history')" data-rc-tab="approval.history" id="apTabHistory"
                             class="sub-tab-btn px-6 py-3 font-bold text-sm border-b-2 border-transparent text-gray-500">History</button>
                     </div>
@@ -117,6 +120,35 @@
                                     <th class="p-3 text-center text-[10px] font-black uppercase" data-rc-no-sort="1">Tindakan</th>
                                 </tr></thead>
                                 <tbody id="apHoldBody"></tbody>
+                            </table></div>
+                        </div>
+                    </div>
+
+                    <!-- ---- Tab Bad Debt (20261163170000) ---- -->
+                    <div id="apPaneBaddebt" class="hidden">
+                        <p class="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-[12px] text-red-900">Pengajuan klaim toko yang ditandai <b>Bad Debt</b> oleh admin depot.
+                            Approve meneruskan dokumen seperti approval biasa (Approved; Done untuk Rebate Manual/Voucher); Reject mengembalikannya ke depot sebagai Not Yet.
+                            Antrean ini dipakai bila saklar Approval Bad Debt (Access Management &gt; Approval On/Off) menyala.</p>
+                        <div id="apAksiBd" class="hidden mb-4 p-4 bg-red-50 border border-red-200 rounded-xl flex flex-wrap gap-3 items-center">
+                            <span class="font-bold text-red-900 text-sm"><span id="apBdTerpilih">0</span> dokumen dipilih</span>
+                            <div class="flex-1"></div>
+                            <button onclick="postingBadDebt('approve')" class="px-5 py-2 bg-pink-600 hover:bg-pink-700 text-white font-bold rounded-lg text-sm">Approve</button>
+                            <button onclick="postingBadDebt('reject')" class="px-5 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-sm">Reject</button>
+                        </div>
+                        <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+                            <div class="overflow-auto max-h-[620px]"><table class="w-full text-sm" id="apTableBd">
+                                <thead class="bg-gray-50 text-gray-600 sticky top-0"><tr>
+                                    <th class="p-3 text-center w-12" data-rc-no-sort="1"><input type="checkbox" id="apBdSemua" onchange="toggleSemuaBadDebt(this)" class="w-4 h-4 rounded"></th>
+                                    <th class="p-3 text-left text-[10px] font-black uppercase">No Doc</th>
+                                    <th class="p-3 text-left text-[10px] font-black uppercase">Depot</th>
+                                    <th class="p-3 text-left text-[10px] font-black uppercase">Customer</th>
+                                    <th class="p-3 text-left text-[10px] font-black uppercase">Campaign</th>
+                                    <th class="p-3 text-right text-[10px] font-black uppercase whitespace-nowrap min-w-[140px]">Net CB</th>
+                                    <th class="p-3 text-left text-[10px] font-black uppercase">Alasan Bad Debt</th>
+                                    <th class="p-3 text-left text-[10px] font-black uppercase">Diajukan</th>
+                                    <th class="p-3 text-center text-[10px] font-black uppercase" data-rc-no-sort="1">Tindakan</th>
+                                </tr></thead>
+                                <tbody id="apBdBody"></tbody>
                             </table></div>
                         </div>
                     </div>

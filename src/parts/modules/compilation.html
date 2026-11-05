@@ -14,6 +14,9 @@
                             <!-- 20261163140000: tampil hanya bila tab ini dicentang di Access Management. -->
                             <button data-rc-tab="compilation.amend" id="cmpTabAmend" onclick="switchCompilationTab('amend')"
                                 class="px-5 py-2 text-sm font-bold rounded-lg transition text-gray-500 hover:bg-gray-100">Amend Doc</button>
+                            <!-- 20261163170000: tampil hanya bila tab ini dicentang di Access Management. -->
+                            <button data-rc-tab="compilation.debtor" id="cmpTabDebtor" onclick="switchCompilationTab('debtor')"
+                                class="px-5 py-2 text-sm font-bold rounded-lg transition text-gray-500 hover:bg-gray-100">Upload Debtor</button>
                         </div>
                         <div id="cmpPanelCompile">
                         <div class="mb-5 border-b border-gray-100 pb-4 flex flex-wrap justify-between items-end gap-3"><div><h2 class="text-2xl font-extrabold text-gray-800"><i class="fas fa-layer-group text-cyan-600 mr-2"></i>Document Center</h2><p class="text-gray-500 mt-1 text-sm">Filter langsung diterapkan saat dipilih atau diketik; 100 baris per halaman.</p></div><button onclick="toggleArchivedList()" data-rc-tab="compilation.archive" id="btnArchivedList" class="hidden px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold rounded-lg text-sm"><i class="fas fa-box-archive mr-2"></i>Lihat Arsip</button></div>
@@ -109,5 +112,45 @@
                                     <th class="p-3 text-left font-bold">Alasan</th><th class="p-3 text-left font-bold">Oleh</th></tr></thead>
                                     <tbody id="amendRiwayatBody"></tbody></table>
                             </div>
+                        </div>
+
+                        <!-- TAB: UPLOAD DEBTOR (ZDAGE), 20261163170000 -->
+                        <!-- Ekspor debtor SAP ZDAGE diunggah apa adanya. Klaim Not Yet yang tokonya lunas
+                             ditawarkan ke depot di Claim Upload > Open dengan batas proses 7 hari. -->
+                        <div id="cmpPanelDebtor" class="hidden">
+                            <div id="rcZdMatiDebtor" class="hidden mb-4 p-3 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-900"><b>ZDAGE Integration mati (cara lama).</b> Upload dan Apply tetap bisa untuk menyiapkan data, tetapi belum membatasi Open dan job harian tidak berjalan. Hidupkan di Access Management &gt; On/Off Sistem.</div>
+                            <div class="mb-5 border-b border-gray-100 pb-4"><h2 class="text-2xl font-extrabold text-gray-800"><i class="fas fa-file-invoice-dollar text-cyan-600 mr-2"></i>Upload Debtor (ZDAGE)</h2>
+                                <p class="text-gray-500 mt-1 text-sm">Kolom A = kode depot. Depot yang tidak ada di file memakai data debtor lama, kecuali dicentang "Tidak ada tagihan". <span id="zdAturan"></span></p></div>
+                            <div class="p-4 bg-cyan-50 border border-cyan-200 rounded-xl mb-4 flex flex-wrap gap-3 items-end">
+                                <label class="px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold rounded-lg text-sm cursor-pointer"><i class="fas fa-upload mr-2 text-blue-600"></i>Pilih File ZDAGE<input type="file" id="zdFile" accept=".xlsx,.xls" class="hidden" onchange="zdPilihFile(this)"></label>
+                                <label class="text-xs font-bold text-gray-600">Tanggal &amp; jam tarikan ZDAGE<input type="datetime-local" id="zdTarikan" class="block mt-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"></label>
+                                <button type="button" id="btnZdKirim" onclick="zdKirim()" disabled class="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-700 disabled:bg-cyan-300 text-white font-bold rounded-lg text-sm"><i class="fas fa-magnifying-glass-chart mr-2"></i>Kirim &amp; Pratinjau</button>
+                                <span class="text-[11px] text-cyan-900 basis-full">Tanggal tarikan terisi otomatis dari nama berkas EXPORT_YYYYMMDD_HHMMSS; bila tidak ada, wajib diisi. Berkas yang header atau angkanya tidak terbaca ditolak seluruhnya.</span>
+                            </div>
+                            <div id="zdParse" class="mb-4"></div>
+                            <div id="zdPratinjau" class="hidden mb-6">
+                                <div id="zdRingkas" class="mb-3"></div>
+                                <div class="flex flex-wrap gap-2 items-center mb-3">
+                                    <select id="zdDepot" onchange="zdState.depot=this.value;zdRenderPratinjau()" class="px-3 py-2 border border-gray-300 rounded-lg text-sm"></select>
+                                    <input id="zdCari" oninput="zdState.cari=this.value;zdRenderPratinjau()" placeholder="No Doc / kode / nama toko / campaign" class="flex-1 min-w-[220px] px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                                    <button type="button" id="btnZdDepot" onclick="zdTanyaDepot()" class="hidden px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 font-bold rounded-lg text-sm"><i class="fas fa-warehouse mr-2 text-cyan-600"></i>Depot tidak ada di file</button>
+                                    <button type="button" onclick="zdUnduhPratinjau()" class="px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 font-bold rounded-lg text-sm"><i class="fas fa-file-excel mr-2 text-green-600"></i>Unduh</button>
+                                    <button type="button" onclick="zdBatal()" class="px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-600 font-bold rounded-lg text-sm"><i class="fas fa-xmark mr-2"></i>Batal</button>
+                                    <button type="button" id="btnZdTerapkan" onclick="zdTerapkan()" class="px-5 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:bg-cyan-300 text-white font-bold rounded-lg text-sm"><i class="fas fa-check mr-2"></i>Terapkan</button>
+                                    <span id="zdJumlah" class="text-xs text-gray-500 basis-full"></span>
+                                </div>
+                                <div class="overflow-auto border border-gray-200 rounded-xl max-h-[620px]"><table class="w-full text-sm"><thead class="bg-gray-50 text-gray-600 sticky top-0"><tr>
+                                    <th class="p-2 text-left font-bold">No Doc</th><th class="p-2 text-left font-bold">Depot</th><th class="p-2 text-left font-bold">Toko</th><th class="p-2 text-left font-bold">Campaign</th>
+                                    <th class="p-2 text-left font-bold whitespace-nowrap">Bulan SO - Bill</th><th class="p-2 text-right font-bold">Net CB</th><th class="p-2 text-left font-bold min-w-[130px]">Hasil</th><th class="p-2 text-left font-bold min-w-[300px]">Penyebab</th><th class="p-2 text-left font-bold">Sumber</th></tr></thead>
+                                    <tbody id="zdBody"></tbody></table></div>
+                            </div>
+                            <h3 class="font-black text-gray-800 mb-3"><i class="fas fa-rotate-left text-gray-500 mr-2"></i>Dikembalikan Depot</h3>
+                            <div class="mb-2 flex items-center gap-3"><span class="text-sm font-bold text-gray-700"><span id="zdKembaliTerpilih">0</span> dipilih</span>
+                                <button type="button" id="btnZdTawarUlang" onclick="zdTawarkanUlang()" disabled class="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:bg-cyan-300 text-white font-bold rounded-lg text-sm"><i class="fas fa-share mr-2"></i>Tawarkan Ulang</button></div>
+                            <div class="overflow-auto border border-gray-200 rounded-xl mb-6 max-h-[360px]"><table class="w-full text-sm"><thead class="bg-gray-50 text-gray-600"><tr>
+                                <th class="p-2"></th><th class="p-2 text-left font-bold">No Doc</th><th class="p-2 text-left font-bold">Depot</th><th class="p-2 text-left font-bold">Toko</th><th class="p-2 text-left font-bold">Campaign</th>
+                                <th class="p-2 text-right font-bold">Net CB</th><th class="p-2 text-left font-bold">Alasan</th><th class="p-2 text-left font-bold">Oleh</th></tr></thead>
+                                <tbody id="zdKembaliBody"></tbody></table></div>
+                            <div id="zdRiwayat"></div>
                         </div>
                 </div>

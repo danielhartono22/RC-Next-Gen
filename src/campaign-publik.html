@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timetable - Details Campaign | Resource Collection</title>
+    <!--
+      Details Campaign tanpa login (20261163470000). Pemilik, 27 Oktober 2026: "buat general link
+      tanpa login untuk details campaign / Modul Timetable", lalu "memo pdf link publik ya dan
+      buatkan tampilan seperti timetable dan report dari logo dan header juga sama".
+
+      Susunannya mengikuti portal: topbar dengan logo yang sama (view/parts/merek.html), kepala modul
+      Timetable (view/parts/timetable-kepala.html), panel Details Campaign (view/parts/details-campaign.html),
+      dialog detail (view/parts/dialog.html), dan seluruh fungsi tampilannya (aset rc-report-view.js) -
+      semuanya potongan BERSAMA dengan portal. Yang khusus halaman ini hanya sumber data
+      (rc_publik_timetable_campaigns) dan cara membuka memo (signed URL Storage untuk anon).
+    -->
+    <link rel="icon" type="image/png" href="/images/logo.png">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!--#include view/parts/style.html-->
+    <script src="/assets/rc-env.js"></script>
+    <script src="/assets/rc-report-view.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen font-sans pb-10">
+
+<nav class="bg-red-700 text-white p-3 sm:p-4 shadow-md sticky top-0 z-50 transition-all border-b border-red-800">
+    <div class="max-w-7xl mx-auto flex justify-between items-center gap-4">
+        <!--#include view/parts/merek.html-->
+        <a href="/" class="bg-red-900/80 hover:bg-red-900 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md border border-red-600 transition flex items-center gap-2" title="Masuk ke portal Resource Collection">
+            <i class="fas fa-sign-in-alt"></i><span class="hidden sm:inline">Masuk ke portal</span></a>
+    </div>
+</nav>
+
+<div class="max-w-7xl mx-auto p-4 md:p-6">
+    <div class="max-w-7xl mx-auto px-4">
+        <!--#include view/parts/timetable-kepala.html-->
+        <div id="ttcGalat" class="hidden bg-red-50 border border-red-200 rounded-2xl p-6 mb-6 text-sm text-red-800"></div>
+        <div id="ttPanelCampaign">
+            <!--#include view/parts/details-campaign.html-->
+        </div>
+    </div>
+</div>
+
+<!--#include view/parts/dialog.html-->
+<!--#include view/parts/notifikasi.html-->
+
+<div id="ttcTirai" class="fixed inset-0 bg-white/70 backdrop-blur-sm z-[90] flex items-center justify-center">
+    <div class="text-center">
+        <i class="fas fa-circle-notch fa-spin text-3xl text-red-600"></i>
+        <p class="mt-3 text-sm text-gray-500">Memuat data…</p>
+    </div>
+</div>
+
+<script>
+    // ------------------------------------------------------------------------------------
+    // Sambungan yang khusus halaman ini. Selebihnya fungsi bersama dengan portal.
+    // ------------------------------------------------------------------------------------
+    const env = window.RC_ENV || {};
+    const kepalaAnon = { apikey: env.supabasePublishableKey, Authorization: 'Bearer ' + env.supabasePublishableKey };
+
+    // Nama-nama yang dipanggil potongan bersama (logo, tombol kepala modul, tab).
+    function goToHome() { window.location.href = '/'; }
+    function ttMuatUlang() { muatDetailsCampaignPublik(); }
+    function ttUnduhExcel() { unduhTimetableCampaignExcel(); }
+    function switchTimetableTab() { /* hanya Details Campaign di halaman publik */ }
+    function showLoadingOverlay() { setHiddenSafely('ttcTirai', false); }
+    function hideLoadingOverlay() { setHiddenSafely('ttcTirai', true); }
+
+    // Tab Report berisi progres per depot (data internal) dan tetap hanya di portal.
+    (function () {
+        const rep = document.getElementById('ttTabReport'); if (rep) rep.remove();
+        const tab = document.getElementById('ttTabCampaign');
+        if (tab) tab.className = 'px-5 py-2 text-sm font-bold rounded-lg bg-amber-100 text-amber-700';
+    })();
+
+    async function muatDetailsCampaignPublik() {
+        showLoadingOverlay();
+        try {
+            const res = await fetch(env.supabaseUrl + '/rest/v1/rpc/rc_publik_timetable_campaigns', {
+                method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, kepalaAnon), body: '{}'
+            });
+            if (!res.ok) throw new Error('Server menjawab ' + res.status);
+            const r = await res.json();
+            if (!r || r.status !== 'success') throw new Error('Jawaban tidak dikenali.');
+            setHiddenSafely('ttcGalat', true);
+            ttcIsiData(r);
+            ttcSaring();
+        } catch (e) {
+            const g = document.getElementById('ttcGalat');
+            g.classList.remove('hidden');
+            g.innerHTML = '<b>Gagal memuat data.</b><br>' + rcEsc(e && e.message ? e.message : e)
+                + '<br><span class="text-xs">Coba muat ulang halaman ini beberapa saat lagi.</span>';
+        } finally {
+            hideLoadingOverlay();
+        }
+    }
+
+    // Memo PDF: signed URL 5 menit dari Storage. Kebijakan Storage untuk anon hanya mengizinkan
+    // memo campaign yang tidak diarsip (20261163500000).
+    async function bukaMemoTimetable(kode) {
+        const r = rcTtcState.rows.find(x => x.kode === kode); if (!r || !r.memoPath) return;
+        showLoadingOverlay();
+        try {
+            const jalur = r.memoPath.split('/').map(encodeURIComponent).join('/');
+            const res = await fetch(env.supabaseUrl + '/storage/v1/object/sign/campaign-memo/' + jalur, {
+                method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, kepalaAnon),
+                body: JSON.stringify({ expiresIn: 300 })
+            });
+            const d = await res.json().catch(() => ({}));
+            const url = d.signedURL || d.signedUrl;
+            if (!res.ok || !url) throw new Error(d.message || d.error || 'Memo tidak dapat dibuka.');
+            window.open(env.supabaseUrl + '/storage/v1' + url, '_blank', 'noopener');
+        } catch (e) {
+            showNotification((e && e.message) || 'Memo tidak dapat dibuka.', 'error');
+        } finally {
+            hideLoadingOverlay();
+        }
+    }
+
+    muatDetailsCampaignPublik();
+</script>
+</body>
+</html>

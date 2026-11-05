@@ -1,0 +1,253 @@
+                <!-- MODULE: WAREHOUSE RENTAL (20261163530000) -->
+                <!-- PRD "Modul Warehouse Rental": form F01.AW.2025 Rental New / Re-newal Submission dari Excel
+                     ke RC. Revenue PY-1 / PY / PY YTD / Act YTD terisi dari Upload Omset (net = omset - pajak),
+                     rumus sama dengan Excel dan dihitung ulang server saat submit, PDF A4 dengan logo. Approval
+                     digital belum (fase 3): tanda tangan, Legal Review, dan Top Management tercetak kosong. -->
+                <div id="modRental" class="module-section hidden">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 md:p-8">
+                        <div class="flex flex-wrap justify-between items-center gap-3 border-b border-gray-100 pb-4 mb-5">
+                            <div>
+                                <h2 class="text-2xl font-extrabold text-gray-800"><i class="fas fa-warehouse text-amber-600 mr-2"></i>Warehouse Rental</h2>
+                                <p class="text-sm text-gray-500 mt-1" id="wrRingkas">Form F01.AW.2025 - Rental New / Re-newal Submission.</p>
+                            </div>
+                        </div>
+                        <div class="flex flex-wrap gap-2 p-1 bg-gray-50 rounded-xl mb-5">
+                            <button id="wrTabForm" onclick="switchRentalTab('form')" class="px-5 py-2 text-sm font-bold rounded-lg">Fill Form</button>
+                            <button id="wrTabDraft" onclick="switchRentalTab('draft')" class="px-5 py-2 text-sm font-bold rounded-lg">Draft</button>
+                            <button id="wrTabSubmitted" onclick="switchRentalTab('submitted')" class="px-5 py-2 text-sm font-bold rounded-lg">Submitted</button>
+                            <button id="wrTabOmset" onclick="switchRentalTab('omset')" class="px-5 py-2 text-sm font-bold rounded-lg">Upload Omset</button>
+                        </div>
+
+                        <!-- ===== Fill Form ===== -->
+                        <div id="wrPanelForm" class="hidden">
+                            <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+                                <div class="flex flex-wrap items-center gap-2 text-sm">
+                                    <span id="wrStatus" class="px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 font-bold">Form baru</span>
+                                    <span id="wrDocNo" class="font-mono font-bold text-gray-700"></span>
+                                    <span id="wrInfo" class="text-xs text-gray-500"></span>
+                                </div>
+                                <div class="flex flex-wrap gap-2">
+                                    <button id="wrBtnBaru" onclick="wrFormBaru(true)" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-bold bg-white hover:bg-gray-50"><i class="fas fa-file mr-1.5 text-gray-500"></i>Form Baru</button>
+                                    <button id="wrBtnPreview" onclick="wrPreviewPdf()" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-bold bg-white hover:bg-gray-50"><i class="fas fa-eye mr-1.5 text-blue-500"></i>Preview PDF</button>
+                                    <button id="wrBtnSimpan" onclick="wrSimpan(false)" class="px-4 py-2 border border-amber-300 rounded-lg text-sm font-bold bg-amber-50 text-amber-800 hover:bg-amber-100"><i class="fas fa-save mr-1.5"></i>Simpan Draft</button>
+                                    <button id="wrBtnSubmit" onclick="wrSimpan(true)" class="px-4 py-2 rounded-lg text-sm font-bold bg-blue-700 text-white hover:bg-blue-800"><i class="fas fa-paper-plane mr-1.5"></i>Submit</button>
+                                    <button id="wrBtnPdf" onclick="wrUnduhPdfAktif()" class="hidden px-4 py-2 rounded-lg text-sm font-bold bg-red-600 text-white hover:bg-red-700"><i class="fas fa-file-pdf mr-1.5"></i>Download PDF</button>
+                                </div>
+                            </div>
+                            <div id="wrPeringatan" class="hidden mb-4 text-xs bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-4 py-3 leading-relaxed"></div>
+
+                            <!-- Layar isian memakai tata letak sendiri (kolom lega); bentuk Excel F01.AW.2025 hanya
+                                 untuk PDF hasil jadi (pemilik, 27 Oktober 2026). Id elemen tetap, logika di 59. -->
+                            <div id="wrLembar" class="max-w-6xl mx-auto space-y-4 text-sm text-gray-800">
+                                <!-- Kepala -->
+                                <div class="bg-white border border-gray-200 rounded-xl p-4 md:p-5">
+                                    <h3 class="text-sm font-extrabold text-gray-800 mb-4 flex items-center gap-2"><i class="fas fa-file-signature text-amber-600"></i>Form F01.AW.2025 · Rental New / Re-newal Submission</h3>
+                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div class="md:col-span-2"><label class="block text-xs font-bold text-gray-700 mb-1.5">Depot Name <span class="text-red-500">*</span></label>
+                                            <select id="wrDepot" onchange="wrHeaderBerubah()" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white font-bold disabled:bg-gray-50"></select></div>
+                                        <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Date Propose <span class="text-red-500">*</span></label>
+                                            <input id="wrTanggal" type="text" placeholder="dd-mm-yyyy" onchange="wrTanggalBerubah(this)" class="w-full px-3 py-2 border border-gray-300 rounded-lg font-bold disabled:bg-gray-50"></div>
+                                        <div class="md:col-span-2"><label class="block text-xs font-bold text-gray-700 mb-1.5">Jenis Sewa <span class="text-red-500">*</span></label>
+                                            <div class="flex flex-wrap gap-2">
+                                                <label class="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg cursor-pointer font-bold has-[:checked]:bg-amber-50 has-[:checked]:border-amber-400 has-[:checked]:text-amber-900"><input type="radio" name="wrLease" value="new" onchange="wrHitungUlang()"> New Lease / Sewa Baru</label>
+                                                <label class="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg cursor-pointer font-bold has-[:checked]:bg-amber-50 has-[:checked]:border-amber-400 has-[:checked]:text-amber-900"><input type="radio" name="wrLease" value="renewal" onchange="wrHitungUlang()"> Re-newal / Perpanjang Sewa</label>
+                                            </div></div>
+                                        <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Rental Plane <span class="text-red-500">*</span></label>
+                                            <div class="flex flex-wrap gap-2">
+                                                <label class="inline-flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg cursor-pointer font-bold has-[:checked]:bg-amber-50 has-[:checked]:border-amber-400 has-[:checked]:text-amber-900"><input type="radio" name="wrTahun" value="1" onchange="wrRentalPlaneBerubah(this)"> 1</label>
+                                                <label class="inline-flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg cursor-pointer font-bold has-[:checked]:bg-amber-50 has-[:checked]:border-amber-400 has-[:checked]:text-amber-900"><input type="radio" name="wrTahun" value="2" onchange="wrRentalPlaneBerubah(this)"> 2</label>
+                                                <label class="inline-flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg cursor-pointer font-bold has-[:checked]:bg-amber-50 has-[:checked]:border-amber-400 has-[:checked]:text-amber-900"><input type="radio" name="wrTahun" value="3" onchange="wrRentalPlaneBerubah(this)"> 3</label>
+                                                <label class="inline-flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg cursor-pointer font-bold has-[:checked]:bg-amber-50 has-[:checked]:border-amber-400 has-[:checked]:text-amber-900"><input type="radio" name="wrTahun" value="4" onchange="wrRentalPlaneBerubah(this)"> 4</label>
+                                                <label class="inline-flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg cursor-pointer font-bold has-[:checked]:bg-amber-50 has-[:checked]:border-amber-400 has-[:checked]:text-amber-900"><input type="radio" name="wrTahun" value="5" onchange="wrRentalPlaneBerubah(this)"> 5</label>
+                                                <span class="self-center text-xs text-gray-500">tahun</span>
+                                            </div></div>
+                                    </div>
+                                </div>
+
+                                <!-- Competitor & Covered Area -->
+                                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                    <div class="bg-white border border-gray-200 rounded-xl p-4 md:p-5">
+                                        <h3 class="text-sm font-extrabold text-gray-800 mb-3 flex items-center gap-2"><i class="fas fa-flag text-amber-600"></i>Competitor</h3>
+                                        <label class="block text-xs font-bold text-gray-700 mb-1.5">Competitor Name</label>
+                                        <div id="wrKompetitor" class="flex flex-wrap gap-2 mb-3"></div>
+                                        <input id="wrKompetitorLain" type="text" maxlength="100" placeholder="Nama competitor OTHERS (wajib bila OTHERS dipilih)" class="hidden w-full px-3 py-2 border border-gray-300 rounded-lg uppercase mb-3 disabled:bg-gray-50">
+                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Sum Competitor Depo</label>
+                                                <input id="wrCompSum" type="text" inputmode="decimal" oninput="wrFormatAngka(this)" class="wr-angka w-full px-3 py-2 border border-gray-300 rounded-lg text-right disabled:bg-gray-50"></div>
+                                            <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Competitor Share Value</label>
+                                                <input id="wrCompShare" type="text" inputmode="decimal" oninput="wrFormatAngka(this)" class="wr-angka w-full px-3 py-2 border border-gray-300 rounded-lg text-right disabled:bg-gray-50"></div>
+                                        </div>
+                                    </div>
+                                    <div class="bg-white border border-gray-200 rounded-xl p-4 md:p-5">
+                                        <h3 class="text-sm font-extrabold text-gray-800 mb-3 flex items-center gap-2"><i class="fas fa-map-location-dot text-amber-600"></i>Covered Area <span class="text-xs font-normal text-gray-500">(minimal 1)</span></h3>
+                                        <div id="wrCovered" class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2"></div>
+                                    </div>
+                                </div>
+
+                                <!-- Revenue -->
+                                <div class="bg-white border border-gray-200 rounded-xl p-4 md:p-5">
+                                    <h3 class="text-sm font-extrabold text-gray-800 mb-3 flex items-center gap-2"><i class="fas fa-chart-line text-amber-600"></i>Revenue</h3>
+                                    <div class="overflow-x-auto">
+                                        <table data-rc-sort-siap="1" class="w-full min-w-[900px] border-collapse">
+                                            <thead class="bg-gray-50 text-gray-600 text-xs">
+                                                <tr><th class="p-2 text-left w-48"></th><th class="p-2 text-right">PY-1</th><th class="p-2 text-right">PY</th><th class="p-2 text-right">PY YTD</th><th class="p-2 text-right">Act YTD</th><th class="p-2 text-right">Budget</th><th class="p-2 text-right">Estimate</th></tr>
+                                                <tr class="text-gray-800"><th class="p-2 text-left text-gray-500 font-normal">Periode</th><th id="wrThPy1" class="p-2 text-right"></th><th id="wrThPy" class="p-2 text-right"></th><th id="wrThPyytd" class="p-2 text-right"></th><th id="wrThAct" class="p-2 text-right"></th><th id="wrThBud" class="p-2 text-right"></th><th id="wrThEst" class="p-2 text-right"></th></tr>
+                                            </thead>
+                                            <tbody class="divide-y divide-gray-100">
+                                                <tr><td class="p-2 font-bold">Revenue (IDR)</td>
+                                                    <td id="wrRvPy1" class="p-2 text-right bg-blue-50/50"></td><td id="wrRvPy" class="p-2 text-right bg-blue-50/50"></td>
+                                                    <td id="wrRvPyytd" class="p-2 text-right bg-blue-50/50"></td><td id="wrRvAct" class="p-2 text-right bg-blue-50/50"></td>
+                                                    <td class="p-1.5"><input id="wrRvBud" type="text" inputmode="decimal" oninput="wrFormatAngka(this, true)" placeholder="Budget" class="wr-angka w-full px-3 py-2 border border-gray-300 rounded-lg text-right disabled:bg-gray-50"></td>
+                                                    <td class="p-1.5"><input id="wrRvEst" type="text" inputmode="decimal" oninput="wrFormatAngka(this, true)" placeholder="Estimate" class="wr-angka w-full px-3 py-2 border border-gray-300 rounded-lg text-right disabled:bg-gray-50"></td></tr>
+                                                <tr><td class="p-2 font-bold">Growth (Y-on-Y)</td>
+                                                    <td class="p-2 text-right text-gray-300">-</td><td id="wrGrPy" class="p-2 text-right"></td><td class="p-2 text-right text-gray-300">-</td>
+                                                    <td id="wrGrAct" class="p-2 text-right"></td><td id="wrGrBud" class="p-2 text-right"></td><td id="wrGrEst" class="p-2 text-right"></td></tr>
+                                                <tr><td class="p-2 font-bold">Size Building (Sqm)</td>
+                                                    <td class="p-1.5"><input id="wrSzPy1" type="text" inputmode="decimal" oninput="wrFormatAngka(this)" class="wr-angka w-full px-3 py-2 border border-gray-300 rounded-lg text-right disabled:bg-gray-50"></td>
+                                                    <td class="p-1.5"><input id="wrSzPy" type="text" inputmode="decimal" oninput="wrFormatAngka(this)" class="wr-angka w-full px-3 py-2 border border-gray-300 rounded-lg text-right disabled:bg-gray-50"></td>
+                                                    <td class="p-2 text-right text-gray-300">-</td><td class="p-2 text-right text-gray-300">-</td>
+                                                    <td class="p-1.5"><input id="wrSzBud" type="text" inputmode="decimal" oninput="wrFormatAngka(this)" class="wr-angka w-full px-3 py-2 border border-gray-300 rounded-lg text-right disabled:bg-gray-50"></td>
+                                                    <td class="p-1.5"><input id="wrSzEst" type="text" inputmode="decimal" oninput="wrFormatAngka(this)" class="wr-angka w-full px-3 py-2 border border-gray-300 rounded-lg text-right disabled:bg-gray-50"></td></tr>
+                                                <tr><td class="p-2 font-bold">Revenue/Sqm (building)</td>
+                                                    <td id="wrRsPy1" class="p-2 text-right"></td><td id="wrRsPy" class="p-2 text-right"></td>
+                                                    <td class="p-2 text-right text-gray-300">-</td><td class="p-2 text-right text-gray-300">-</td>
+                                                    <td id="wrRsBud" class="p-2 text-right"></td><td id="wrRsEst" class="p-2 text-right"></td></tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <p class="text-xs text-gray-500 mt-2"><i class="fas fa-database text-blue-500 mr-1"></i>Revenue PY-1 s/d Act YTD dari Upload Omset (net = omset - pajak) dan tidak dapat diketik. Size Building kosong = Warehouse + Office Size yang diajukan (tampak samar di kotaknya).</p>
+                                </div>
+
+                                <!-- Properties -->
+                                <div class="bg-white border border-gray-200 rounded-xl p-4 md:p-5">
+                                    <h3 class="text-sm font-extrabold text-gray-800 mb-4 flex flex-wrap items-center gap-2"><i class="fas fa-warehouse text-amber-600"></i>Properties Informations <span id="wrLabelSewa" class="ml-auto px-2.5 py-1 rounded-md bg-red-50 text-red-700 text-xs font-black">-</span></h3>
+                                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-4">
+                                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                            <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Land Size (m²)</label>
+                                                <input id="wrLand" type="text" inputmode="decimal" oninput="wrFormatAngka(this)" class="wr-angka w-full px-3 py-2 border border-gray-300 rounded-lg text-right disabled:bg-gray-50"></div>
+                                            <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Warehouse Size (m²) <span class="text-red-500">*</span></label>
+                                                <input id="wrWh" type="text" inputmode="decimal" oninput="wrFormatAngka(this)" class="wr-angka w-full px-3 py-2 border border-gray-300 rounded-lg text-right disabled:bg-gray-50"></div>
+                                            <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Office Size (m²)</label>
+                                                <input id="wrOff" type="text" inputmode="decimal" oninput="wrFormatAngka(this)" class="wr-angka w-full px-3 py-2 border border-gray-300 rounded-lg text-right disabled:bg-gray-50"></div>
+                                            <div class="sm:col-span-3"><label class="block text-xs font-bold text-gray-700 mb-1.5">Offering Price (IDR per tahun) <span class="text-red-500">*</span></label>
+                                                <input id="wrOffer" type="text" inputmode="decimal" oninput="wrFormatAngka(this)" class="wr-angka w-full px-3 py-2 border border-gray-300 rounded-lg text-right font-bold disabled:bg-gray-50"></div>
+                                        </div>
+                                        <div class="bg-amber-50/60 border border-amber-100 rounded-xl p-4 space-y-3">
+                                            <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Total Price for ... Year</label>
+                                                <div class="flex items-center gap-2">
+                                                    <span class="text-sm text-gray-600">Total Price for</span>
+                                                    <input id="wrTotalTahun" type="text" inputmode="decimal" oninput="wrFormatAngka(this)" title="Bawaannya mengikuti Rental Plane; boleh diubah" class="wr-angka w-20 px-2 py-2 border border-amber-300 rounded-lg text-center font-bold bg-white disabled:bg-gray-50">
+                                                    <span class="text-sm text-gray-600">Year =</span>
+                                                    <span id="wrTotal" class="flex-1 text-right text-lg font-black text-gray-900"></span>
+                                                </div>
+                                                <p class="text-[11px] text-gray-500 mt-1">Otomatis: jumlah tahun x Offering Price. Jumlah tahun mengikuti Rental Plane dan boleh diubah.</p></div>
+                                            <div class="flex items-center justify-between border-t border-amber-100 pt-3"><span class="text-xs font-bold text-gray-700">Price per m² / month <span class="font-normal text-gray-500">(Offering Price / (Warehouse + Office) / 12, tanpa IPL)</span></span><span id="wrM2" class="text-lg font-black text-gray-900"></span></div>
+                                        </div>
+                                    </div>
+                                    <div class="mt-4"><label class="block text-xs font-bold text-gray-700 mb-1.5">Facilities</label>
+                                        <div class="flex flex-wrap gap-2">
+                                            <label class="inline-flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg cursor-pointer has-[:checked]:bg-amber-50 has-[:checked]:border-amber-400"><input type="checkbox" name="wrFas" value="mess"> Mess</label>
+                                            <label class="inline-flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg cursor-pointer has-[:checked]:bg-amber-50 has-[:checked]:border-amber-400"><input type="checkbox" name="wrFas" value="musholla"> Musholla</label>
+                                            <label class="inline-flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg cursor-pointer has-[:checked]:bg-amber-50 has-[:checked]:border-amber-400"><input type="checkbox" name="wrFas" value="parking"> Parking Area</label>
+                                            <label class="inline-flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg cursor-pointer has-[:checked]:bg-amber-50 has-[:checked]:border-amber-400"><input type="checkbox" name="wrFas" value="cctv"> CCTV</label>
+                                            <label class="inline-flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg cursor-pointer has-[:checked]:bg-amber-50 has-[:checked]:border-amber-400"><input type="checkbox" name="wrFas" value="security"> Security</label>
+                                        </div></div>
+                                </div>
+
+                                <!-- Terms & Owner -->
+                                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                    <div class="bg-white border border-gray-200 rounded-xl p-4 md:p-5 space-y-3">
+                                        <h3 class="text-sm font-extrabold text-gray-800 flex items-center gap-2"><i class="fas fa-scale-balanced text-amber-600"></i>Terms &amp; Conditions</h3>
+                                        <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Income Tax (PPH) <span class="text-red-500">*</span></label><div class="flex flex-wrap gap-2">
+                                            <label class="inline-flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg cursor-pointer has-[:checked]:bg-amber-50 has-[:checked]:border-amber-400"><input type="radio" name="wrPph" value="owner"> By Owner</label>
+                                            <label class="inline-flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg cursor-pointer has-[:checked]:bg-amber-50 has-[:checked]:border-amber-400"><input type="radio" name="wrPph" value="nipsea"> By Nipsea</label></div></div>
+                                        <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Land Tax (PBB) <span class="text-red-500">*</span></label><div class="flex flex-wrap gap-2">
+                                            <label class="inline-flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg cursor-pointer has-[:checked]:bg-amber-50 has-[:checked]:border-amber-400"><input type="radio" name="wrPbb" value="owner"> By Owner</label>
+                                            <label class="inline-flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg cursor-pointer has-[:checked]:bg-amber-50 has-[:checked]:border-amber-400"><input type="radio" name="wrPbb" value="nipsea"> By Nipsea</label></div></div>
+                                        <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Notaries Fee <span class="text-red-500">*</span></label><div class="flex flex-wrap gap-2">
+                                            <label class="inline-flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg cursor-pointer has-[:checked]:bg-amber-50 has-[:checked]:border-amber-400"><input type="radio" name="wrNot" value="owner"> By Owner</label>
+                                            <label class="inline-flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg cursor-pointer has-[:checked]:bg-amber-50 has-[:checked]:border-amber-400"><input type="radio" name="wrNot" value="nipsea"> By Nipsea</label>
+                                            <label class="inline-flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg cursor-pointer has-[:checked]:bg-amber-50 has-[:checked]:border-amber-400"><input type="radio" name="wrNot" value="5050"> 50 : 50</label></div></div>
+                                        <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Mtn/Surcharge (IPL)</label>
+                                            <input id="wrIpl" type="text" inputmode="decimal" oninput="wrFormatAngka(this)" class="wr-angka w-full sm:w-64 px-3 py-2 border border-gray-300 rounded-lg text-right disabled:bg-gray-50"></div>
+                                    </div>
+                                    <div class="bg-white border border-gray-200 rounded-xl p-4 md:p-5 space-y-3">
+                                        <h3 class="text-sm font-extrabold text-gray-800 flex items-center gap-2"><i class="fas fa-user-tie text-amber-600"></i>Owner Informations</h3>
+                                        <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Owners / Agent <span class="text-red-500">*</span></label>
+                                            <input id="wrOwner" type="text" maxlength="100" class="w-full px-3 py-2 border border-gray-300 rounded-lg uppercase disabled:bg-gray-50"></div>
+                                        <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Phone Number</label>
+                                            <input id="wrPhone" type="text" maxlength="40" class="w-full px-3 py-2 border border-gray-300 rounded-lg uppercase disabled:bg-gray-50"></div>
+                                        <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Properties Address <span class="text-red-500">*</span></label>
+                                            <textarea id="wrAlamat" rows="3" maxlength="300" class="w-full px-3 py-2 border border-gray-300 rounded-lg uppercase resize-y disabled:bg-gray-50"></textarea></div>
+                                    </div>
+                                </div>
+                                <p class="text-xs text-gray-500 italic"><span class="text-red-500">*</span> wajib saat Submit. Bentuk form F01.AW.2025 (seperti Excel) ada di PDF: Preview PDF untuk melihatnya. Tanda tangan, Legal Review, dan Top Management tercetak kosong untuk tanda tangan basah.</p>
+                            </div>
+                        </div>
+
+                        <!-- ===== Draft ===== -->
+                        <div id="wrPanelDraft" class="hidden">
+                            <div class="overflow-auto border border-gray-200 rounded-xl">
+                                <table class="w-full text-left text-xs">
+                                    <thead class="bg-gray-50 text-gray-600 uppercase text-[11px]"><tr>
+                                        <th class="p-3">Depot</th><th class="p-3">Date Propose</th><th class="p-3">Jenis Sewa</th><th class="p-3">Rental Plane</th>
+                                        <th class="p-3">Owners / Agent</th><th class="p-3">Dibuat</th><th class="p-3">Terakhir diubah</th><th class="p-3 text-center">Aksi</th></tr></thead>
+                                    <tbody id="wrBodyDraft"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- ===== Submitted ===== -->
+                        <div id="wrPanelSubmitted" class="hidden">
+                            <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-4 flex flex-wrap gap-3 rc-filter-bar shadow-sm">
+                                <div class="w-44 flex-shrink-0">
+                                    <label class="block text-xs font-bold text-gray-700 mb-1.5">Status</label>
+                                    <select id="wrSubStatus" onchange="wrRenderSubmitted()" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm font-bold text-gray-700">
+                                        <option value="submitted">Submitted</option><option value="cancelled">Cancelled</option><option value="">Semua</option></select>
+                                </div>
+                                <div class="flex-1 min-w-[200px]">
+                                    <label class="block text-xs font-bold text-gray-700 mb-1.5">Cari</label>
+                                    <input id="wrSubCari" type="text" oninput="wrRenderSubmitted()" placeholder="No. Dokumen, depot, owner..." class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm">
+                                </div>
+                            </div>
+                            <div class="overflow-auto border border-gray-200 rounded-xl">
+                                <table class="w-full text-left text-xs">
+                                    <thead class="bg-gray-50 text-gray-600 uppercase text-[11px]"><tr>
+                                        <th class="p-3">No. Dokumen</th><th class="p-3">Depot</th><th class="p-3">Date Propose</th><th class="p-3">Jenis Sewa</th>
+                                        <th class="p-3">Rental Plane</th><th class="p-3 text-right">Total Price</th><th class="p-3">Submit</th><th class="p-3">Status</th><th class="p-3 text-center">Aksi</th></tr></thead>
+                                    <tbody id="wrBodySubmitted"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- ===== Upload Omset ===== -->
+                        <div id="wrPanelOmset" class="hidden">
+                            <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-4">
+                                <p class="text-sm text-gray-700 mb-3">Satu baris per depot per bulan: <b>Kode Depot</b>, <b>Omset</b>, <b>Pajak</b>, <b>Bulan</b> (YYYY-MM atau tanggal Excel). Revenue di form = Omset - Pajak. Kode Depot + Bulan yang sudah ada ditimpa; baris bermasalah tidak ikut disimpan.</p>
+                                <div class="flex flex-wrap gap-2">
+                                    <button onclick="wrUnduhTemplateOmset()" class="px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold rounded-lg text-sm"><i class="fas fa-download mr-1.5 text-emerald-600"></i>Download Template</button>
+                                    <label class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-sm cursor-pointer"><i class="fas fa-upload mr-1.5"></i>Pilih Berkas Omset
+                                        <input id="wrBerkasOmset" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="wrBacaOmset(this)"></label>
+                                </div>
+                            </div>
+                            <div id="wrPratinjauOmset" class="hidden mb-6"></div>
+                            <div class="flex flex-wrap items-end justify-between gap-3 mb-3">
+                                <h3 class="font-extrabold text-gray-800">Rekap Omset Net per Depot</h3>
+                                <label class="text-xs font-bold text-gray-700">Tahun <select id="wrOmsetTahun" onchange="wrMuatOmset()" class="ml-1 px-3 py-1.5 border border-gray-300 rounded-lg bg-white text-sm font-bold"></select></label>
+                            </div>
+                            <div class="overflow-auto border border-gray-200 rounded-xl mb-6">
+                                <table class="w-full text-xs">
+                                    <thead class="bg-gray-50 text-gray-600 uppercase text-[11px]" id="wrHeadOmset"></thead>
+                                    <tbody id="wrBodyOmset"></tbody>
+                                </table>
+                            </div>
+                            <h3 class="font-extrabold text-gray-800 mb-3">Riwayat Upload</h3>
+                            <div class="overflow-auto border border-gray-200 rounded-xl">
+                                <table class="w-full text-left text-xs">
+                                    <thead class="bg-gray-50 text-gray-600 uppercase text-[11px]"><tr><th class="p-3">Waktu</th><th class="p-3">Berkas</th><th class="p-3">Oleh</th><th class="p-3 text-right">Baru</th><th class="p-3 text-right">Ditimpa</th><th class="p-3 text-right">Galat</th></tr></thead>
+                                    <tbody id="wrBodyUpload"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>

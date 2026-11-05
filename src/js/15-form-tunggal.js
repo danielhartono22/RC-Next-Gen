@@ -22,7 +22,11 @@
                 btnPreview.disabled = true;
 
                 if (!docVal) { statusEl.innerText = ""; return; }
-                await pastikanMaster([], [docVal]);
+                if (await pastikanMaster([], [docVal]) === false) {
+                    // Gagal memuat bukan berarti dokumennya tidak ada (20 Oktober 2026).
+                    statusEl.innerHTML = `<span class="bg-red-100 text-red-700 px-2 py-0.5 rounded shadow-sm font-bold"><i class="fas fa-exclamation-circle"></i> Gagal memuat - ketik ulang No Doc</span>`;
+                    return;
+                }
                 let db = globalDocuments.find(d => String(d.noDoc).trim().toUpperCase() === docVal);
                 if (!db) { statusEl.innerHTML = `<span class="bg-orange-100 text-orange-700 px-2 py-0.5 rounded shadow-sm font-bold"><i class="fas fa-exclamation-circle"></i> Tdk Ditemukan</span>`; return; }
 

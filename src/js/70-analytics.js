@@ -82,6 +82,13 @@
                     rowsHtml += `<tr class="hover:bg-slate-50 border-b border-gray-100"><td class="p-3 text-xs font-black text-blue-700 rc-wrap">${rcEsc(r.noDoc)}</td><td class="p-3 rc-wrap">${rcTautTeks('rcHistoryCustomer(' + rowIndex + ')', rcEsc(r.kodeToko), 'text-blue-600 text-xs hover:underline')}</td><td class="p-3 rc-wrap">${rcTautTeks('rcHistoryCustomer(' + rowIndex + ')', rcEsc(r.namaToko), 'font-bold text-sm hover:underline')}</td><td class="p-3 rc-wrap text-xs">${rcEsc(r.codeCampaign)}</td><td class="p-3 rc-wrap text-sm">${rcEsc(r.campaign)}</td><td class="p-3 text-right font-black text-red-600">${rcMoney(r.totalClaim)}</td><td class="p-3 text-center">${bdg}</td><td class="p-3 rc-time text-xs">${rcHistoryDates(r)}</td><td class="p-3 text-xs rc-wrap">${rcRemarkHtml(r.remark)}</td><td class="p-3"><button onclick="toggleRowDetails('hist-detail-${rowIndex}')" class="bg-blue-50 text-blue-600 font-bold px-3 py-1.5 rounded-lg text-xs">Details</button></td></tr><tr id="hist-detail-${rowIndex}" class="hidden expanded-details"><td colspan="10" class="p-4 bg-gray-50"><div class="grid grid-cols-1 md:grid-cols-3 gap-3">${rcHistoryDetails(r)}</div></td></tr>`;
                 });
                 tb.innerHTML = rowsHtml; renderHistoryPagination(totalItems, totalPages);
+                // 20261163270000: tagihan Upload Debtor di Details, dimuat untuk halaman yang tampil.
+                rcTagihanMuat(paginated.map(r => r.noDoc)).then(function () {
+                    paginated.forEach(function (r) {
+                        const el = document.querySelector('#hist-detail-' + globalHistoryData.indexOf(r) + ' > td > div');
+                        if (el) el.innerHTML = rcHistoryDetails(r);
+                    });
+                });
             }
 
             function renderHistoryPagination(total, totalPages) {
@@ -133,12 +140,12 @@
                     filtered = globalHistoryData.filter(d => d.kodeToko === code);
                     filtered.sort((a, b) => { return new Date(b.tglUpload || 0) - new Date(a.tglUpload || 0); });
 
-                    document.getElementById('detailModalHead').innerHTML = `<tr><th class="p-3 text-[10px] font-black text-gray-500 uppercase tracking-wider">No Doc</th><th class="p-3 text-[10px] font-black text-gray-500 uppercase tracking-wider">Campaign</th><th class="p-3 text-[10px] font-black text-gray-500 uppercase tracking-wider text-center">Tgl Pencairan (Clearing)</th><th class="p-3 text-[10px] font-black text-gray-500 uppercase tracking-wider text-right">CB Net</th><th class="p-3 text-[10px] font-black text-gray-500 uppercase tracking-wider text-center">Status</th></tr>`;
+                    document.getElementById('detailModalHead').innerHTML = `<tr><th class="p-3 text-[10px] font-black text-gray-500 uppercase tracking-wider">No Doc</th><th class="p-3 text-[10px] font-black text-gray-500 uppercase tracking-wider">Campaign</th><th class="p-3 text-[10px] font-black text-gray-500 uppercase tracking-wider text-center">Tgl Pencairan (Clearing)</th><th class="p-3 text-[10px] font-black text-gray-500 uppercase tracking-wider text-right">CB Net</th><th class="p-3 text-[10px] font-black text-gray-500 uppercase tracking-wider text-center">Status</th><th class="p-3 text-[10px] font-black text-gray-500 uppercase tracking-wider">Rekening</th></tr>`;
                     filtered.forEach(d => {
                         let val = Number(d.totalClaim) || 0; let bdgColor = rcStatusClass(d.status);
                         let bdg = `<span class="px-2 py-1 ${bdgColor} text-[10px] rounded uppercase font-bold">${d.status}</span>`;
                         let tglDisplay = d.status === 'Done' ? (d.tglClearing || '-') : '-';
-                        rowsHtml += `<tr class="hover:bg-blue-50 border-b"><td class="p-3 font-semibold">${d.noDoc}</td><td class="p-3 font-bold whitespace-normal">${d.campaign}</td><td class="p-3 text-center text-xs text-green-600 font-bold">${tglDisplay}</td><td class="p-3 text-right font-bold text-red-600">${val.toLocaleString('id-ID')}</td><td class="p-3 text-center">${bdg}</td></tr>`;
+                        rowsHtml += `<tr class="hover:bg-blue-50 border-b"><td class="p-3 font-semibold">${d.noDoc}</td><td class="p-3 font-bold whitespace-normal">${d.campaign}</td><td class="p-3 text-center text-xs text-green-600 font-bold">${tglDisplay}</td><td class="p-3 text-right font-bold text-red-600">${val.toLocaleString('id-ID')}</td><td class="p-3 text-center">${bdg}</td><td class="p-3 text-xs whitespace-nowrap">${rcRekeningHtml(d)}</td></tr>`;
                     });
                 } else if (type === 'campaign') {
                     // "code" di sini adalah Master Code (dipanggil dari renderSummary/Executive Summary), bukan

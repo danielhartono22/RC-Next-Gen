@@ -7,6 +7,10 @@
                 currentUploadMode = 'open';
                 setHiddenSafely('tab_mass', true); setHiddenSafely('tab_single', true);
                 setHiddenSafely('tab_open', false);
+                setHiddenSafely('tab_restricted', true); // 20261163170000
+                setHiddenSafely('openBarisZdage', !rcZdageAktif()); // 20261163680000
+                const sr = document.getElementById('subnav_restricted');
+                if (sr) sr.className = 'px-5 py-2 text-sm font-bold rounded-lg text-gray-500 hover:bg-gray-100 transition';
                 let idle = "px-5 py-2 text-sm font-bold rounded-lg text-gray-500 hover:bg-gray-100 transition";
                 let active = "px-5 py-2 text-sm font-bold rounded-lg bg-blue-100 text-blue-700 transition";
                 ['subnav_mass','subnav_single'].forEach(id => { let e = document.getElementById(id); if (e) e.className = idle; });
@@ -44,10 +48,18 @@
             // bagi orang yang tidak membutuhkannya.
             const OPEN_KOLOM = [
                 { k: 'noDoc',        judul: 'No Document',   baku: true,  sel: r => '<span class="font-black text-blue-700">' + rcEsc(r.noDoc) + '</span>' },
-                { k: 'toko',         judul: 'Toko',          baku: true,  sel: r => '<b>' + rcEsc(r.namaToko) + '</b><br><span class="text-gray-500">' + rcEsc(r.kodeToko) + '</span>', kelas: 'text-xs' },
+                // 20261163170000: batas proses toko lunas dari Upload Debtor (ZDAGE).
+                { k: 'deadline',     judul: 'Deadline',      baku: true,  zdage: true,  sel: r => openSelDeadline(r), kelas: 'text-center text-xs whitespace-nowrap' },
+                { k: 'toko',         judul: 'Toko',          baku: true,  sel: r => '<b>' + rcEsc(r.namaToko) + '</b>' + openLabelBadDebt(r) + '<br><span class="text-gray-500">' + rcEsc(r.kodeToko) + '</span>', kelas: 'text-xs' },
                 { k: 'campaign',     judul: 'Campaign',      baku: true,  sel: r => '<b>' + rcEsc(r.codeCampaign) + '</b><br><span class="text-gray-500">' + rcEsc(r.campaignName) + '</span>', kelas: 'text-xs' },
                 { k: 'jenisCb',      judul: 'Jenis CB',      baku: true,  sel: r => rcEsc(r.jenisCb || '-'), kelas: 'text-center text-xs font-bold' },
-                { k: 'cbNet',        judul: 'Cashback',      baku: true,  sel: r => rcMoney(r.cbNet), kelas: 'text-right font-black text-red-600 whitespace-nowrap' }, // "Rp" dan angkanya tidak boleh terpisah baris
+                { k: 'cbNet',        judul: 'Cashback',      baku: true,  sel: r => rcMoney(r.cbNet), kelas: 'text-right font-black text-red-600 whitespace-nowrap' },
+                // Pemilik, 27 Oktober 2026: Net Value dan Volume tampil tanpa harus dipilih lewat Pilih Kolom.
+                { k: 'netValue',     judul: 'Net Value',     baku: true,  sel: r => rcMoney(r.netValue), kelas: 'text-right text-xs whitespace-nowrap' },
+                { k: 'volume',       judul: 'Volume',        baku: true,  sel: r => rcEsc(Number(r.volume || 0).toLocaleString('id-ID')), kelas: 'text-right text-xs whitespace-nowrap' },
+                // 20261163270000: tagihan toko dari Upload Debtor (ZDAGE) yang berlaku untuk depotnya.
+                { k: 'tagihan',      judul: 'Tagihan',       baku: true,  zdage: true,  sel: r => rcTagihanSel(r.noDoc), kelas: 'text-right text-xs whitespace-nowrap' },
+                { k: 'bulanTagihan', judul: 'Final Billing Month', baku: true, zdage: true, sel: r => rcEsc(rcTagihanBulan(r.noDoc)), kelas: 'text-xs whitespace-nowrap' }, // "Rp" dan angkanya tidak boleh terpisah baris
                 { k: 'kelengkapan',  judul: 'Kelengkapan',   baku: true,  sel: null, kelas: 'text-center' },
                 { k: 'createdOn',    judul: 'Created On',    baku: false, sel: r => rcEsc(r.createdOn || '-'), kelas: 'text-center text-xs whitespace-nowrap' },
                 { k: 'createdBy',    judul: 'Created By',    baku: false, sel: r => rcEsc(r.createdBy || '-'), kelas: 'text-center text-xs' },
@@ -65,9 +77,34 @@
                 { k: 'contactPerson',judul: 'Contact Person',baku: false, sel: r => rcEsc(r.contactPerson || '-'), kelas: 'text-xs' }
             ];
 
+            // Deadline tawaran toko lunas: 7-5 hari hijau, 4-3 kuning, 2-1 oranye, hari ini merah,
+            // lewat merah tua dengan label "Lewat X hari" (spesifikasi pemilik, 16 Oktober 2026).
+            function openWarnaDeadline(sisa) {
+                if (sisa < 0) return 'bg-red-800 text-white';
+                if (sisa === 0) return 'bg-red-100 text-red-700';
+                if (sisa <= 2) return 'bg-orange-100 text-orange-800';
+                if (sisa <= 4) return 'bg-yellow-100 text-yellow-800';
+                return 'bg-green-100 text-green-800';
+            }
+            function openSelDeadline(r) {
+                // Dipindah dari tab Restricted oleh Editor: tanpa batas proses, berlabel Restricted.
+                if (r.restricted) return '<span class="inline-block px-2 py-1 rounded font-black bg-slate-200 text-slate-800" title="Dipindah dari Restricted; boleh diajukan">Restricted</span>';
+                if (!r.deadline) return '<span class="text-gray-400">-</span>';
+                const sisa = Number(r.sisaHari);
+                const label = sisa < 0 ? 'Lewat ' + Math.abs(sisa) + ' hari' : sisa === 0 ? 'Hari ini' : sisa + ' hari lagi';
+                return '<span class="inline-block px-2 py-1 rounded font-bold ' + openWarnaDeadline(sisa) + '" data-sort="' + sisa + '">'
+                    + rcEsc(r.deadline) + '<span class="block text-[10px] font-black">' + rcEsc(label) + '</span></span>';
+            }
+            function openLabelBadDebt(r) {
+                return r.badDebt ? ' <span class="px-1.5 py-0.5 rounded text-[10px] font-black bg-red-700 text-white" title="'
+                    + rcEsc(r.badDebtAlasan || '') + '">Bad Debt</span>' : '';
+            }
+
             // Pilihan kolom disimpan di browser masing-masing. Ini kenyamanan per orang, bukan
             // data bersama, jadi localStorage memang tempatnya - dan seluruh pembacaannya
             // dibungkus try/catch karena penyimpanan itu dapat ditolak di jendela penyamaran.
+            // 20261163680000: kolom ZDAGE (Deadline, Tagihan, Final Billing Month) hanya saat saklar hidup.
+            function openKolomDaftar() { return OPEN_KOLOM.filter(c => !c.zdage || rcZdageAktif()); }
             let openKolomAktif = null;
 
             function openKolomMuat() {
@@ -76,7 +113,7 @@
                 try { simpan = JSON.parse(window.localStorage.getItem('rcOpenKolom') || 'null'); }
                 catch (e) { simpan = null; }
                 openKolomAktif = {};
-                OPEN_KOLOM.forEach(function (c) {
+                openKolomDaftar().forEach(function (c) {
                     openKolomAktif[c.k] = (simpan && typeof simpan[c.k] === 'boolean') ? simpan[c.k] : c.baku;
                 });
                 return openKolomAktif;
@@ -96,7 +133,7 @@
 
             function openKolomRender() {
                 const aktif = openKolomMuat();
-                document.getElementById('openKolomDaftar').innerHTML = OPEN_KOLOM.map(function (c) {
+                document.getElementById('openKolomDaftar').innerHTML = openKolomDaftar().map(function (c) {
                     return '<label class="flex items-center gap-2 text-sm text-gray-700">'
                         + '<input type="checkbox" class="rounded text-blue-600" '
                         + 'onchange="openKolomUbah(\'' + c.k + '\', this.checked)"'
@@ -112,7 +149,7 @@
 
             function openKolomSemua(semua) {
                 const aktif = openKolomMuat();
-                OPEN_KOLOM.forEach(function (c) { aktif[c.k] = semua ? true : c.baku; });
+                openKolomDaftar().forEach(function (c) { aktif[c.k] = semua ? true : c.baku; });
                 openKolomSimpan();
                 openKolomRender();
                 renderOpenClaims();
@@ -134,6 +171,10 @@
                     if (ke !== rcOpenMuatKe) return;
                     if (res.status !== 'success') { showNotification(res.message || "Gagal memuat.", "error"); return; }
                     rcOpenState = { offset: offset, rows: res.rows || [], total: res.total || 0 };
+                    // 20261163270000: tagihan Upload Debtor untuk baris halaman ini.
+                    if (offset === 0) rcTagihanKosongkan();
+                    await rcTagihanMuat(rcOpenState.rows.map(r => r.noDoc));
+                    if (ke !== rcOpenMuatKe) return;
                     opsiOpenFilter(res.opsi);
                     renderOpenClaims();
                     renderOpenPager();
@@ -155,7 +196,7 @@
                 const adaSesudah = rcOpenState.offset + OPEN_PER_HALAMAN < total;
                 el.innerHTML = '<div class="flex flex-wrap justify-between items-center gap-3 text-xs text-gray-600">'
                     + '<span>Menampilkan <b>' + awal.toLocaleString('id-ID') + ' - ' + akhir.toLocaleString('id-ID')
-                    + '</b> dari <b>' + total.toLocaleString('id-ID') + '</b> dokumen Not Yet</span>'
+                    + '</b> dari <b>' + total.toLocaleString('id-ID') + '</b> dokumen siap diajukan</span>'
                     + '<span class="flex gap-2">'
                     + '<button type="button" ' + (adaSebelum ? '' : 'disabled ') + 'onclick="loadOpenClaims(' + Math.max(0, rcOpenState.offset - OPEN_PER_HALAMAN) + ')" class="px-3 py-1.5 rounded-lg border border-gray-300 bg-white font-bold disabled:opacity-40"><i class="fas fa-chevron-left"></i></button>'
                     + '<button type="button" ' + (adaSesudah ? '' : 'disabled ') + 'onclick="loadOpenClaims(' + (rcOpenState.offset + OPEN_PER_HALAMAN) + ')" class="px-3 py-1.5 rounded-lg border border-gray-300 bg-white font-bold disabled:opacity-40"><i class="fas fa-chevron-right"></i></button>'
@@ -167,10 +208,15 @@
             // Isinya sama dengan layar: Cashback bulat seperti rcMoney, dan teks (No KTP, NPWP,
             // No Rekening, kode) ditulis sebagai sel teks supaya Excel tidak membuang nol di depan.
             function openKolomUntukUnduh(c) {
-                if (c.k === 'toko') return [['Kode Toko', r => rcSelTeks(r.kodeToko)], ['Nama Toko', r => r.namaToko || '']];
+                if (c.k === 'toko') return [['Kode Toko', r => rcSelTeks(r.kodeToko)], ['Nama Toko', r => r.namaToko || ''], ['Bad Debt', r => r.badDebt ? 'Bad Debt' : '']];
+                if (c.k === 'deadline') return [['Deadline', r => r.deadline || ''], ['Sisa Hari', r => r.deadline ? Number(r.sisaHari) : '']];
                 if (c.k === 'campaign') return [['Kode Campaign', r => rcSelTeks(r.codeCampaign)], ['Nama Campaign', r => r.campaignName || '']];
                 if (c.k === 'kelengkapan') return [['Kelengkapan', r => (r.ktp || r.npwp) ? 'Lengkap' : 'Perlu Dilengkapi']];
                 if (c.k === 'cbNet') return [['Cashback', r => Math.trunc(Number(r.cbNet) || 0)]];
+                if (c.k === 'netValue') return [['Net Value', r => Math.trunc(Number(r.netValue) || 0)]];
+                if (c.k === 'volume') return [['Volume', r => Number(r.volume) || 0]];
+                if (c.k === 'tagihan') return [['Tagihan', r => rcTagihanUnduh(r.noDoc)]];
+                if (c.k === 'bulanTagihan') return [['Final Billing Month', r => rcTagihanBulanUnduh(r.noDoc)]];
                 return [[c.judul, r => rcSelTeks(r[c.k])]];
             }
 
@@ -178,11 +224,12 @@
             // (permintaan pemilik 7 Oktober 2026: "untuk download pada tab open cukup yang dipilih
             // aja sesuai field yang ditunjuk juga"). Menggantikan Unduh Semua, yang mengunduh
             // seluruh hasil penyaring.
-            function openUnduhDipilih() {
+            async function openUnduhDipilih() {
                 const dipilih = rcSelectedOpenRows();
                 if (dipilih.length === 0) { showNotification('Centang dokumen yang akan diunduh lebih dulu.', 'warning'); return; }
+                await rcTagihanMuat(dipilih.map(r => r.noDoc)); // 20261163270000: baris dari halaman lain
                 const aktif = openKolomMuat();
-                const kolom = OPEN_KOLOM.filter(c => aktif[c.k]).flatMap(openKolomUntukUnduh);
+                const kolom = openKolomDaftar().filter(c => aktif[c.k]).flatMap(openKolomUntukUnduh);
                 if (kolom.length === 0) { showNotification('Pilih minimal satu kolom lewat Pilih Kolom.', 'warning'); return; }
                 const aoa = [kolom.map(k => k[0])].concat(dipilih.map(r => kolom.map(k => k[1](r))));
                 const wb = XLSX.utils.book_new();
@@ -195,7 +242,7 @@
 
             function renderOpenClaims() {
                 const aktif = openKolomMuat();
-                const kolom = OPEN_KOLOM.filter(c => aktif[c.k]);
+                const kolom = openKolomDaftar().filter(c => aktif[c.k]);
                 const rows = (rcOpenState && rcOpenState.rows) || [];
 
                 document.getElementById('openTableHead').innerHTML =
@@ -217,9 +264,9 @@
                         }).join('')
                         + '</tr>';
                 }).join('') || '<tr><td colspan="' + (kolom.length + 1)
-                        + '" class="p-8 text-center text-gray-500">Tidak ada dokumen berstatus Not Yet.</td></tr>';
+                        + '" class="p-8 text-center text-gray-500">Tidak ada dokumen yang siap diajukan.' + (rcZdageAktif() ? ' Dokumen Not Yet lain ada di tab Restricted.' : '') + '</td></tr>';
 
-                const n = OPEN_KOLOM.length;
+                const n = openKolomDaftar().length;
                 document.getElementById('openKolomRingkas').innerText =
                     kolom.length + ' dari ' + n + ' kolom ditampilkan';
                 rcPilihanPulihkan('cb-open', 'openSelectAll');
@@ -246,6 +293,12 @@
                 setDisabledSafely('btnOpenToMass', n === 0);
                 setDisabledSafely('btnOpenToTemplate', n === 0);
                 setDisabledSafely('btnOpenUnduh', n === 0);
+                // 20261163170000: Kembalikan hanya untuk dokumen yang sedang ditawarkan.
+                const dipilih = rcSelectedOpenRows();
+                setDisabledSafely('btnOpenKembalikan', !dipilih.some(r => r.offerStatus === 'offered' || r.offerStatus === 'overdue'));
+                setHiddenSafely('openBarisZdage', !rcZdageAktif()); // 20261163680000: Kembalikan, Bad Debt, keterangan ZDAGE
+                setDisabledSafely('btnOpenBadDebt', !dipilih.some(r => !r.badDebt));
+                setDisabledSafely('btnOpenCabutBadDebt', !dipilih.some(r => r.badDebt));
             }
             function rcSelectedOpenRows() {
                 return rcPilihanData('cb-open').filter(Boolean);
@@ -272,7 +325,7 @@
                 picked.forEach((r, i) => {
                     const tr = trs[i]; if (!tr) return;
                     const isi = {
-                        noDoc: r.noDoc, ktp: r.ktp, npwp: r.npwp,
+                        noDoc: r.noDoc, ktp: r.ktp, npwp: r.npwp, tglLunas: r.tglLunasIsi || '', // 20261163170000
                         noRekening: r.noRek, namaRekening: r.namaRek, bank: r.bank, top: r.top
                     };
                     // Kolom yang tidak ada pada susunan yang sedang aktif dilewati begitu saja.
@@ -301,7 +354,7 @@
                 // sudah dicabut pemilik - kelayakan TOP ditentukan saat approval, bukan saat unggah.
                 let header = ["No Document", "Tgl Lunas", "No Rekening", "Nama Rekening", "Bank", "TOP", "Jenis CB"];
                 let aoa = [header];
-                picked.forEach(r => aoa.push([rcSelTeks(r.noDoc), '', rcSelTeks(r.noRek), r.namaRek || '', r.bank || '', rcSelTeks(r.top), '']));
+                picked.forEach(r => aoa.push([rcSelTeks(r.noDoc), r.tglLunasIsi || '', rcSelTeks(r.noRek), r.namaRek || '', r.bank || '', rcSelTeks(r.top), '']));
                 let wb = XLSX.utils.book_new();
                 let ws = XLSX.utils.aoa_to_sheet(aoa);
                 ws['!cols'] = [{ wch: 24 }, { wch: 12 }, { wch: 20 }, { wch: 22 }, { wch: 12 }, { wch: 8 }, { wch: 12 }];
@@ -317,3 +370,52 @@
             }
 
             // ---------- Matriks permission modul tambahan ----------
+
+            // ---- 20261163170000: tawaran toko lunas dan Bad Debt ---------------------------------
+            // Dialog alasan wajib (minimal 3 karakter). Mengembalikan teks alasan, atau null bila batal.
+            function rcMintaAlasan(judul, pesan, tombol) {
+                return new Promise(function (selesai) {
+                    window.__rcAlasanSelesai = function (ok) {
+                        const v = ok ? String((document.getElementById('rcAlasanIsi') || {}).value || '').trim() : null;
+                        if (ok && v.length < 3) { showNotification('Alasan wajib diisi (minimal 3 karakter).', 'warning'); return; }
+                        window.__rcAlasanSelesai = null; rcTutupDialog(); selesai(v);
+                    };
+                    rcDialog(judul, '<div class="space-y-3 text-sm"><p>' + rcEsc(pesan) + '</p>'
+                        + '<textarea id="rcAlasanIsi" rows="3" maxlength="300" class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Alasan (wajib)"></textarea>'
+                        + '<div class="flex justify-end gap-2"><button type="button" onclick="window.__rcAlasanSelesai && window.__rcAlasanSelesai(false)" class="px-4 py-2 border border-gray-300 rounded-lg font-bold">Batal</button>'
+                        + '<button type="button" id="rcAlasanOk" onclick="window.__rcAlasanSelesai && window.__rcAlasanSelesai(true)" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold">' + rcEsc(tombol) + '</button></div></div>');
+                    setTimeout(function () { const el = document.getElementById('rcAlasanIsi'); if (el) el.focus(); }, 50);
+                });
+            }
+
+            async function openKembalikanNotYet() {
+                const docs = rcSelectedOpenRows().filter(r => r.offerStatus === 'offered' || r.offerStatus === 'overdue').map(r => r.noDoc);
+                if (!docs.length) return;
+                const alasan = await rcMintaAlasan('Kembalikan ke Not Yet', docs.length + ' dokumen toko lunas tidak diproses sekarang. '
+                    + 'Dokumen tetap Not Yet tetapi tidak akan ditawarkan otomatis lagi; OSC dapat menawarkannya ulang.', 'Kembalikan');
+                if (alasan === null) return;
+                try {
+                    const res = await fetchApp({ action: 'clearingReturn', docs: docs, alasan: alasan });
+                    if (res.status !== 'success') throw new Error(res.message || 'Gagal mengembalikan.');
+                    showNotification(res.message, 'success');
+                    rcPilihanKosongkan('cb-open', 'openSelectAll');
+                    loadOpenClaims(rcOpenState.offset || 0);
+                } catch (e) { showNotification((e && e.message) ? e.message : 'Gagal mengembalikan.', 'error'); }
+            }
+
+            async function openTandaiBadDebt(tandai) {
+                const rows = rcSelectedOpenRows().filter(r => tandai ? !r.badDebt : r.badDebt);
+                if (!rows.length) return;
+                const toko = Array.from(new Set(rows.map(r => r.kodeToko)));
+                const alasan = await rcMintaAlasan(tandai ? 'Tandai Bad Debt' : 'Cabut Bad Debt',
+                    tandai ? toko.length + ' toko ditandai Bad Debt. Klaimnya tetap di Open (paling bawah) dan tidak ditawarkan sebagai toko lunas; tawaran yang sedang berjalan dibatalkan.'
+                           : toko.length + ' toko dicabut dari Bad Debt.', tandai ? 'Tandai Bad Debt' : 'Cabut Bad Debt');
+                if (alasan === null) return;
+                try {
+                    const res = await fetchApp({ action: tandai ? 'badDebtSet' : 'badDebtRevoke', docs: rows.map(r => r.noDoc), alasan: alasan });
+                    if (res.status !== 'success') throw new Error(res.message || 'Gagal.');
+                    showNotification(res.message, 'success');
+                    rcPilihanKosongkan('cb-open', 'openSelectAll');
+                    loadOpenClaims(rcOpenState.offset || 0);
+                } catch (e) { showNotification((e && e.message) ? e.message : 'Gagal menyimpan Bad Debt.', 'error'); }
+            }

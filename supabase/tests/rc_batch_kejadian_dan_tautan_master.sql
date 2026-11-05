@@ -11,6 +11,15 @@
 create temp table if not exists _hasil_160(urut serial, uji text, lulus boolean, rinci text);
 truncate _hasil_160;
 
+-- 20261163170000: hanya klaim di Open (lunas / dipindah dari Restricted) yang dapat diajukan.
+-- Uji yang mengajukan dokumen membuka dokumennya lebih dulu, setara Editor Restricted
+-- memindahkannya ke Open; ikut dibatalkan bersama subtransaksinya.
+create or replace function pg_temp.uji_buka(p_no_docs text[]) returns void language sql as $f$
+  insert into public.rc_clearing_offers(claim_id, result, reason, deadline_at, status)
+  select c.id, 'RESTRICTED', '{"uji": true}'::jsonb, null, 'offered' from public.claims c where c.no_doc = any(p_no_docs)
+  on conflict (claim_id) where status in ('offered','overdue') do nothing;
+$f$;
+
 do $uji$
 declare v_sm uuid; s text; hasil jsonb := '[]'; hari date := (now() at time zone 'Asia/Jakarta')::date;
   a record; b record; x record; c1 public.claims%rowtype; c2 public.claims%rowtype; r jsonb; n integer;
@@ -101,6 +110,7 @@ begin
       execute 'reset role';
       select * into c1 from public.claims where id = x.id;
       v_kode := c1.batch_event_code;
+      perform pg_temp.uji_buka(array[c1.no_doc]);
       execute 'set local role authenticated';
       r := public.rc_process_claims('submit', jsonb_build_array(jsonb_build_object('no_doc', c1.no_doc, 'version_no', c1.version_no)), gen_random_uuid(), '');
       execute 'reset role';
@@ -133,6 +143,7 @@ begin
   else
     begin
       update public.email_settings set aktif = false where jenis = 'pengajuan';
+      perform pg_temp.uji_buka(array[a.no_doc, b.no_doc]);
       execute 'set local role authenticated';
       r := public.rc_process_claims('submit', jsonb_build_array(
         jsonb_build_object('no_doc', a.no_doc, 'version_no', a.version_no, 'jenis_cashback', 'CN'),
@@ -221,7 +232,7 @@ begin
     select count(*) into n from public.activity_logs where event_type = 'customer_master_linked';
     execute 'set local role authenticated';
     r := public.rc_customer_upsert(jsonb_build_array(jsonb_build_object('custCode', lower(v_lama), 'custName', 'Toko Uji 160',
-      'kodeDepot', x.depot_code, 'npwp', '01.234.567.8-901.000')));
+      'kodeDepot', x.depot_code, 'npwp', '0123456789019000')));
     execute 'reset role';
     select * into c1 from public.claims where id = x.id;
     select id into v_cust from public.customers where customer_code = v_lama;
@@ -245,7 +256,7 @@ begin
     update public.claims set customer_id = null, source_customer_code = v_lama where id = x.id;
     execute 'set local role authenticated';
     r := public.rc_customer_upsert_periksa(jsonb_build_array(jsonb_build_object('custCode', v_lama, 'custName', 'Toko Uji 160',
-      'kodeDepot', x.depot_code, 'npwp', '01.234.567.8-901.000')));
+      'kodeDepot', x.depot_code, 'npwp', '0123456789019000')));
     execute 'reset role';
     select * into c1 from public.claims where id = x.id;
     hasil := hasil || jsonb_build_array(jsonb_build_array('Periksa unggahan tidak menyimpan apa pun, termasuk tautan',
@@ -259,7 +270,7 @@ begin
   -- B3. Master terarsip tidak menautkan; dipulihkan lalu menautkan. Nilai yang ada tidak ditimpa.
   begin
     update public.claims set customer_id = null, source_customer_code = v_lama, tax_subject = 'Perorangan', gross_up = 123 where id = x.id;
-    insert into public.customers(customer_code, customer_name, npwp, archived_at) values (v_lama, 'Toko Uji 160', '01.234.567.8-901.000', now())
+    insert into public.customers(customer_code, customer_name, npwp, archived_at) values (v_lama, 'Toko Uji 160', '0123456789019000', now())
       returning id into v_cust;
     select * into c1 from public.claims where id = x.id;
     v_lama2 := case when c1.customer_id is null then 'tetap tanpa master' else 'TERTAUT' end;

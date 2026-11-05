@@ -54,6 +54,8 @@
                         <div class="flex items-end gap-2">
                             <button onclick="rtKosongkanFilter()" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 text-sm font-bold py-2.5 px-4 rounded-lg shadow-sm transition"><i class="fas fa-eraser mr-1.5"></i> Kosongkan</button>
                             <button onclick="loadReport(true)" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 text-sm font-bold py-2.5 px-4 rounded-lg shadow-sm transition"><i class="fas fa-sync mr-1.5"></i> Muat Ulang</button>
+                            <!-- 20261163600000: hanya di aplikasi (96-report.js menampilkannya); halaman publik tetap tersembunyi. -->
+                            <button id="rtBtnPerbarui" onclick="rtPerbaruiSnapshot()" title="Hitung ulang data Report sekarang (otomatis tiap 2 jam, 07:00-17:00 WIB)" class="hidden bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 text-sm font-bold py-2.5 px-4 rounded-lg shadow-sm transition"><i class="fas fa-database mr-1.5 text-blue-600"></i> Perbarui Data</button>
                             <button onclick="downloadReportExcel()" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 text-sm font-bold py-2.5 px-4 rounded-lg shadow-sm transition"><i class="fas fa-file-excel mr-1.5 text-green-600"></i> Excel</button>
                         </div>
                         <div class="flex-1 text-right self-end">
@@ -63,7 +65,8 @@
 
                     <!-- TAB: DASHBOARD -->
                     <div id="rtPaneDashboard" class="rc-below-filter">
-                        <div id="rtKpi" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 mb-6"></div>
+                        <div id="rtKpi" class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3 mb-2"></div>
+                        <p class="text-[11px] text-gray-500 mb-6">Indikator warna: <b>Outstanding Claim</b> <span class="font-black" style="color:#34A853">hijau = rendah</span>, <span class="font-black" style="color:#EA4335">merah = tinggi</span>; <b>Clearing Rate</b> sebaliknya (<span class="font-black" style="color:#34A853">hijau = tinggi</span>). Tabel diurutkan dari Outstanding Claim % tertinggi; klik judul kolom untuk mengurutkan lain.</p>
 
                         <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
                             <div id="rtCardVolume" class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm relative">
@@ -101,8 +104,8 @@
 
                         <div id="rtCardDepot" class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm relative mb-6">
                             <button type="button" onclick="rcToggleCardExpand('rtCardDepot')" title="Perbesar" class="rc-expand-btn absolute top-3 right-3 w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-blue-600 hover:border-blue-300 z-10"><i class="fas fa-expand"></i></button>
-                            <h3 class="font-black text-gray-700 mb-1 pr-10">Top 10 Depot &mdash; Outstanding %</h3>
-                            <p class="text-[11px] text-gray-500 mb-3">Proporsional terhadap Net CB depot itu sendiri, bukan nominal. Depot kecil dengan tunggakan penuh tetap terlihat.</p>
+                            <h3 class="font-black text-gray-700 mb-1 pr-10">Top 10 Depot &mdash; Outstanding Claim %</h3>
+                            <p class="text-[11px] text-gray-500 mb-3">Outstanding Claim = klaim yang belum diajukan Depot (bila approval hidup: belum disetujui), proporsional terhadap Net CB depot itu sendiri. On Hold dan Expired tidak dihitung.</p>
                             <div class="rc-expand-body"><canvas id="rtChartDepot" height="110"></canvas></div>
                         </div>
 
@@ -124,6 +127,7 @@
                                             <th class="p-3 text-right text-[10px] font-black uppercase">Done</th>
                                             <th class="p-3 text-right text-[10px] font-black uppercase">Outstanding</th>
                                             <th class="p-3 text-right text-[10px] font-black uppercase">Clearing</th>
+                                            <th class="p-3 text-right text-[10px] font-black uppercase">Outstanding Claim %</th>
                                         </tr></thead><tbody id="rtRegionBody"></tbody>
                                     </table>
                                 </div>
@@ -131,17 +135,20 @@
                             <div id="rtCardDepotTbl" class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden relative">
                                 <button type="button" onclick="rcToggleCardExpand('rtCardDepotTbl')" title="Perbesar" class="rc-expand-btn absolute top-3 right-3 w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-blue-600 hover:border-blue-300 z-20"><i class="fas fa-expand"></i></button>
                                 <div class="p-5 pb-3"><h3 class="font-black text-gray-700 pr-10">Performa per Depot</h3>
-                                    <p class="text-[11px] text-gray-500 mt-1">Urutan awal: clearing rate terendah di atas. Klik header untuk mengurutkan.</p></div>
+                                    <p class="text-[11px] text-gray-500 mt-1">Urutan awal: Outstanding Claim % tertinggi di atas. Klik header untuk mengurutkan.</p></div>
                                 <div class="rc-expand-body overflow-auto max-h-[460px]">
                                     <table class="w-full text-sm" id="rtTableDepot">
                                         <thead class="bg-gray-50 text-gray-600 sticky top-0"><tr>
-                                            <th class="p-3 text-left text-[10px] font-black uppercase">Depot</th>
+                                            <th class="p-3 text-left text-[10px] font-black uppercase whitespace-nowrap">Kode Depot</th>
+                                            <th class="p-3 text-left text-[10px] font-black uppercase whitespace-nowrap">Nama Depot</th>
+                                            <th class="p-3 text-left text-[10px] font-black uppercase">Region</th>
                                             <th class="p-3 text-right text-[10px] font-black uppercase">Klaim</th>
                                             <th class="p-3 text-right text-[10px] font-black uppercase">Net CB</th>
                                             <th class="p-3 text-right text-[10px] font-black uppercase">Done</th>
                                             <th class="p-3 text-right text-[10px] font-black uppercase">Outstanding</th>
                                             <th class="p-3 text-right text-[10px] font-black uppercase">Outstanding %</th>
                                             <th class="p-3 text-right text-[10px] font-black uppercase">Clearing</th>
+                                            <th class="p-3 text-right text-[10px] font-black uppercase">Outstanding Claim %</th>
                                         </tr></thead><tbody id="rtDepotTblBody"></tbody>
                                     </table>
                                 </div>
@@ -152,7 +159,7 @@
                             <button type="button" onclick="rcToggleCardExpand('rtCardPerforma')" title="Perbesar" class="rc-expand-btn absolute top-3 right-3 w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-blue-600 hover:border-blue-300 z-20"><i class="fas fa-expand"></i></button>
                             <div class="p-5 pb-3">
                                 <h3 class="font-black text-gray-700 pr-10">Performa per Campaign</h3>
-                                <p class="text-[11px] text-gray-500 mt-1">Urutan awal: clearing rate terendah di atas. Klik header mana pun untuk mengurutkan.</p>
+                                <p class="text-[11px] text-gray-500 mt-1">Urutan awal: Outstanding Claim % tertinggi di atas. Klik header mana pun untuk mengurutkan.</p>
                             </div>
                             <div class="rc-expand-body overflow-auto max-h-[460px]">
                                 <table class="w-full text-sm" id="rtTablePerforma">
@@ -165,6 +172,7 @@
                                         <th class="p-3 text-right text-[10px] font-black uppercase">Outstanding Amt</th>
                                         <th class="p-3 text-right text-[10px] font-black uppercase">Outstanding %</th>
                                         <th class="p-3 text-right text-[10px] font-black uppercase">Clearing Rate</th>
+                                        <th class="p-3 text-right text-[10px] font-black uppercase">Outstanding Claim %</th>
                                     </tr></thead>
                                     <tbody id="rtPerformaBody"></tbody>
                                 </table>
@@ -207,7 +215,9 @@
                         <div class="rc-expand-body overflow-auto max-h-[640px]">
                             <table class="w-full text-sm" id="rtTableCc1">
                                 <thead class="bg-gray-50 text-gray-600 sticky top-0"><tr>
-                                    <th class="p-3 text-left text-[10px] font-black uppercase">Depot</th>
+                                    <th class="p-3 text-left text-[10px] font-black uppercase whitespace-nowrap">Kode Depot</th>
+                                    <th class="p-3 text-left text-[10px] font-black uppercase whitespace-nowrap">Nama Depot</th>
+                                    <th class="p-3 text-left text-[10px] font-black uppercase">Region</th>
                                     <th class="p-3 text-left text-[10px] font-black uppercase">Campaign</th>
                                     <th class="p-3 text-right text-[10px] font-black uppercase">Qty</th>
                                     <th class="p-3 text-right text-[10px] font-black uppercase">Net CB</th>
@@ -215,6 +225,7 @@
                                     <th class="p-3 text-right text-[10px] font-black uppercase">Gross Claimed</th>
                                     <th class="p-3 text-right text-[10px] font-black uppercase">CB Expired</th>
                                     <th class="p-3 text-right text-[10px] font-black uppercase">Clearing</th>
+                                    <th class="p-3 text-right text-[10px] font-black uppercase">Outstanding Claim %</th>
                                 </tr></thead>
                                 <tbody id="rtCc1Body"></tbody>
                             </table>

@@ -1,0 +1,311 @@
+                <!-- MODULE: DISCOUNT CENTER (20261163310000-350000)
+                     Kebijakan discount yang berlaku, acknowledge, monitoring, dan generate template
+                     pantek. Setiap tab adalah satu entri tab_catalog (discount.*), sehingga muncul
+                     satu per satu di Access Management. Menyembunyikan tab di layar hanya membantu
+                     pengguna; izin tetap diperiksa server pada setiap RPC rc_disc_*. -->
+                <div id="modDiscountCenter" class="module-section hidden">
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+                        <div class="mb-5 border-b border-gray-100 pb-4 flex flex-wrap justify-between items-start gap-3">
+                            <div>
+                                <h2 class="text-2xl font-extrabold text-gray-800"><i class="fas fa-tags text-rose-600 mr-2"></i>Discount Center</h2>
+                                <p class="text-gray-500 mt-1 text-sm">Kebijakan discount yang berlaku, acknowledge, monitoring, dan generate template pantek.</p>
+                            </div>
+                            <span class="px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs font-bold text-gray-600 whitespace-nowrap"><i class="fas fa-calendar-alt mr-1.5 text-rose-600"></i>Periode <span id="dcPeriodeLabel">-</span></span>
+                        </div>
+
+                        <!-- Tab pil. Enam tab tidak muat di layar HP, jadi bilahnya digulir ke samping. -->
+                        <div class="flex gap-2 mb-5 bg-gray-50 p-1.5 rounded-xl w-fit max-w-full overflow-x-auto scrollbar-hide">
+                            <button id="dcTabDashboard" onclick="switchDiscTab('dashboard')" class="px-5 py-2 text-sm font-bold rounded-lg transition text-gray-500 hover:bg-gray-100 whitespace-nowrap">Dashboard</button>
+                            <button id="dcTabAck" onclick="switchDiscTab('ack')" class="px-5 py-2 text-sm font-bold rounded-lg transition text-gray-500 hover:bg-gray-100 whitespace-nowrap">Acknowledge <span id="dcTabAckBadge" class="hidden ml-1 bg-red-600 text-white text-[10px] font-black rounded-full px-1.5 py-0.5">0</span></button>
+                            <button id="dcTabMonitor" onclick="switchDiscTab('monitor')" class="px-5 py-2 text-sm font-bold rounded-lg transition text-gray-500 hover:bg-gray-100 whitespace-nowrap">Monitoring</button>
+                            <button id="dcTabKebijakan" onclick="switchDiscTab('kebijakan')" class="px-5 py-2 text-sm font-bold rounded-lg transition text-gray-500 hover:bg-gray-100 whitespace-nowrap">Kebijakan</button>
+                            <button id="dcTabGenerate" onclick="switchDiscTab('generate')" class="px-5 py-2 text-sm font-bold rounded-lg transition text-gray-500 hover:bg-gray-100 whitespace-nowrap">Generate</button>
+                            <button id="dcTabTerbit" onclick="switchDiscTab('terbit')" class="px-5 py-2 text-sm font-bold rounded-lg transition text-gray-500 hover:bg-gray-100 whitespace-nowrap">Terbitkan</button>
+                        </div>
+
+                        <!-- ===================== DASHBOARD =====================
+                             Kartu TERBIT yang boleh dilihat dimuat sekali, lalu dicari dan disaring di
+                             browser. Satu blok per produk, satu baris per tier, seperti memo. Wilayah
+                             tidak punya filter: Admin Depot hanya menerima kartu depotnya (termasuk
+                             tagging Resource Partner), dan server tidak mengirim wilayah, condition type,
+                             maupun key combination kepadanya.
+                             dc-sd-only  : hanya Sales Distribution (System Manager, atau pemegang tab
+                                           Monitoring / Kebijakan / Generate / Terbitkan).
+                             dc-admin-only: kolom Remark untuk selain Sales Distribution. -->
+                        <div id="dcPanelDashboard">
+                            <div class="rc-filter-bar flex flex-wrap gap-3 items-center mb-4">
+                                <div class="relative flex-1 min-w-[240px]">
+                                    <i class="fas fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                                    <input id="dcSearch" oninput="dcRenderDashboard()" placeholder="Cari produk, MG, material, toko, no memo" class="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm">
+                                </div>
+                                <select id="dcFilterPeriode" onchange="dcRenderDashboard()" class="px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-white"></select>
+                                <select id="dcFilterSegmen" onchange="dcRenderDashboard()" class="px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-white">
+                                    <option value="">Semua Segmentasi</option><option value="DEKORATIF">Dekoratif</option><option value="PAINTING TOOLS">Painting Tools</option><option value="CAT SEMPROT">Cat Semprot</option><option value="LAIN-LAIN">Lain-lain</option>
+                                </select>
+                                <select id="dcFilterJenis" onchange="dcRenderDashboard()" class="px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-white">
+                                    <option value="">Ready Mix &amp; CCM</option><option value="READY MIX">Ready Mix</option><option value="CCM">CCM</option>
+                                </select>
+                                <select id="dcFilterCt" onchange="dcRenderDashboard()" class="dc-sd-only hidden px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-white"><option value="">Semua Condition Type</option></select>
+                                <select id="dcFilterKey" onchange="dcRenderDashboard()" class="dc-sd-only hidden px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-white"><option value="">Semua Key Combination</option></select>
+                                <button onclick="dcResetFilter()" class="px-4 py-2.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold rounded-lg text-sm transition"><i class="fas fa-rotate-left mr-2"></i>Reset</button>
+                                <button onclick="dcCetakMemo()" class="px-5 py-2.5 bg-gray-800 hover:bg-black text-white font-bold rounded-lg text-sm transition"><i class="fas fa-file-pdf mr-2"></i>Unduh Memo</button>
+                            </div>
+                            <div class="rc-below-filter">
+                                <div class="flex flex-wrap items-center gap-2 mb-3 text-xs">
+                                    <span id="dcWilayahSaya" class="px-2.5 py-1 bg-rose-50 border border-rose-100 text-rose-700 font-bold rounded-lg"><i class="fas fa-map-marker-alt mr-1.5"></i>-</span>
+                                    <span id="dcHasilInfo" class="text-gray-500">-</span>
+                                </div>
+                                <!-- Layar sempit memakai kartu per produk dengan total di setiap tier; layar
+                                     lebar memakai tabel memo. -->
+                                <div id="dcMemoCards" class="md:hidden space-y-3"></div>
+                                <div class="hidden md:block overflow-auto border border-gray-200 rounded-xl">
+                                    <table class="w-full text-sm">
+                                        <!-- Tanpa urut kolom: satu produk memakai beberapa baris (rowspan) seperti memo. -->
+                                        <thead class="bg-gray-50 text-gray-600"><tr>
+                                            <th data-rc-no-sort="1" class="p-3 text-left font-bold min-w-[170px]">Produk</th>
+                                            <th data-rc-no-sort="1" class="p-3 text-left font-bold">MG / Kemasan</th>
+                                            <th data-rc-no-sort="1" class="px-2 py-3 text-center font-bold">Syarat Pembelian</th>
+                                            <th data-rc-no-sort="1" class="px-2 py-3 text-center font-bold">Disc Vol</th>
+                                            <th data-rc-no-sort="1" class="px-2 py-3 text-center font-bold">Disc Campaign</th>
+                                            <th data-rc-no-sort="1" class="px-2 py-3 text-center font-bold">Disc Bulk</th>
+                                            <th data-rc-no-sort="1" class="px-2 py-3 text-center font-bold">Disc Lain</th>
+                                            <th data-rc-no-sort="1" class="px-2 py-3 text-center font-bold bg-rose-50 text-rose-800">Total Bertingkat</th>
+                                            <th data-rc-no-sort="1" class="p-3 text-center font-bold">Berlaku</th>
+                                            <th data-rc-no-sort="1" class="dc-sd-only hidden p-3 text-left font-bold">Wilayah</th>
+                                            <th data-rc-no-sort="1" class="dc-sd-only hidden p-3 text-left font-bold whitespace-nowrap">Condition Type</th>
+                                            <th data-rc-no-sort="1" class="dc-admin-only p-3 text-left font-bold min-w-[180px]">Remark</th>
+                                            <th data-rc-no-sort="1" class="p-3 text-center font-bold">Aksi</th>
+                                        </tr></thead>
+                                        <tbody id="dcMemoBody"></tbody>
+                                    </table>
+                                </div>
+                                <p class="mt-3 text-[11px] text-gray-500"><span class="text-red-600 font-black">Angka merah</span> berubah dari periode lalu atau dari versi sebelumnya. Total bertingkat = 1 − (1 − a)(1 − b)…, rumus yang sama dengan record yang dipantek. Diskon faktur hanya ditampilkan, tidak ikut dihitung.</p>
+                            </div>
+                        </div>
+
+                        <!-- ===================== ACKNOWLEDGE =====================
+                             Kartu yang belum dibaca untuk versi terbarunya. Modal discountAckModal juga
+                             terbuka otomatis setelah login: Admin Depot satu kartu per halaman, Sales
+                             Distribution semua kartu dalam satu daftar (tombol aktif setelah digulir habis). -->
+                        <div id="dcPanelAck" class="hidden">
+                            <div class="flex flex-wrap items-center gap-2 mb-4">
+                                <div class="bg-white border border-gray-200 rounded-xl px-4 py-2 shadow-sm min-w-[150px] overflow-hidden"><p class="text-[10px] font-black text-gray-500 uppercase tracking-wider truncate">Belum Dibaca</p><p class="rc-kpi-value font-black text-red-700" id="dcAckBelum">-</p></div>
+                                <div class="bg-white border border-gray-200 rounded-xl px-4 py-2 shadow-sm min-w-[150px] overflow-hidden"><p class="text-[10px] font-black text-gray-500 uppercase tracking-wider truncate">Sudah Dibaca</p><p class="rc-kpi-value font-black text-emerald-700" id="dcAckSudah">-</p></div>
+                                <div class="bg-white border border-gray-200 rounded-xl px-4 py-2 shadow-sm min-w-[150px] overflow-hidden"><p class="text-[10px] font-black text-gray-500 uppercase tracking-wider truncate">Kartu Untuk Anda</p><p class="rc-kpi-value font-black text-gray-800" id="dcAckTotal">-</p></div>
+                                <button id="btnDcMulaiBaca" onclick="openDiscAckQueue()" class="ml-auto px-5 py-2.5 bg-red-600 hover:bg-red-700 disabled:bg-gray-300 text-white font-bold rounded-lg text-sm transition shadow-md"><i class="fas fa-book-open mr-2"></i><span id="btnDcMulaiBacaText">Mulai Baca</span></button>
+                            </div>
+                            <div class="mb-5">
+                                <div class="flex justify-between text-[11px] font-bold text-gray-500 mb-1"><span>Progres acknowledge Anda</span><span id="dcAckPersen">0%</span></div>
+                                <div class="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden"><div id="dcAckBar" class="h-full bg-emerald-500 rounded-full transition-all" style="width:0%"></div></div>
+                            </div>
+                            <div class="overflow-auto border border-gray-200 rounded-xl">
+                                <table class="w-full text-sm">
+                                    <thead class="bg-gray-50 text-gray-600"><tr>
+                                        <th class="p-3 text-center font-bold">Status</th>
+                                        <th class="p-3 text-left font-bold min-w-[180px]">Produk</th>
+                                        <th class="p-3 text-center font-bold">Periode</th>
+                                        <th class="dc-sd-only hidden p-3 text-left font-bold">Wilayah</th>
+                                        <th class="p-3 text-center font-bold">Versi</th>
+                                        <th class="p-3 text-center font-bold whitespace-nowrap">Diterbitkan</th>
+                                        <th class="p-3 text-center font-bold whitespace-nowrap">Dibaca Pada</th>
+                                        <th class="p-3 text-center font-bold">Aksi</th>
+                                    </tr></thead>
+                                    <tbody id="dcAckBody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- ===================== MONITORING =====================
+                             Angka dihitung server dari catatan acknowledge versi terbaru tiap kartu. User
+                             wajib = akun aktif bertab Acknowledge yang bukan Sales Distribution. -->
+                        <div id="dcPanelMonitor" class="hidden">
+                            <div class="rc-filter-bar flex flex-wrap gap-3 items-center mb-4">
+                                <select id="dcMonPeriode" onchange="dcMuatMonitor()" class="px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-white"></select>
+                                <select id="dcMonRegion" onchange="dcRenderMonitor()" class="px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-white"><option value="">Semua Region</option></select>
+                                <input id="dcMonSearch" oninput="dcRenderMonitor()" placeholder="Cari depot atau produk" class="flex-1 min-w-[200px] px-4 py-2.5 border border-gray-300 rounded-lg text-sm">
+                                <button onclick="dcUnduhBelumAck()" class="px-5 py-2.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold rounded-lg text-sm transition"><i class="fas fa-file-excel mr-2 text-green-600"></i>Unduh yang Belum</button>
+                            </div>
+                            <div class="rc-below-filter">
+                                <div class="flex flex-wrap items-center gap-2 mb-5">
+                                    <div class="bg-white border border-gray-200 rounded-xl px-4 py-2 shadow-sm min-w-[150px] overflow-hidden"><p class="text-[10px] font-black text-gray-500 uppercase tracking-wider truncate">Kartu Terbit</p><p class="rc-kpi-value font-black text-gray-800" id="dcMonKartu">-</p></div>
+                                    <div class="bg-white border border-gray-200 rounded-xl px-4 py-2 shadow-sm min-w-[150px] overflow-hidden"><p class="text-[10px] font-black text-gray-500 uppercase tracking-wider truncate">User Wajib</p><p class="rc-kpi-value font-black text-purple-700" id="dcMonUser">-</p></div>
+                                    <div class="bg-white border border-gray-200 rounded-xl px-4 py-2 shadow-sm min-w-[150px] overflow-hidden"><p class="text-[10px] font-black text-gray-500 uppercase tracking-wider truncate">Sudah Acknowledge</p><p class="rc-kpi-value font-black text-emerald-700" id="dcMonSudah">-</p></div>
+                                    <div class="bg-white border border-gray-200 rounded-xl px-4 py-2 shadow-sm min-w-[150px] overflow-hidden"><p class="text-[10px] font-black text-gray-500 uppercase tracking-wider truncate">Belum</p><p class="rc-kpi-value font-black text-red-700" id="dcMonBelum">-</p></div>
+                                </div>
+                                <h3 class="font-black text-gray-800 mb-2"><i class="fas fa-warehouse text-rose-600 mr-2"></i>Per Depot</h3>
+                                <div class="overflow-auto border border-gray-200 rounded-xl mb-6">
+                                    <table class="w-full text-sm">
+                                        <thead class="bg-gray-50 text-gray-600"><tr>
+                                            <th class="p-3 text-left font-bold">Depot</th>
+                                            <th class="p-3 text-left font-bold min-w-[160px]">Nama</th>
+                                            <th class="p-3 text-center font-bold">Region</th>
+                                            <th class="p-3 text-center font-bold whitespace-nowrap">User Wajib</th>
+                                            <th class="p-3 text-center font-bold whitespace-nowrap">Kartu × User</th>
+                                            <th class="p-3 text-center font-bold">Sudah</th>
+                                            <th class="p-3 text-center font-bold">Belum</th>
+                                            <th class="p-3 text-left font-bold min-w-[160px]">Progres</th>
+                                        </tr></thead>
+                                        <tbody id="dcMonDepotBody"></tbody>
+                                    </table>
+                                </div>
+                                <h3 class="font-black text-gray-800 mb-2"><i class="fas fa-tags text-rose-600 mr-2"></i>Per Kartu</h3>
+                                <div class="overflow-auto border border-gray-200 rounded-xl">
+                                    <table class="w-full text-sm">
+                                        <thead class="bg-gray-50 text-gray-600"><tr>
+                                            <th class="p-3 text-left font-bold min-w-[180px]">Produk</th>
+                                            <th class="p-3 text-center font-bold">Versi</th>
+                                            <th class="p-3 text-left font-bold">Wilayah</th>
+                                            <th class="p-3 text-center font-bold">Wajib</th>
+                                            <th class="p-3 text-center font-bold">Sudah</th>
+                                            <th class="p-3 text-center font-bold">Belum</th>
+                                            <th class="p-3 text-left font-bold min-w-[160px]">Progres</th>
+                                            <th class="p-3 text-center font-bold">Aksi</th>
+                                        </tr></thead>
+                                        <tbody id="dcMonKartuBody"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ===================== KEBIJAKAN =====================
+                             Pola Key Master: Template → Pilih File → pratinjau → Simpan. Satu workbook
+                             berisi sheet KEBIJAKAN, MASTER_MG, MASTER_MATERIAL, TARGET, ATURAN_CT, dan
+                             PENGECUALIAN; sheet yang tidak ada di berkas dilewati. Baris ERROR tidak
+                             disimpan, baris CEK tetap disimpan. -->
+                        <div id="dcPanelKebijakan" class="hidden">
+                            <div class="flex flex-wrap gap-3 items-center mb-5">
+                                <select id="dcKbSheet" onchange="dcKbGantiSheet()" class="px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-white font-bold">
+                                    <option value="KEBIJAKAN">Kebijakan</option><option value="MASTER_MG">Master MG</option><option value="MASTER_MATERIAL">Master Material</option><option value="TARGET">Target</option><option value="ATURAN_CT">Aturan CT</option><option value="PENGECUALIAN">Pengecualian</option>
+                                </select>
+                                <select id="dcKbPeriode" onchange="dcRenderKebijakan(0)" class="px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-white"></select>
+                                <input id="dcKbSearch" onkeydown="if(event.key==='Enter')dcRenderKebijakan(0)" placeholder="Cari MG, produk, no memo" class="flex-1 min-w-[200px] px-4 py-2.5 border border-gray-300 rounded-lg text-sm">
+                                <button onclick="dcRenderKebijakan(0)" class="px-5 py-2.5 bg-gray-800 hover:bg-black text-white font-bold rounded-lg text-sm transition"><i class="fas fa-search mr-2"></i>Cari</button>
+                                <button onclick="downloadDiscTemplate()" class="px-5 py-2.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold rounded-lg text-sm transition"><i class="fas fa-file-excel mr-2 text-green-600"></i>Template</button>
+                                <button onclick="dcUnduhSheet()" class="px-5 py-2.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold rounded-lg text-sm transition"><i class="fas fa-download mr-2 text-gray-600"></i>Unduh</button>
+                                <label class="px-5 py-2.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold rounded-lg text-sm transition cursor-pointer"><i class="fas fa-upload mr-2 text-blue-600"></i>Pilih File<input type="file" id="dcKbFile" accept=".xlsx,.xls" class="hidden" onchange="previewDiscUpload(this)"></label>
+                            </div>
+                            <div id="dcKbUploadInfo" class="hidden mb-4 p-4 bg-blue-50 border border-blue-200 rounded-xl text-sm">
+                                <p id="dcKbUploadText" class="text-blue-900 font-bold mb-2">-</p>
+                                <div class="flex flex-wrap gap-2 mb-3 text-xs font-bold">
+                                    <span class="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-700">Valid <span id="dcKbValid">0</span></span>
+                                    <span class="px-2.5 py-1 rounded-lg bg-orange-100 text-orange-700">Perlu cek <span id="dcKbCek">0</span></span>
+                                    <span class="px-2.5 py-1 rounded-lg bg-red-100 text-red-700">Error <span id="dcKbError">0</span></span>
+                                </div>
+                                <div id="dcKbPesan" class="mb-3 max-h-56 overflow-auto bg-white border border-blue-100 rounded-lg text-xs"></div>
+                                <button onclick="commitDiscUpload()" id="btnCommitDisc" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white font-bold rounded-lg text-sm">Simpan</button>
+                                <button onclick="cancelDiscUpload()" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 font-bold rounded-lg text-sm">Batal</button>
+                            </div>
+                            <div class="overflow-auto border border-gray-200 rounded-xl">
+                                <table class="w-full text-sm">
+                                    <thead class="bg-gray-50 text-gray-600" id="dcKbHead"></thead>
+                                    <tbody id="dcKbBody"></tbody>
+                                </table>
+                            </div>
+                            <div id="dcKbPager" class="mt-4"></div>
+                        </div>
+
+                        <!-- ===================== GENERATE =====================
+                             Condition type dibaca persis dari ATURAN_CT. Hitung Pratinjau tidak mencatat
+                             apa pun; Download mencatat snapshot (untuk flag BERUBAH berikutnya dan kolom
+                             condition type di kartu) lalu menulis Excel berformat template Disc (West). -->
+                        <div id="dcPanelGenerate" class="hidden">
+                            <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 shadow-sm">
+                                <div><label class="block text-[11px] font-black text-gray-500 uppercase tracking-wider mb-1">Periode</label><select id="dcGenPeriode" onchange="dcGenReset()" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-white"></select></div>
+                                <div><label class="block text-[11px] font-black text-gray-500 uppercase tracking-wider mb-1">Condition Type</label><select id="dcGenCt" onchange="dcGenInfoCt()" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-white font-bold"></select></div>
+                                <div><label class="block text-[11px] font-black text-gray-500 uppercase tracking-wider mb-1">Target</label><select id="dcGenTarget" onchange="dcGenReset()" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-white"></select></div>
+                                <div><label class="block text-[11px] font-black text-gray-500 uppercase tracking-wider mb-1">Tulis Kolom Customer</label>
+                                    <div class="flex gap-2 bg-white border border-gray-300 rounded-lg p-1">
+                                        <label class="flex-1 text-center text-xs font-bold py-1.5 rounded-md cursor-pointer has-[:checked]:bg-rose-100 has-[:checked]:text-rose-700 text-gray-500"><input type="radio" name="dcGenMode" value="grup" class="hidden" checked onchange="dcGenReset()">Per Grup</label>
+                                        <label class="flex-1 text-center text-xs font-bold py-1.5 rounded-md cursor-pointer has-[:checked]:bg-rose-100 has-[:checked]:text-rose-700 text-gray-500"><input type="radio" name="dcGenMode" value="customer" class="hidden" onchange="dcGenReset()">Per Customer</label>
+                                    </div>
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label class="block text-[11px] font-black text-gray-500 uppercase tracking-wider mb-1">Komponen</label>
+                                    <div class="flex flex-wrap gap-2" id="dcGenKomponen">
+                                        <label class="px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-bold text-gray-700 cursor-pointer"><input type="checkbox" value="VOL" onchange="dcGenReset()" class="w-3.5 h-3.5 rounded mr-1.5 align-middle">Disc Volume</label>
+                                        <label class="px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-bold text-gray-700 cursor-pointer"><input type="checkbox" value="CMP" onchange="dcGenReset()" class="w-3.5 h-3.5 rounded mr-1.5 align-middle">Disc Campaign</label>
+                                        <label class="px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-bold text-gray-700 cursor-pointer"><input type="checkbox" value="BULK" onchange="dcGenReset()" class="w-3.5 h-3.5 rounded mr-1.5 align-middle">Disc Bulk</label>
+                                        <label class="px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-bold text-gray-700 cursor-pointer"><input type="checkbox" value="BP" onchange="dcGenReset()" class="w-3.5 h-3.5 rounded mr-1.5 align-middle">Disc BP</label>
+                                        <label class="px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-bold text-gray-700 cursor-pointer"><input type="checkbox" value="PROMO" onchange="dcGenReset()" class="w-3.5 h-3.5 rounded mr-1.5 align-middle">Promo</label>
+                                        <label class="px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-bold text-gray-700 cursor-pointer"><input type="checkbox" value="LAIN" onchange="dcGenReset()" class="w-3.5 h-3.5 rounded mr-1.5 align-middle">Lain</label>
+                                    </div>
+                                </div>
+                                <!-- Baris UNTUK_TARGET kosong berlaku untuk semua target (spesifikasi). Pilihan
+                                     kedua hanya mengambil baris yang memang ditulis untuk target / grup itu. -->
+                                <div class="md:col-span-2"><label class="block text-[11px] font-black text-gray-500 uppercase tracking-wider mb-1">Baris Kebijakan</label>
+                                    <div class="flex gap-2 bg-white border border-gray-300 rounded-lg p-1">
+                                        <label class="flex-1 text-center text-xs font-bold py-1.5 rounded-md cursor-pointer has-[:checked]:bg-rose-100 has-[:checked]:text-rose-700 text-gray-500"><input type="radio" name="dcGenSumber" value="SEMUA" class="hidden" checked onchange="dcGenReset()">Semua yang berlaku</label>
+                                        <label class="flex-1 text-center text-xs font-bold py-1.5 rounded-md cursor-pointer has-[:checked]:bg-rose-100 has-[:checked]:text-rose-700 text-gray-500"><input type="radio" name="dcGenSumber" value="KHUSUS" class="hidden" onchange="dcGenReset()">Khusus target ini</label>
+                                    </div>
+                                </div>
+                                <div id="dcGenInfo" class="md:col-span-2 lg:col-span-4 p-3 bg-white border border-gray-200 rounded-lg text-xs text-gray-600">-</div>
+                                <div class="md:col-span-2 lg:col-span-4 flex flex-wrap gap-3">
+                                    <button onclick="dcHitungPratinjau()" class="px-5 py-2.5 bg-gray-800 hover:bg-black text-white font-bold rounded-lg text-sm transition"><i class="fas fa-calculator mr-2"></i>Hitung Pratinjau</button>
+                                    <button onclick="dcDownloadTemplatePantek()" id="btnDcDownloadPantek" disabled class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 text-white font-bold rounded-lg text-sm transition"><i class="fas fa-file-excel mr-2"></i>Download Excel Template</button>
+                                </div>
+                            </div>
+                            <div id="dcGenHasil" class="hidden">
+                                <div class="flex flex-wrap items-center gap-2 mb-4">
+                                    <div class="bg-white border border-gray-200 rounded-xl px-4 py-2 shadow-sm min-w-[150px] overflow-hidden"><p class="text-[10px] font-black text-gray-500 uppercase tracking-wider truncate">Baris Dibuat</p><p class="rc-kpi-value font-black text-gray-800" id="dcGenBaris">-</p></div>
+                                    <div class="bg-white border border-gray-200 rounded-xl px-4 py-2 shadow-sm min-w-[150px] overflow-hidden"><p class="text-[10px] font-black text-gray-500 uppercase tracking-wider truncate">Berubah</p><p class="rc-kpi-value font-black text-red-700" id="dcGenBerubah">-</p></div>
+                                    <div class="bg-white border border-gray-200 rounded-xl px-4 py-2 shadow-sm min-w-[150px] overflow-hidden"><p class="text-[10px] font-black text-gray-500 uppercase tracking-wider truncate">Perlu Cek</p><p class="rc-kpi-value font-black text-orange-700" id="dcGenCek">-</p></div>
+                                    <div class="bg-white border border-gray-200 rounded-xl px-4 py-2 shadow-sm min-w-[150px] overflow-hidden"><p class="text-[10px] font-black text-gray-500 uppercase tracking-wider truncate">Error (tidak ditulis)</p><p class="rc-kpi-value font-black text-gray-500" id="dcGenError">-</p></div>
+                                </div>
+                                <p id="dcGenLewat" class="hidden mb-3 text-xs text-gray-600"></p>
+                                <div class="overflow-auto border border-gray-200 rounded-xl">
+                                    <table class="w-full text-sm">
+                                        <thead class="bg-gray-50 text-gray-600"><tr>
+                                            <th class="p-3 text-left font-bold">Sheet Tujuan</th>
+                                            <th class="p-3 text-center font-bold">CT</th>
+                                            <th class="p-3 text-left font-bold">Customer / Sls Off</th>
+                                            <th class="p-3 text-left font-bold">Kunci Item</th>
+                                            <th class="p-3 text-left font-bold min-w-[160px]">Description</th>
+                                            <th class="p-3 text-right font-bold">Amount</th>
+                                            <th class="p-3 text-center font-bold">Scale</th>
+                                            <th class="p-3 text-center font-bold">Berlaku</th>
+                                            <th class="p-3 text-left font-bold whitespace-nowrap">Disc Type</th>
+                                            <th class="p-3 text-left font-bold min-w-[200px]">Remark 1</th>
+                                            <th class="p-3 text-left font-bold min-w-[200px]">Remark 2</th>
+                                            <th class="p-3 text-center font-bold">Flag</th>
+                                        </tr></thead>
+                                        <tbody id="dcGenBody"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ===================== TERBITKAN =====================
+                             Kartu DRAFT dibuat dari KEBIJAKAN periode terpilih. Wilayah tampil diambil dari
+                             kolom WILAYAH (kartu khusus target: DC target-targetnya) dan dapat diubah per
+                             kartu atau sekaligus sebelum terbit. Terbit ulang dengan isi berubah menaikkan
+                             versi, sehingga kartu kembali ke antrean acknowledge sebagai Revisi. -->
+                        <div id="dcPanelTerbit" class="hidden">
+                            <div class="flex flex-wrap gap-3 items-center mb-5">
+                                <select id="dcTbPeriode" onchange="dcRenderTerbit()" class="px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-white"></select>
+                                <button onclick="dcBuatDraft()" class="px-5 py-2.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold rounded-lg text-sm transition"><i class="fas fa-wand-magic-sparkles mr-2 text-rose-600"></i>Buat Draft dari Kebijakan</button>
+                                <div class="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg p-1">
+                                    <select id="dcTbWilayahMassal" class="px-3 py-2 border border-gray-300 rounded-md text-sm bg-white"></select>
+                                    <button onclick="dcAturWilayahMassal()" class="px-3 py-2 bg-white border border-gray-300 hover:bg-gray-100 text-gray-700 font-bold rounded-md text-xs transition">Atur Wilayah Terpilih</button>
+                                </div>
+                                <button onclick="dcTerbitkanTerpilih()" id="btnDcTerbit" disabled class="ml-auto px-5 py-2.5 bg-red-600 hover:bg-red-700 disabled:bg-gray-300 text-white font-bold rounded-lg text-sm transition shadow-md"><i class="fas fa-paper-plane mr-2"></i>Terbitkan (<span id="dcTbCount">0</span>)</button>
+                            </div>
+                            <p id="dcTbInfo" class="mb-3 text-xs text-gray-500">-</p>
+                            <div class="overflow-auto border border-gray-200 rounded-xl">
+                                <table class="w-full text-sm">
+                                    <thead class="bg-gray-50 text-gray-600"><tr>
+                                        <th class="p-3 text-center font-bold w-10"><input type="checkbox" id="cbDcTerbitAll" onchange="dcToggleSemuaTerbit(this)" class="w-4 h-4 rounded"></th>
+                                        <th class="p-3 text-left font-bold min-w-[180px]">Produk</th>
+                                        <th class="p-3 text-left font-bold">MG / Kemasan</th>
+                                        <th class="p-3 text-left font-bold min-w-[160px]">Tier</th>
+                                        <th class="p-3 text-center font-bold">Versi</th>
+                                        <th class="p-3 text-center font-bold">Status</th>
+                                        <th class="p-3 text-left font-bold min-w-[140px]">Tampil di</th>
+                                        <th class="p-3 text-left font-bold whitespace-nowrap">Untuk Target</th>
+                                        <th class="p-3 text-center font-bold">Aksi</th>
+                                    </tr></thead>
+                                    <tbody id="dcTbBody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>

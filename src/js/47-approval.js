@@ -78,7 +78,7 @@
             function switchApprovalTab(tab) {
                 if(!rcEnterTab('approval',tab))return;
                 apTab = tab;
-                ['wpt', 'ovd', 'hold', 'history'].forEach(function (t) {
+                ['wpt', 'ovd', 'hold', 'baddebt', 'history'].forEach(function (t) {
                     const btn = document.getElementById('apTab' + t.charAt(0).toUpperCase() + t.slice(1));
                     if (!btn) return;
                     btn.classList.toggle('border-pink-600', t === tab);
@@ -88,6 +88,7 @@
                 });
                 setHiddenSafely('apPaneHistory', tab !== 'history');
                 setHiddenSafely('apPaneHold', tab !== 'hold');
+                setHiddenSafely('apPaneBaddebt', tab !== 'baddebt'); // 20261163170000
                 // Bilah atas tetap dipakai tab On Hold - penyaring depot, pencarian, unduh dan
                 // Muat Ulang berlaku sama di sana.
                 setHiddenSafely('apBar', tab === 'history');
@@ -156,7 +157,7 @@
             // sehingga pencariannya dikirim ke server bersama nomor halamannya; menyaring di
             // layar hanya akan menyaring halaman yang kebetulan sedang terbuka.
             function apCariBerubah() {
-                if (apTab === 'hold') {
+                if (apTab === 'hold' || apTab === 'baddebt') {
                     clearTimeout(apState.timer);
                     apState.timer = setTimeout(loadApproval, 300);
                 } else if (apTab === 'history') {
@@ -204,7 +205,12 @@
             async function loadApproval() {
                 showLoadingOverlay('Memuat antrean approval...');
                 try {
-                    if (apTab === 'hold') {
+                    if (apTab === 'baddebt') { // 20261163170000
+                        const res = await fetchApp({ action: 'approvalBadDebt', depot: apDepotTerpilih(), search: document.getElementById('apCari').value });
+                        if (res.status !== 'success') throw new Error(res.message || 'Gagal memuat antrean Bad Debt.');
+                        apState.badDebt = res.rows || [];
+                        renderApprovalBadDebt();
+                    } else if (apTab === 'hold') {
                         const res = await fetchApp({
                             action: 'approvalHold',
                             depot: apDepotTerpilih(), search: document.getElementById('apCari').value
@@ -553,6 +559,14 @@
                         ['Tindakan', h => isi(h.tindakan)], ['Dari', h => isi(h.dari)], ['Ke', h => isi(h.ke)],
                         ['Oleh', h => isi(h.oleh)], ['Alasan', h => isi(h.alasan)]]];
                 }
+                if (apTab === 'baddebt') { // 20261163170000
+                    return ['Approval Bad Debt', apState.badDebt || [], [
+                        ['No Doc', r => rcSelTeks(r.noDoc)], ['No Batch', r => rcSelTeks(r.batch)], ['Depot', r => rcSelTeks(r.kodeDepot)],
+                        ['Kode Customer', r => rcSelTeks(r.kodeToko)], ['Nama Customer', r => isi(r.namaToko)],
+                        ['Kode Campaign', r => rcSelTeks(r.kodeCampaign)], ['Nama Campaign', r => isi(r.namaCampaign)],
+                        ['Jenis CB', r => isi(r.jenisCb)], ['Net CB', r => uang(r.netCb)], ['Alasan Bad Debt', r => isi(r.alasanBadDebt)],
+                        ['Ditandai Oleh', r => isi(r.ditandaiOleh)], ['Diajukan Oleh', r => isi(r.diajukanOleh)], ['Diajukan Pada', r => isi(r.diajukanPada)]]];
+                }
                 if (apTab === 'hold') {
                     return ['Approval On Hold Expired', apState.hold || [], [
                         ['Status Pengajuan', r => isi(r.statusPengajuan || r.statusKini)], ['Asal', r => isi(r.asal)],
@@ -598,6 +612,50 @@
                 XLSX.writeFile(wb, 'RC_' + nama.replace(/ /g, '_') + '_'
                     + new Date().toISOString().slice(0, 10) + '.xlsx');
                 showNotification(rows.length + ' baris diunduh.', 'success');
+            }
+
+            // ---- Bad Debt (20261163170000) --------------------------------------------------
+            // Pengajuan klaim toko yang ditandai Bad Debt menunggu di sini selama saklar Approval
+            // Bad Debt menyala. Keputusannya memakai aksi approve/reject yang sama dengan WPT;
+            // server menuntut tab Bad Debt untuk dokumen ini.
+            function renderApprovalBadDebt() {
+                const rows = apState.badDebt || [];
+                document.getElementById('apBdBody').innerHTML = rows.map(function (r) {
+                    const nd = rcEsc(r.noDoc);
+                    return '<tr class="border-b border-gray-100 hover:bg-red-50/40">'
+                        + '<td class="p-3 text-center"><input type="checkbox" class="cb-bd w-4 h-4 rounded" value="' + nd + '" onchange="updateBadDebtCount()"></td>'
+                        + '<td class="p-3 font-black text-blue-700">' + nd + '<span class="block text-[10px] text-gray-500 font-normal">' + rcEsc(r.batch || '') + '</span></td>'
+                        + '<td class="p-3 text-gray-600 whitespace-nowrap">' + rcEsc(r.kodeDepot || '-') + '</td>'
+                        + '<td class="p-3"><span class="font-bold text-gray-800">' + rcEsc(r.namaToko || '-') + '</span> <span class="px-1.5 py-0.5 rounded text-[10px] font-black bg-red-700 text-white">Bad Debt</span>'
+                          + '<span class="block text-xs text-gray-500">' + rcEsc(r.kodeToko || '') + '</span></td>'
+                        + '<td class="p-3"><span class="font-bold text-gray-700">' + rcEsc(r.kodeCampaign || '-') + '</span>'
+                          + '<span class="block text-xs text-gray-500 max-w-[220px] truncate" title="' + rcEsc(r.namaCampaign) + '">' + rcEsc(r.namaCampaign || '') + '</span></td>'
+                        + '<td class="p-3 text-right font-black text-red-600 whitespace-nowrap" data-sort="' + Number(r.netCb || 0) + '">' + rcEsc(rcNominalPenuh(r.netCb)) + '</td>'
+                        + '<td class="p-3 text-xs text-gray-700">' + rcEsc(r.alasanBadDebt || '-') + '<span class="block text-gray-500">' + rcEsc(r.ditandaiOleh || '') + '</span></td>'
+                        + '<td class="p-3 text-xs text-gray-700 whitespace-nowrap">' + rcEsc(r.diajukanOleh || '-') + '<span class="block text-gray-500">' + rcEsc(r.diajukanPada || '') + '</span></td>'
+                        + '<td class="p-3 text-center whitespace-nowrap">'
+                          + '<button onclick="approvalSatuDoc(&#39;' + nd + '&#39;,&#39;approve&#39;)" class="px-3 py-1.5 bg-pink-600 hover:bg-pink-700 text-white font-bold rounded-lg text-xs mr-1">Approve</button>'
+                          + '<button onclick="approvalSatuDoc(&#39;' + nd + '&#39;,&#39;reject&#39;)" class="px-3 py-1.5 bg-white border border-red-300 hover:bg-red-50 text-red-700 font-bold rounded-lg text-xs">Reject</button>'
+                        + '</td></tr>';
+                }).join('') || '<tr><td colspan="9" class="p-6 text-center text-gray-400">Tidak ada pengajuan toko Bad Debt yang menunggu keputusan.</td></tr>';
+                const total = rows.reduce(function (a, r) { return a + (Number(r.netCb) || 0); }, 0);
+                document.getElementById('apRingkas').innerText = rows.length + ' dokumen \u00b7 ' + rcNominalPenuh(total);
+                const semua = document.getElementById('apBdSemua');
+                if (semua) semua.checked = false;
+                updateBadDebtCount();
+                rcAktifkanUrutSemua('apPaneBaddebt');
+            }
+            function toggleSemuaBadDebt(src) {
+                document.querySelectorAll('.cb-bd').forEach(function (c) { c.checked = src.checked; });
+                updateBadDebtCount();
+            }
+            function updateBadDebtCount() {
+                const n = document.querySelectorAll('.cb-bd:checked').length;
+                document.getElementById('apBdTerpilih').innerText = n;
+                setHiddenSafely('apAksiBd', n === 0);
+            }
+            function postingBadDebt(mode) {
+                kirimApproval(Array.from(document.querySelectorAll('.cb-bd:checked')).map(function (c) { return c.value; }), mode, 'Bad Debt');
             }
 
             // ---- On Hold & Expired --------------------------------------------------------

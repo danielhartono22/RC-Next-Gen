@@ -1,0 +1,68 @@
+                <!-- MODULE: PORTAL LINK (20261163180000) -->
+                <!-- Merangkum seluruh link aplikasi / dashboard, mengikuti contoh integrated_link_system.html:
+                     Tab berisi link langsung atau Sub Tab, pencarian, dan Tab yang di-pin tampil paling atas.
+                     Daftar Link terlihat oleh setiap akun dan hanya memuat link yang aturan tampilnya
+                     (Region / Depot) mencakup jangkauan akun itu - disaring di server. Editor Link adalah tab
+                     terpisah yang hanya muncul bila dicentang di Access Management. -->
+                <div id="modPortalLink" class="module-section hidden">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 md:p-8">
+                        <div class="flex flex-wrap justify-between items-center gap-3 border-b border-gray-100 pb-4 mb-5">
+                            <div>
+                                <h2 class="text-2xl font-extrabold text-gray-800"><i class="fas fa-link text-sky-600 mr-2"></i>Portal Link</h2>
+                                <p class="text-sm text-gray-500 mt-1">Akses semua aplikasi dan dashboard dalam satu pintu.</p>
+                            </div>
+                            <button onclick="plMuatUlang()" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-bold bg-white hover:bg-gray-50"><i class="fas fa-sync-alt text-blue-500 mr-2"></i>Segarkan</button>
+                        </div>
+                        <div class="flex gap-2 p-1 bg-gray-50 rounded-xl mb-6">
+                            <button id="linkTabView" onclick="switchPortalLinkTab('view')" class="px-5 py-2 text-sm font-bold rounded-lg">Daftar Link</button>
+                            <button id="linkTabEditor" onclick="switchPortalLinkTab('editor')" class="px-5 py-2 text-sm font-bold rounded-lg"><i class="fas fa-pen-to-square mr-1.5"></i>Editor Link</button>
+                        </div>
+
+                        <!-- Daftar Link -->
+                        <div id="plPanelView">
+                            <div class="max-w-md mx-auto mb-8 relative">
+                                <i class="fas fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                                <input type="search" id="plCari" oninput="plRenderDaftar()" autocomplete="off"
+                                    class="block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl bg-white text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                                    placeholder="Cari aplikasi, tab, atau sub tab...">
+                            </div>
+                            <div id="plDaftar" class="flex justify-center flex-wrap gap-4 mb-4"></div>
+                            <div id="plHasilCari" class="hidden max-w-3xl mx-auto"></div>
+                            <p class="text-xs text-gray-400 text-center mt-6">Link yang tampil mengikuti region / depot dalam jangkauan akun Anda.</p>
+                        </div>
+
+                        <!-- Editor Link -->
+                        <div id="plPanelEditor" class="hidden">
+                            <div class="flex flex-wrap items-center gap-3 mb-4">
+                                <button onclick="plBukaForm(null)" class="bg-sky-600 hover:bg-sky-700 text-white text-sm font-bold py-2 px-4 rounded-lg shadow-sm"><i class="fas fa-plus mr-1.5"></i>Tambah Link</button>
+                                <div class="flex gap-1 p-1 bg-gray-100 rounded-lg">
+                                    <button id="plModeAktif" onclick="plGantiMode(false)" class="px-3 py-1.5 text-xs font-bold rounded-md">Aktif</button>
+                                    <button id="plModeArsip" onclick="plGantiMode(true)" class="px-3 py-1.5 text-xs font-bold rounded-md">Arsip</button>
+                                </div>
+                                <div class="relative flex-1 min-w-[200px] max-w-sm">
+                                    <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                                    <input type="search" id="plEditorCari" oninput="plRenderEditor()" autocomplete="off" placeholder="Cari tab, sub tab, URL, region, depot..."
+                                        class="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm">
+                                </div>
+                                <button id="plBtnArsip" onclick="plArsipTerpilih()" disabled class="ml-auto bg-white border border-gray-300 text-gray-700 text-sm font-bold py-2 px-4 rounded-lg disabled:opacity-40"><i class="fas fa-box-archive mr-1.5"></i><span id="plBtnArsipTeks">Arsipkan terpilih</span></button>
+                            </div>
+                            <div class="table-container border border-gray-200 rounded-xl overflow-x-auto">
+                                <table class="w-full text-left text-xs">
+                                    <thead class="bg-gray-50 text-gray-600 uppercase text-[11px]">
+                                        <tr>
+                                            <th class="p-3 w-8"><input type="checkbox" id="plPilihSemua" onchange="plPilihSemua(this.checked)" class="rounded"></th>
+                                            <th class="p-3 whitespace-nowrap">Tab</th>
+                                            <th class="p-3 whitespace-nowrap">Sub Tab</th>
+                                            <th class="p-3">URL</th>
+                                            <th class="p-3">Ditampilkan untuk</th>
+                                            <th class="p-3 whitespace-nowrap">Diubah</th>
+                                            <th class="p-3 text-center whitespace-nowrap">Aksi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="plEditorBody"></tbody>
+                                </table>
+                            </div>
+                            <p class="text-xs text-gray-400 mt-3">Pin berlaku per Tab (seluruh link di Tab itu). Aturan tampil kosong = semua akun; bila diisi, link terlihat oleh akun yang jangkauan depotnya mencakup salah satu Region atau Depot yang dipilih. Link diarsip, tidak dihapus, dan dapat dipulihkan.</p>
+                        </div>
+                    </div>
+                </div>

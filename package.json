@@ -12,7 +12,7 @@
     "dev": "node scripts/dev-server.mjs",
     "build": "node scripts/build-rc-frontend.mjs",
     "check": "node scripts/check-env-config.mjs && node scripts/check-template-regex.mjs && node scripts/check-grid-index.mjs && node scripts/check-call-shapes.mjs && node scripts/build-rc-frontend.mjs --check && node scripts/check-js-parse.mjs && node scripts/check-tdz.mjs && node scripts/check-system.mjs && node scripts/check-modal.mjs && node --check scripts/rc-legacy-adapter.js",
-    "test": "node --test scripts/test_rc_legacy_adapter.mjs scripts/test_rc_client.mjs scripts/test_dev_server.mjs scripts/test_dashboard_publik.mjs scripts/test_approval_flow.mjs scripts/test_registration_sync.mjs scripts/test_rc_2309_ui.mjs",
+    "test": "node --test scripts/test_rc_legacy_adapter.mjs scripts/test_rc_client.mjs scripts/test_dev_server.mjs scripts/test_dashboard_publik.mjs scripts/test_approval_flow.mjs scripts/test_registration_sync.mjs scripts/test_rc_2309_ui.mjs scripts/test_zdage_parser.mjs scripts/test_clearing_bank_parser.mjs",
     "test:approval:db": "node scripts/test_rc_2309.mjs --applied",
     "deploy": "node scripts/build-rc-frontend.mjs && npx --yes vercel@latest deploy --prod --scope niel17 --yes",
     "gmail:token": "node scripts/gmail-refresh-token.mjs",

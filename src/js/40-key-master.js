@@ -11,7 +11,7 @@
             let rcEditorKind = null, rcEditorRow = null;
 
             function openRcModule(mod) {
-                const selected=rcFirstTab(mod,{keyMaster:'customer',compilation:'list',approval:'wpt',report:'dashboard',timetable:'matrix',people:'osc'}[mod]);
+                const selected=rcFirstTab(mod,{keyMaster:'customer',adhoc:'list',compilation:'list',approval:'wpt',report:'dashboard',timetable:'matrix',people:'osc',links:'view',docgen:'done',discount:'dashboard',rental:'form'}[mod]);
                 if(!rcEnterTab(mod,selected))return;
                 setHiddenSafely('dashboardSection', true); setHiddenSafely('navBackBtn', false);
                 setHiddenSafely('workspaceSection', false); setHiddenSafely('profileSection', true);
@@ -19,12 +19,30 @@
                 if (mod === 'people') {
                     document.getElementById('modPeople').classList.remove('hidden');
                     switchPeopleTab(rcFirstTab('people','osc'));
+                } else if (mod === 'links') {
+                    document.getElementById('modPortalLink').classList.remove('hidden');
+                    switchPortalLinkTab(selected);
+                } else if (mod === 'docgen') {
+                    document.getElementById('modDocGen').classList.remove('hidden');
+                    switchDocGenTab(selected);
+                } else if (mod === 'discount') {
+                    // Discount Center (20261163310000).
+                    document.getElementById('modDiscountCenter').classList.remove('hidden');
+                    switchDiscTab(selected);
+                } else if (mod === 'rental') {
+                    // Warehouse Rental (20261163530000).
+                    document.getElementById('modRental').classList.remove('hidden');
+                    switchRentalTab(selected);
+                } else if (mod === 'adhoc') {
+                    // Ad-Hoc Process (20261163440000): antreannya ikut data workflow.
+                    document.getElementById('modAdhoc').classList.remove('hidden');
+                    fetchWorkflowData();
                 } else if (mod === 'keyMaster') {
                     document.getElementById('modKeyMaster').classList.remove('hidden');
                     switchKeyMasterTab(selected);
                 } else if (mod === 'compilation') {
                     document.getElementById('modCompilation').classList.remove('hidden');
-                    initCompilation(); switchCompilationTab(selected==='reprocess'?'repro':selected==='amend'?'amend':'compile'); if(selected==='archive')toggleArchivedList();
+                    initCompilation(); switchCompilationTab(selected==='reprocess'?'repro':selected==='amend'?'amend':selected==='debtor'?'debtor':'compile'); if(selected==='archive')toggleArchivedList();
                 } else if (mod === 'approval') {
                     document.getElementById('modApproval').classList.remove('hidden');
                     openApprovalModule();
@@ -33,7 +51,8 @@
                     switchReportTab(selected);
                 } else if (mod === 'timetable') {
                     document.getElementById('modTimetable').classList.remove('hidden');
-                    loadTimetable();
+                    // Tab Report (matrix) atau Details Campaign (20261163200000).
+                    switchTimetableTab(selected);
                 }
             }
 
@@ -86,17 +105,21 @@
                             + '<td class="p-3 whitespace-normal break-words min-w-[160px]">' + rcEsc((r.depotNames || []).join(', ')) + '</td>'
                             + '<td class="p-3 whitespace-normal break-words">' + rcEsc((r.regions || []).join(', ')) + '</td>'
                             + '<td class="p-3 font-black text-gray-800">' + rcEsc(r.custCode) + '</td>'
-                            + '<td class="p-3 text-gray-700">' + rcEsc(r.custName) + '</td>'
+                            + '<td class="p-3 text-gray-700">' + rcEsc(r.custName)
+                              // 20261163170000: toko yang ditandai Bad Debt di Claim Upload > Open.
+                              + (r.badDebt ? ' <span class="px-1.5 py-0.5 rounded text-[10px] font-black bg-red-700 text-white" title="' + rcEsc(r.badDebtAlasan || '') + '">Bad Debt</span>' : '')
+                              + '</td>'
                             + '<td class="p-3 text-center">' + rcEsc(r.top || '-') + '</td>'
                             + '<td class="p-3 text-gray-600 font-mono whitespace-nowrap">' + rcEsc(rcFull(r.ktp) || '-') + '</td>'
                             + '<td class="p-3 text-gray-600 font-mono whitespace-nowrap">' + rcEsc(rcFull(r.npwp) || '-') + '</td>'
                             + '<td class="p-3 text-center"><span class="' + badge + ' px-2 py-1 rounded text-[10px] font-black uppercase">' + rcEsc(r.subyekPajak || 'Belum ada') + '</span></td>'
                             + '<td class="p-3 text-xs text-gray-600 font-mono whitespace-nowrap">' + rcEsc(rcFull(r.noRek) || '-') + '<br><span class="text-gray-400">' + rcEsc(r.namaRek || '-') + ' / ' + rcEsc(r.bank || '-') + '</span></td>'
                             + '<td class="p-3 text-gray-600">' + rcEsc(r.contactPerson || '-') + '</td>'
+                            + '<td class="p-3 text-gray-600">' + rcEsc(r.salesName || '-') + '</td>'
                             + '<td class="p-3 text-center"><button onclick="openRcRowEditor(\'customer\',' + i + ')" class="px-3 py-1.5 bg-white border border-gray-300 hover:bg-emerald-50 text-emerald-700 font-bold rounded-lg text-xs">Ubah</button></td></tr>';
                     });
                     document.getElementById('customerTableBody').innerHTML = html
-                        || '<tr><td colspan="13" class="p-8 text-center text-gray-500">Tidak ada data.</td></tr>';
+                        || '<tr><td colspan="14" class="p-8 text-center text-gray-500">Tidak ada data.</td></tr>';
                     rcPilihanPulihkan('cb-customer', 'cbCustomerAll');
                     updateCustomerArsipCount();
                     renderRcPager('customerPager', offset, (res.rows || []).length, res.total, 'loadCustomerMaster');
@@ -144,6 +167,7 @@
                             + '<td class="p-3 text-center text-gray-600 whitespace-nowrap">'
                               + (r.billingStart || r.billingEnd
                                  ? rcEsc((r.billingStart || '?') + ' s/d ' + (r.billingEnd || '?')) : '-') + '</td>'
+                            + '<td class="p-3 text-[11px] whitespace-nowrap">' + kolomVariant(r) + '</td>'
                             + '<td class="p-3 text-center"><span class="' + jcCls + ' px-2 py-1 rounded text-[10px] font-black uppercase">' + rcEsc(r.jenisCb || 'BELUM DIISI') + '</span></td>'
                             + '<td class="p-3 text-center text-xs">' + rcLabelPajak(r.statusPajak) + '</td>'
                             + '<td class="p-3 text-center">' + kolomNotParticipating(r) + '</td>'
@@ -155,7 +179,7 @@
                             + '<td class="p-3 text-center"><button onclick="openRcRowEditor(\'campaign\',' + i + ')" class="px-3 py-1.5 bg-white border border-gray-300 hover:bg-emerald-50 text-emerald-700 font-bold rounded-lg text-xs">Ubah</button></td></tr>';
                     });
                     document.getElementById('campaignTableBody').innerHTML = html
-                        || '<tr><td colspan="16" class="p-8 text-center text-gray-500">Tidak ada data.</td></tr>';
+                        || '<tr><td colspan="17" class="p-8 text-center text-gray-500">Tidak ada data.</td></tr>';
                     rcPilihanPulihkan('cb-campaign', 'cbCampaignAll');
                     updateCampaignHapusCount();
                     renderRcPager('campaignPager', offset, (res.rows || []).length, res.total, 'loadCampaignMaster');
@@ -187,6 +211,25 @@
                 inactive: { label: 'Inactive', kelas: 'bg-red-100 text-red-700' },
                 cleared:  { label: 'Cleared',  kelas: 'bg-slate-200 text-slate-700' }
             };
+
+            // Variant SAP (20261163200000): tiga baris pendek, Variant Name lalu Description; yang
+            // belum diisi tampil redup.
+            function kolomVariant(r) {
+                // 20261163470000: satu T-code boleh punya beberapa variant (dipisah titik koma / baris
+                // baru, Name dan Description berpasangan menurut urutan). Hanya T-code yang terisi
+                // yang ditampilkan.
+                const pisah = v => String(v || '').split(/\s*[;\n]\s*/).map(x => x.trim());
+                const baris = [];
+                [['ZSQ04', r.variantZsq04, r.variantZsq04Desc], ['ZSOD', r.variantZsod, r.variantZsodDesc], ['MCSI', r.variantMcsi, r.variantMcsiDesc]].forEach(function (p) {
+                    const nama = pisah(p[1]), desk = pisah(p[2]);
+                    nama.forEach(function (n, k) {
+                        if (!n) return;
+                        baris.push('<span class="block"><span class="text-gray-400 font-bold">' + p[0] + ':</span> <span class="font-mono text-gray-800">' + rcEsc(n) + '</span>'
+                            + (desk[k] ? ' <span class="text-gray-500">- ' + rcEsc(desk[k]) + '</span>' : '') + '</span>');
+                    });
+                });
+                return baris.join('') || '<span class="text-gray-300">-</span>';
+            }
 
             function kolomMemo(r, i) {
                 if (r.memoPath) {
@@ -449,7 +492,9 @@
                 customer: [['custCode','Customer Code',true],['custName','Nama Pelanggan',true],
                            ['kodeDepot','Kode Depot',true],['top','TOP',false],
                            ['ktp','No KTP',false],['npwp','No NPWP',false],['namaRek','Nama Rekening',false],
-                           ['noRek','Nomor Rekening',false],['bank','Nama Bank',false],['contactPerson','Contact Person',false]],
+                           ['noRek','Nomor Rekening',false],['bank','Nama Bank',false],['contactPerson','Contact Person',false],
+                           // Sales Name (20261163520000) dicetak di Tanda Terima Document Generator.
+                           ['salesName','Sales Name',false]],
                 // Unsur keempat menandai jenis kolom. Tanpa penanda, seluruh kolom dirender
                 // sebagai kotak teks - dan status campaign yang diketik bebas akan ditolak
                 // server setelah formulirnya dikirim, bukan dicegah saat diisi.
@@ -462,7 +507,11 @@
                            ['periodStart','Periode Campaign Start',false],['periodEnd','Periode Campaign End',false],
                            ['soStart','Periode SO Start',false],['soEnd','Periode SO End',false],
                            ['billingStart','Periode Billing Start',false],['billingEnd','Periode Billing End',false],
-                           ['jenisCb','Jenis CB (Transfer / CN / Voucher / Rebate)',false],['statusPajak','Status Pajak',false]]
+                           ['jenisCb','Jenis CB (Transfer / CN / Voucher / Rebate)',false],['statusPajak','Status Pajak',false],
+                           // Variant SAP (20261163200000), dibaca Timetable > Details Campaign.
+                           ['variantZsq04','Variant ZSQ04 - Variant Name (pisahkan beberapa dengan ;)',false],['variantZsq04Desc','Variant ZSQ04 - Description (urutan sama dengan Name)',false],
+                           ['variantZsod','Variant ZSOD - Variant Name (pisahkan beberapa dengan ;)',false],['variantZsodDesc','Variant ZSOD - Description (urutan sama dengan Name)',false],
+                           ['variantMcsi','Variant MCSI - Variant Name (pisahkan beberapa dengan ;)',false],['variantMcsiDesc','Variant MCSI - Description (urutan sama dengan Name)',false]]
             };
 
             function openRcRowEditor(kind, index) {
@@ -577,20 +626,29 @@
             const RC_TEMPLATE = {
                 // Kode Depot wajib untuk customer baru (20261163090000); lebih dari satu dipisah koma.
                 // Pada customer lama, kolom kosong membiarkan kaitan depotnya seperti semula.
-                Customer: { headers: ['Customer Code','Customer Name','Kode Depot','TOP','No KTP','No NPWP','Nama Rekening','Nomor Rekening','Nama Bank','Contact Person'],
-                            keys: ['custCode','custName','kodeDepot','top','ktp','npwp','namaRek','noRek','bank','contactPerson'],
-                            contoh: ['C00123','TOKO MAJU JAYA','4A','30','','012345678901234','TOKO MAJU JAYA','0081234567','BCA','Budi 0812xxxx'] },
+                // Sales Name (20261163520000) kolom terakhir; template lama tanpa kolom itu tetap terbaca.
+                Customer: { headers: ['Customer Code','Customer Name','Kode Depot','TOP','No KTP','No NPWP','Nama Rekening','Nomor Rekening','Nama Bank','Contact Person','Sales Name'],
+                            keys: ['custCode','custName','kodeDepot','top','ktp','npwp','namaRek','noRek','bank','contactPerson','salesName'],
+                            contoh: ['C00123','TOKO MAJU JAYA','4A','30','','0123456789012345','TOKO MAJU JAYA','0081234567','BCA','Budi 0812xxxx','Andi'] },
                 // Urutan kolom template MENGIKUTI urutan keys di bawahnya; menambah satu tanpa
                 // yang lain akan menggeser seluruh pembacaan. Keduanya diubah bersama di sini.
                 Campaign: { headers: ['Code Campaign','Nama Campaign','Periode Start','Periode End',
                                       'Periode SO Start','Periode SO End','Periode Billing Start','Periode Billing End',
-                                      'Jenis CB','Status Pajak','Status Campaign'],
+                                      'Jenis CB','Status Pajak','Status Campaign',
+                                      'Variant ZSQ04 Name','Variant ZSQ04 Description','Variant ZSOD Name','Variant ZSOD Description',
+                                      'Variant MCSI Name','Variant MCSI Description'],
                             keys: ['codeCampaign','campaignName','periodStart','periodEnd',
                                    'soStart','soEnd','billingStart','billingEnd',
-                                   'jenisCb','statusPajak','status'],
+                                   'jenisCb','statusPajak','status',
+                                   'variantZsq04','variantZsq04Desc','variantZsod','variantZsodDesc',
+                                   'variantMcsi','variantMcsiDesc'],
                             contoh: ['CMP2601','PROMO AWAL TAHUN','01-01-2026','31-03-2026',
                                      '01-01-2026','31-03-2026','01-02-2026','30-04-2026',
-                                     'Transfer','PKP','active'] }
+                                     'Transfer','PKP','active',
+                                     'CMP2601_ZSQ04','Variant ZSQ04 promo awal tahun','CMP2601_ZSOD','Variant ZSOD promo awal tahun',
+                                     'CMP2601_MCSI','Variant MCSI promo awal tahun'],
+                            // Header template versi pertama (tanpa "Name") tetap dibaca sebagai Variant Name.
+                            alias: { 'variant zsq04': 'variantZsq04', 'variant zsod': 'variantZsod', 'variant mcsi': 'variantMcsi' } }
             };
 
             function downloadCustomerTemplate() { downloadRcTemplate('Customer'); }
@@ -617,6 +675,120 @@
             function previewCustomerUpload(el) { previewRcUpload('Customer', el); }
             function previewCampaignUpload(el) { previewRcUpload('Campaign', el); }
 
+            // ---- Upload Variant (20261163510000) --------------------------------------------------
+            // Pemilik, 27 Oktober 2026: upload variant cukup Kode Campaign, T-Code, Nama Variant dan
+            // Description 1-3. Satu baris = satu campaign + satu T-Code; baris yang diisi mengganti
+            // seluruh variant T-Code itu. Pratinjau dari server dulu, baru disimpan.
+            const RC_VARIANT_KOLOM = ['Kode Campaign', 'T-Code', 'Nama Variant 1', 'Description 1', 'Nama Variant 2', 'Description 2', 'Nama Variant 3', 'Description 3'];
+            let rcVariantBaris = null;
+
+            function downloadVariantTemplate() {
+                const wb = XLSX.utils.book_new();
+                const ws = XLSX.utils.aoa_to_sheet([RC_VARIANT_KOLOM]);
+                ws['!cols'] = [16, 9, 24, 32, 24, 32, 24, 32].map(w => ({ wch: w }));
+                XLSX.utils.book_append_sheet(wb, ws, 'Variant');
+                const pet = XLSX.utils.aoa_to_sheet([
+                    ['Petunjuk Upload Variant (Key Master > Campaign Master > Upload Variant)'],
+                    ['1. Satu baris = satu campaign + satu T-Code (ZSQ04, ZSOD, atau MCSI), berisi sampai 3 variant.'],
+                    ['2. Baris yang diisi MENGGANTI seluruh variant T-Code itu; T-Code lain tidak berubah.'],
+                    ['3. Nama Variant kosong semua = baris dilewati. Isi "-" pada Nama Variant 1 untuk mengosongkan T-Code itu.'],
+                    ['4. Description boleh kosong, tetapi tidak boleh diisi tanpa Nama Variant di nomor yang sama.'],
+                    ['5. Jangan memakai titik koma (;) di dalam nama atau description.'],
+                    [],
+                    ['Contoh (isi di sheet Variant, bukan di sini):'],
+                    RC_VARIANT_KOLOM,
+                    ['CMP260109', 'ZSQ04', 'CMP2601_Q04_A', 'Promo awal tahun A', 'CMP2601_Q04_B', 'Promo awal tahun B', '', ''],
+                    ['CMP260109', 'MCSI', 'CMP2601_MCSI', 'Laporan MCSI', '', '', '', '']
+                ]);
+                pet['!cols'] = [16, 9, 24, 32, 24, 32, 24, 32].map(w => ({ wch: w }));
+                XLSX.utils.book_append_sheet(wb, pet, 'Petunjuk');
+                XLSX.writeFile(wb, 'Template_Variant_Campaign.xlsx');
+            }
+
+            function previewVariantUpload(el) {
+                const file = el.files && el.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = async function (e) {
+                    el.value = '';
+                    try {
+                        const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: false });
+                        const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: '' });
+                        const norm = h => String(h || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                        const peta = { kodecampaign: 'kode', codecampaign: 'kode', tcode: 'tcode' };
+                        [1, 2, 3].forEach(i => {
+                            ['namavariant', 'namavarian', 'variantname', 'variant'].forEach(a => peta[a + i] = 'n' + i);
+                            ['description', 'deskripsi', 'desc'].forEach(a => peta[a + i] = 'd' + i);
+                        });
+                        const hIdx = rows.findIndex(r => (r || []).some(h => peta[norm(h)] === 'kode'));
+                        if (hIdx < 0) { showNotification("Header 'Kode Campaign' tidak ditemukan. Gunakan Template Variant.", 'error'); return; }
+                        const kolom = {};
+                        rows[hIdx].forEach((h, i) => { if (peta[norm(h)]) kolom[peta[norm(h)]] = i; });
+                        if (kolom.tcode === undefined || kolom.n1 === undefined) { showNotification("Kolom 'T-Code' dan 'Nama Variant 1' wajib ada. Gunakan Template Variant.", 'error'); return; }
+                        const nilai = (r, k) => kolom[k] === undefined ? '' : String(r[kolom[k]] == null ? '' : r[kolom[k]]).trim();
+                        const kirim = [];
+                        for (let i = hIdx + 1; i < rows.length; i++) {
+                            const r = rows[i] || [];
+                            if (!r.some(v => String(v == null ? '' : v).trim())) continue;
+                            kirim.push({ baris: i + 1, kode: nilai(r, 'kode'), tcode: nilai(r, 'tcode'),
+                                nama: [nilai(r, 'n1'), nilai(r, 'n2'), nilai(r, 'n3')], deskripsi: [nilai(r, 'd1'), nilai(r, 'd2'), nilai(r, 'd3')] });
+                        }
+                        if (!kirim.length) { showNotification('Berkas tidak berisi baris variant.', 'warning'); return; }
+                        if (kirim.length > 2000) { showNotification('Satu unggahan maksimal 2.000 baris.', 'error'); return; }
+                        showLoadingOverlay('Memeriksa variant...');
+                        const res = await fetchApp({ action: 'campaignVariantUnggah', rows: kirim, simpan: false });
+                        hideLoadingOverlay();
+                        if (res.status !== 'success') { showNotification(res.message || 'Pemeriksaan gagal.', 'error'); return; }
+                        rcVariantBaris = kirim;
+                        rcVariantDialog(res);
+                    } catch (err) {
+                        hideLoadingOverlay();
+                        showNotification((err && err.message) || 'Berkas tidak dapat dibaca.', 'error');
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            }
+
+            function rcVariantDialog(res) {
+                const baris = res.baris || [];
+                const hitung = s => baris.filter(b => b.status === s).length;
+                const lencana = { diganti: 'bg-blue-100 text-blue-700', dikosongkan: 'bg-amber-100 text-amber-800', sama: 'bg-gray-100 text-gray-600', dilewati: 'bg-gray-100 text-gray-500', galat: 'bg-red-100 text-red-700' };
+                const varian = (n, d) => {
+                    const nn = String(n || '').split(/\s*;\s*/).filter(Boolean), dd = String(d || '').split(/\s*;\s*/);
+                    return nn.length ? nn.map((x, i) => '<span class="block"><span class="font-mono">' + rcEsc(x) + '</span>' + (dd[i] ? ' <span class="text-gray-500">- ' + rcEsc(dd[i]) + '</span>' : '') + '</span>').join('') : '<span class="text-gray-300">-</span>';
+                };
+                const bisaSimpan = res.galat === 0 && (hitung('diganti') + hitung('dikosongkan')) > 0;
+                rcDialog('Upload Variant - Pratinjau', '<div data-rc-dialog-wide class="space-y-4 text-sm">'
+                    + '<p class="text-gray-700">' + baris.length + ' baris: <b>' + hitung('diganti') + '</b> diganti, <b>' + hitung('dikosongkan') + '</b> dikosongkan, '
+                    + hitung('sama') + ' sama, ' + hitung('dilewati') + ' dilewati, <b class="' + (res.galat ? 'text-red-700' : '') + '">' + res.galat + '</b> bermasalah.</p>'
+                    + (res.galat ? '<p class="text-xs bg-red-50 border border-red-200 text-red-800 rounded-lg p-2.5">Perbaiki baris bermasalah lalu unggah ulang; tidak ada yang disimpan selama masih ada baris bermasalah.</p>' : '')
+                    + '<div class="overflow-auto max-h-[55vh] border border-gray-200 rounded-lg"><table class="w-full text-xs"><thead class="bg-gray-50 text-gray-600 sticky top-0"><tr>'
+                    + ['Baris', 'Kode Campaign', 'T-Code', 'Status', 'Variant Sekarang', 'Variant Baru', 'Keterangan'].map(h => '<th class="p-2 text-left font-black uppercase text-[10px]">' + h + '</th>').join('') + '</tr></thead><tbody>'
+                    + baris.map(b => '<tr class="border-t border-gray-100 align-top"><td class="p-2">' + rcEsc(b.baris) + '</td><td class="p-2 font-bold">' + rcEsc(b.kode) + '</td><td class="p-2">' + rcEsc(b.tcode) + '</td>'
+                        + '<td class="p-2"><span class="px-2 py-0.5 rounded font-bold ' + (lencana[b.status] || '') + '">' + rcEsc(b.status) + '</span></td>'
+                        + '<td class="p-2">' + varian(b.namaLama, b.deskripsiLama) + '</td><td class="p-2">' + (b.status === 'diganti' || b.status === 'dikosongkan' ? varian(b.namaBaru, b.deskripsiBaru) : '<span class="text-gray-300">-</span>') + '</td>'
+                        + '<td class="p-2 text-red-700">' + rcEsc(b.galat || '') + '</td></tr>').join('')
+                    + '</tbody></table></div>'
+                    + '<div class="flex justify-end gap-2">'
+                    + '<button type="button" onclick="rcTutupDialog()" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 font-bold rounded-lg text-sm">Batal</button>'
+                    + (bisaSimpan ? '<button type="button" onclick="commitVariantUpload()" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-sm">Simpan ke Master</button>' : '')
+                    + '</div></div>');
+            }
+
+            async function commitVariantUpload() {
+                if (!rcVariantBaris) return;
+                showLoadingOverlay('Menyimpan variant...');
+                try {
+                    const res = await fetchApp({ action: 'campaignVariantUnggah', rows: rcVariantBaris, simpan: true });
+                    if (res.status !== 'success') { showNotification(res.message || 'Gagal menyimpan variant.', 'error'); return; }
+                    rcVariantBaris = null;
+                    rcTutupDialog();
+                    showNotification('Variant tersimpan: ' + res.diubah + ' campaign x T-Code diubah.', 'success');
+                    loadCampaignMaster(0);
+                } catch (e) { showNotification((e && e.message) || 'Gagal menyimpan variant.', 'error'); }
+                finally { hideLoadingOverlay(); }
+            }
+
             function previewRcUpload(kind, fileInput) {
                 let file = fileInput.files && fileInput.files[0];
                 if (!file) return;
@@ -633,6 +805,7 @@
                         rows[hIdx].forEach((h, i) => {
                             let pos = t.headers.findIndex(x => x.toLowerCase() === String(h || '').trim().toLowerCase());
                             if (pos >= 0) colMap[t.keys[pos]] = i;
+                            else if (t.alias && t.alias[String(h || '').trim().toLowerCase()]) colMap[t.alias[String(h || '').trim().toLowerCase()]] = i;
                         });
                         if (colMap[t.keys[0]] === undefined) { showNotification("Kolom kunci tidak ditemukan.", "error"); return; }
                         let out = [], baris = [], beresiko = [];
@@ -652,6 +825,9 @@
                                     if (v === '') return;
                                     if (v === '-') { obj[k] = ''; return; }
                                 }
+                                // Template Campaign lama belum punya kolom variant (20261163200000): kolom yang
+                                // tidak ada di berkas tidak dikirim, supaya variant yang sudah terisi tidak terhapus.
+                                if (kind === 'Campaign' && /^variant/.test(k) && colMap[k] === undefined) return;
                                 obj[k] = v;
                             });
                             if (kosong) continue;

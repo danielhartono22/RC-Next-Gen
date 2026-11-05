@@ -33,78 +33,9 @@
                 pengamat.observe(document.body, { childList: true, subtree: true });
             });
 
-            // Dialog umum untuk menampilkan HTML apa pun.
-            //
-            // showActionResult() TIDAK dapat dipakai untuk ini: tanda tangannya
-            // (title, successList, failList, actionType, batchNum) menuntut daftar hasil
-            // eksekusi, dan ia memanggil .map() atas argumen kedua. Memberinya string HTML
-            // membuatnya melempar TypeError sebelum sempat menampilkan apa pun, sehingga
-            // layar hanya diam tanpa dialog dan tanpa pesan galat yang terlihat.
-            function rcDialog(judul, html) {
-                document.getElementById('rcDialogTitle').innerText = judul || '';
-                const body = document.getElementById('rcDialogBody');
-                const modal = document.getElementById('rcDialogModal');
-                body.innerHTML = html || '';
-                // Detail berupa tabel/grafik memerlukan panel lebar; pesan dan formulir pendek
-                // tetap memakai ukuran ringkas. Keduanya selalu dibatasi viewport oleh CSS.
-                modal.classList.toggle('rc-dialog-wide', !!body.querySelector('table, canvas, [data-rc-dialog-wide]'));
-                setHiddenSafely('rcDialogModal', false);
-                rcUkurUlangGrafik(body);
-            }
-
-            function rcTutupDialog() { setHiddenSafely('rcDialogModal', true); }
-
-            document.addEventListener('keydown', function (e) {
-                if (e.key === 'Escape') rcTutupDialog();
-            });
-
-            // ------------------------------------------------------------------------------
-            // Status Pajak: satu penafsiran untuk seluruh layar
-            // ------------------------------------------------------------------------------
-            // Kolom tax_status pada master campaign berisi kalimat bebas warisan spreadsheet
-            // lama, dan isinya beragam:
-            //
-            //   "PT Nipsea Paint and Chemicals" (35 campaign)   "Rebate Non Tax" (28)
-            //   "PT Nipsea Paint And Chemicals" (11, beda huruf) "Customer"       (22)
-            //   "0" (3)                                          kosong           (1)
-            //
-            // Sementara itu filter di layar hanya menawarkan "Ditanggung Perusahaan" dan
-            // "Ditanggung Customer". Tidak satu pun nilai di atas memuat kata "ditanggung",
-            // sehingga KEDUA pilihan filter itu selalu menghasilkan tabel kosong - inilah
-            // yang terlihat sebagai status pajak "tidak sinkron".
-            //
-            // Penafsirannya disatukan di sini supaya filter, tampilan kolom, dan perhitungan
-            // gross up membaca nilai yang sama. Teks aslinya tidak diubah di database; yang
-            // disepakati hanyalah cara membacanya.
-            const RC_PAJAK = {
-                perusahaan: { label: 'Ditanggung Perusahaan', kelas: 'text-emerald-700' },
-                customer:   { label: 'Ditanggung Customer',   kelas: 'text-orange-700' },
-                nonTax:     { label: 'Rebate Non Tax',        kelas: 'text-sky-700' },
-                takJelas:   { label: 'Belum Ditentukan',      kelas: 'text-gray-400' }
-            };
-
-            function rcKunciPajak(mentah) {
-                const t = String(mentah == null ? '' : mentah).trim().toLowerCase();
-                if (!t || t === '0' || t === '-') return 'takJelas';
-                if (t.indexOf('non tax') > -1 || t.indexOf('nontax') > -1) return 'nonTax';
-                if (t.indexOf('nipsea') > -1 || t.indexOf('ditanggung perusahaan') > -1
-                    || t.indexOf('ditanggung pt') > -1 || t.indexOf('perusahaan') > -1) return 'perusahaan';
-                if (t.indexOf('customer') > -1 || t.indexOf('toko') > -1) return 'customer';
-                return 'takJelas';
-            }
-
-            // Label seragam sebagai teks biasa. Dipakai berkas Excel, yang tidak dapat memuat
-            // markup, dan menjadi dasar bentuk berwarna di bawahnya.
-            function rcTeksPajak(mentah) { return RC_PAJAK[rcKunciPajak(mentah)].label; }
-
-            // Label seragam untuk ditampilkan. Teks aslinya tetap dibawa sebagai title, supaya
-            // perbedaan penulisan di master masih dapat ditelusuri dari layar.
-            function rcLabelPajak(mentah) {
-                const k = rcKunciPajak(mentah);
-                const asli = String(mentah == null ? '' : mentah).trim();
-                return '<span class="' + RC_PAJAK[k].kelas + ' font-bold" title="'
-                    + rcEsc(asli || '(kosong di master campaign)') + '">' + RC_PAJAK[k].label + '</span>';
-            }
+            // rcDialog dan penafsir Status Pajak (rcKunciPajak, rcTeksPajak, rcLabelPajak) pindah ke
+            // src/view/js/30-details-campaign.js (20261163470000) karena dipakai juga halaman publik
+            // Details Campaign.
 
             // Subyek Pajak toko diturunkan dari kelengkapan identitasnya, bukan dari kolom yang
             // pernah disimpan saat upload. Kolom simpanan itu dapat tertinggal ketika KTP atau
@@ -113,7 +44,8 @@
             function rcSubyekPajak(ktp, npwp) {
                 const a = String(ktp || '').replace(/\D/g, '');
                 const b = String(npwp || '').replace(/\D/g, '');
-                if (a && b) return 'Check';
+                // 20261163110000 (server): NPWP terisi berarti Badan walaupun KTP juga ada. Dulu layar
+                // menulis "Check", sehingga unduhan Claim to Finance tidak sama dengan server.
                 if (b) return 'Badan';
                 if (a) return 'Perorangan';
                 return '';

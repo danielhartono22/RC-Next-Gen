@@ -20,7 +20,7 @@
                 if(!rcEnterTab(module,tab))return;
                 if (module === 'process') { setHiddenSafely('tab_claimFin', tab !== 'claimFin'); setHiddenSafely('tab_clearing', tab !== 'clearing'); updateSubNavStyles('subnav_claimFin', 'subnav_clearing', tab === 'claimFin', 'indigo'); } 
                 else if (module === 'analytics') { setHiddenSafely('tab_history', tab !== 'history'); setHiddenSafely('tab_summary', tab !== 'summary'); updateSubNavStyles('subnav_history', 'subnav_summary', tab === 'history', 'teal'); } 
-                else if (module === 'upload') { currentUploadMode = tab; setHiddenSafely('tab_mass', tab !== 'mass'); setHiddenSafely('tab_single', tab !== 'single'); updateSubNavStyles('subnav_mass', 'subnav_single', tab === 'mass', 'blue');  setHiddenSafely('tab_open', true); let sO = document.getElementById('subnav_open'); if (sO) sO.className = 'px-5 py-2 text-sm font-bold rounded-lg text-gray-500 hover:bg-gray-100 transition'; }
+                else if (module === 'upload') { currentUploadMode = tab; setHiddenSafely('tab_mass', tab !== 'mass'); setHiddenSafely('tab_single', tab !== 'single'); updateSubNavStyles('subnav_mass', 'subnav_single', tab === 'mass', 'blue');  setHiddenSafely('tab_open', true); let sO = document.getElementById('subnav_open'); if (sO) sO.className = 'px-5 py-2 text-sm font-bold rounded-lg text-gray-500 hover:bg-gray-100 transition'; setHiddenSafely('tab_restricted', true); let sR = document.getElementById('subnav_restricted'); if (sR) sR.className = 'px-5 py-2 text-sm font-bold rounded-lg text-gray-500 hover:bg-gray-100 transition'; }
             }
 
             function updateSubNavStyles(id1, id2, isFirstActive, colorPrefix) {
@@ -50,7 +50,7 @@
                 else if (t === 'exclude') muatExcludeCampaign();
                 else if (t === 'arsip') muatArsipAkun();
                 else if (t === 'grade') muatGradeDepot();
-                else if (t === 'approval') muatSetelanApproval();
+                else if (t === 'approval') { muatSetelanApproval(); muatSetelanBadDebt(); muatSetelanZdage(); /* 20261163620000 */ }
                 // Approval Request memuat dua antrean: perubahan data pengguna (sudah dimuat
                 // bersama daftar akun) dan pengajuan profil depot.
                 else if (t === 'req') { muatPermintaanPin(); muatPersetujuanDepot(); }

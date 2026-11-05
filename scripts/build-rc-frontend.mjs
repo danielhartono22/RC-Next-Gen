@@ -130,6 +130,9 @@ export async function buildFrontend({ check = false } = {}) {
   // berhenti dan menyebut nama berkasnya.
   const dipakaiPublik = [];
   const publik = await rakit('dashboard-publik.html', nl, dipakaiPublik, 'src/dashboard-publik.html');
+  // Halaman publik kedua: Details Campaign tanpa login (20261163470000). Potongan bersamanya
+  // (panel, dialog) wajib dipakai portal DAN minimal satu halaman publik.
+  const publikCampaign = await rakit('campaign-publik.html', nl, dipakaiPublik, 'src/campaign-publik.html');
 
   const berkasView = (await daftarBerkas(path.join(SRC_DIR, 'view')))
     .map((f) => path.relative(SRC_DIR, f).split(path.sep).join('/'));
@@ -144,7 +147,7 @@ export async function buildFrontend({ check = false } = {}) {
     if (!adaDiApp || (wajibPublik && !adaDiPublik)) {
       throw new Error(
         `Menolak membangun: src/${rel} adalah potongan bersama, tetapi tidak dipakai `
-        + `${!adaDiApp ? 'src/index.html' : 'src/dashboard-publik.html'}.\n`
+        + `${!adaDiApp ? 'src/index.html' : 'src/dashboard-publik.html atau src/campaign-publik.html'}.\n`
         + '  Isi src/view harus dipakai portal DAN dashboard publik - itulah yang membuat\n'
         + '  keduanya tidak mungkin menyimpang. Tambahkan penandanya, atau keluarkan berkas\n'
         + '  itu dari src/view bila memang tidak lagi bersama.');
@@ -182,6 +185,10 @@ export async function buildFrontend({ check = false } = {}) {
   // logo asli yang tampil, bukan fallback itu.
   await mkdir(path.join(OUT_DIR, 'images'), { recursive: true });
   await copyFile(path.join(root, 'logo.png'), path.join(OUT_DIR, 'images', 'logo.png'));
+  // Logo merek utuh (lambang + tulisan NIPPON PAINT) untuk Tanda Terima di Document Generator
+  // (20261163520000). PNG transparan hasil olahan "Logo Nippon Lengkap.jpeg" pemberian pemilik:
+  // latar abunya dibuang dan tepinya dipangkas, sehingga tidak ada kotak abu di kertas.
+  await copyFile(path.join(root, 'logo-nippon-lengkap.png'), path.join(OUT_DIR, 'images', 'logo-nippon-lengkap.png'));
 
   // Maskot pada kartu login. Berkasnya PNG bertransparansi - latar putih aslinya sudah dibuang -
   // sehingga ia menyatu dengan lingkaran putih di belakangnya tanpa kotak putih yang terlihat.
@@ -211,9 +218,11 @@ export async function buildFrontend({ check = false } = {}) {
 
   // Halaman kedua: Claim Dashboard yang dapat dibuka tanpa login, ditautkan dari email Weekly.
   await writeFile(path.join(OUT_DIR, 'dashboard.html'), publik);
+  // Details Campaign tanpa login, dibuka di /details-campaign (cleanUrls).
+  await writeFile(path.join(OUT_DIR, 'details-campaign.html'), publikCampaign);
 
   return `built public/index.html (${built.length} bytes); ${laporan}`
-    + `; dashboard.html (${publik.length} bytes)`;
+    + `; dashboard.html (${publik.length} bytes); details-campaign.html (${publikCampaign.length} bytes)`;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

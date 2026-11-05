@@ -10,8 +10,9 @@ const adapter=await readFile('scripts/rc-legacy-adapter.js','utf8');
 const timetable=await readFile('src/js/97-timetable.js','utf8');
 const timetableMarkup=await readFile('src/parts/modules/timetable.html','utf8');
 const sharedStyle=await readFile('src/view/parts/style.html','utf8');
-const dialogUi=await readFile('src/js/94-tabel-urut.js','utf8');
-const dialogMarkup=await readFile('src/parts/modals/detail-history.html','utf8');
+// rcDialog dan markup dialognya pindah ke lapisan bersama src/view (20261163470000).
+const dialogUi=await readFile('src/view/js/30-details-campaign.js','utf8');
+const dialogMarkup=await readFile('src/view/parts/dialog.html','utf8');
 const plain=x=>JSON.parse(JSON.stringify(x));
 function page(overrides={}){
  const els=new Map();

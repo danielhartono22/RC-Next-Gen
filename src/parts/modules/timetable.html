@@ -6,17 +6,9 @@
                      dihitung selesai bersama Done, dan data aktual selalu mengungguli tanda
                      Not Achieved. -->
                 <div id="modTimetable" class="module-section hidden max-w-7xl mx-auto px-4">
-                    <div class="flex justify-between items-center border-b border-gray-100 pb-4 mb-5">
-                        <div>
-                            <h2 class="text-xl font-bold text-gray-800"><i class="fas fa-table-cells text-amber-600 mr-2"></i>Timetable</h2>
-                            <p class="text-xs text-gray-500 mt-1" id="ttRingkas">-</p>
-                        </div>
-                        <div class="flex gap-2">
-                            <button onclick="loadTimetable()" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 text-sm font-bold py-2 px-4 rounded-lg shadow-sm"><i class="fas fa-sync mr-1.5"></i> Muat Ulang</button>
-                            <button onclick="downloadTimetableExcel()" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 text-sm font-bold py-2 px-4 rounded-lg shadow-sm"><i class="fas fa-file-excel mr-1.5 text-green-600"></i> Excel</button>
-                        </div>
-                    </div>
+<!--#include view/parts/timetable-kepala.html-->
 
+                    <div id="ttPanelReport">
                     <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-5 flex flex-wrap gap-4 rc-filter-bar shadow-sm">
                         <div class="w-40 flex-shrink-0">
                             <label class="block text-xs font-bold text-gray-700 mb-1.5">Region</label>
@@ -163,4 +155,14 @@
                          Completed pun bisa ikut tertandai tanpa disadari. Penggantinya: klik
                          campaign (atau depot), lihat lawannya beserta statusnya di modal, lalu
                          tandai per pasangan dari sana. -->
+                    </div>
+
+                    <!-- Tab Details Campaign (20261163200000): data campaign langsung dari Key Master >
+                         Campaign Master. Tampilan pertama ringkas (kode, nama, status, periode start SO,
+                         periode end Billing, memo); klik baris membuka detail lengkap hingga variant
+                         dan keberlakuan region/depot. Seluruh campaign tampil; yang tidak berlaku di depot
+                         terpilih (Not Participating) ditandai merah. Hanya baca. -->
+                    <div id="ttPanelCampaign" class="hidden">
+<!--#include view/parts/details-campaign.html-->
+                    </div>
                 </div>

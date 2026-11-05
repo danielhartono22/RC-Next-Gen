@@ -1,7 +1,7 @@
 // Shared display and access rules for the 23 September release.
 // Voucher kategori sendiri sejak 20261163100000 (alurnya sama dengan Rebate Manual); dulu
 // hanya nama lain Transfer.
-const RC_CB_LABELS = ['Transfer', 'CN', 'Voucher', 'Rebate', 'Rebate Manual'];
+const RC_CB_LABELS = ['Transfer', 'CN', 'Voucher', 'Rebate', 'Rebate Manual', 'Others']; // Others: 20261163440000
 function rcCbLabel(value) {
     const raw = String(value || '').trim();
     const key = raw.toLowerCase();
@@ -61,14 +61,32 @@ function rcAmendBarisHtml(r) {
 function rcDetailCardHtml(title, html) {
     return '<div class="bg-white p-3 rounded-lg shadow-sm border border-gray-200 min-w-0"><span class="font-bold text-gray-500 block mb-1 uppercase text-[10px]">'+rcEsc(title)+'</span><div class="text-xs font-semibold break-words">'+(html || '-')+'</div></div>';
 }
+// 20261163390000: rekening sesuai yang diproses - salinan dokumen saat diajukan, sehingga toko yang
+// kemudian ganti rekening tidak mengubah dokumen lamanya. Dokumen tanpa salinan memakai Customer
+// Master saat ini dan ditandai "master".
+function rcRekeningSumber(r) {
+    return r && r.sumberRek === 'dokumen' ? 'Saat diproses' : r && r.sumberRek === 'master' ? 'Customer Master (dokumen belum menyimpan rekening)' : '';
+}
+function rcRekeningHtml(r) {
+    if (!r || !(r.noRek || r.namaRek || r.bank)) return '<span class="text-gray-400">-</span>';
+    return '<b>' + rcEsc(r.bank || '-') + '</b><br><span class="font-mono">' + rcEsc(r.noRek || '-') + '</span><br><span class="text-gray-500">a.n. ' + rcEsc(r.namaRek || '-') + '</span>'
+        + (r.sumberRek === 'master' ? '<br><span class="text-[10px] text-amber-600 font-bold" title="Dokumen belum menyimpan rekening; yang tampil rekening Customer Master saat ini">master</span>' : '');
+}
 function rcHistoryDetails(r) {
     const batches = [['Submitted',r.batchUpload],['Released',r.batchRelease],['Claimed',r.batchClaim],['Done',r.batchClearing]].map(([k,v])=>k+': '+(v||'-')).join('\n');
-    return rcDetailCard('No Batch',batches)+rcDetailCard('SO Date Start / End',rcDisplayDate(r.soStart)+'\n'+rcDisplayDate(r.soEnd))+rcDetailCard('Billing Date Start / End',rcDisplayDate(r.billingStart)+'\n'+rcDisplayDate(r.billingEnd))+rcDetailCardHtml('Remark',rcRemarkHtml(r.remark))+rcDetailCardHtml('Process by',String(rcProsesSemuaTahap(r)||'-').split('\n').map(x=>'<span class="block">'+rcEsc(x)+'</span>').join('')+rcAmendBarisHtml(r))+rcDetailCard('Jenis CB',rcCbLabel(r.jenisCb));
+    return rcDetailCard('No Batch',batches)+rcDetailCard('SO Date Start / End',rcDisplayDate(r.soStart)+'\n'+rcDisplayDate(r.soEnd))+rcDetailCard('Billing Date Start / End',rcDisplayDate(r.billingStart)+'\n'+rcDisplayDate(r.billingEnd))+rcDetailCardHtml('Remark',rcRemarkHtml(r.remark))+rcDetailCardHtml('Process by',String(rcProsesSemuaTahap(r)||'-').split('\n').map(x=>'<span class="block">'+rcEsc(x)+'</span>').join('')+rcAmendBarisHtml(r))+rcDetailCard('Jenis CB',rcCbLabel(r.jenisCb))+rcDetailCardHtml('Rekening',rcRekeningHtml(r)) /* 20261163390000 */
+        // 20261163270000: tagihan Upload Debtor (ZDAGE) toko ini.
+        +(rcZdageAktif()?rcDetailCard('Tagihan (Upload Debtor)',rcTagihanDetail(r.noDoc))+rcDetailCard('Final Billing Month',rcTagihanBulan(r.noDoc)):'') /* 20261163680000 */;
 }
 
 let rcActiveContext = {module:'Home',tab:'Home'};
+// 20261163680000: saat saklar ZDAGE Integration mati, tab ZDAGE mengikuti hak dari server untuk
+// SEMUA peran, termasuk System Manager (server hanya membuka Upload Debtor untuk System Manager dan
+// Bad Debt approval selama masih ada yang menunggu).
+const RC_TAB_ZDAGE = ['upload.restricted', 'upload.restrictedEdit', 'upload.baddebt', 'compilation.debtor', 'approval.baddebt'];
 function rcCanTab(code) {
     if (!currentUserData) return false;
+    if (currentUserData.zdageAktif === false && RC_TAB_ZDAGE.includes(code)) return currentUserData.tabs?.[code] === true;
     if ((currentUserData.sysRole || currentUserData.role || '').toLowerCase() === 'system manager') return true;
     return currentUserData.tabs?.[code] === true;
 }
@@ -88,13 +106,19 @@ const RC_TAB_BUTTONS = {
     'keyMaster.customer':'kmTabCustomer','keyMaster.campaign':'kmTabCampaign','keyMaster.depot':'kmTabDepot',
     'access.list':'mTabList','access.add':'mTabAdd','access.req':'mTabReq','access.email':'mTabEmail','access.emailPengajuan':'mTabEmailPengajuan','access.exclude':'mTabExclude','access.arsip':'mTabArsip','access.grade':'mTabGrade','access.approval':'mTabApproval',
     'report.dashboard':'rtTabDashboard','report.cc1':'rtTabCc1','report.cc2':'rtTabCc2',
-    'people.osc':'peopleTabOsc','people.supervisor':'peopleTabSupervisor'
+    'people.osc':'peopleTabOsc','people.supervisor':'peopleTabSupervisor',
+    'links.view':'linkTabView','links.editor':'linkTabEditor','docgen.done':'docTabDone', /* 20261163690000: tab Not Yet ditiadakan */
+    'timetable.matrix':'ttTabReport','timetable.campaign':'ttTabCampaign',
+    // Discount Center (20261163310000).
+    // Warehouse Rental (20261163530000).
+    'rental.form':'wrTabForm','rental.draft':'wrTabDraft','rental.submitted':'wrTabSubmitted','rental.omset':'wrTabOmset',
+    'discount.dashboard':'dcTabDashboard','discount.ack':'dcTabAck','discount.monitor':'dcTabMonitor','discount.kebijakan':'dcTabKebijakan','discount.generate':'dcTabGenerate','discount.terbit':'dcTabTerbit'
 };
 function rcApplyTabUI() {
     Object.entries(RC_TAB_BUTTONS).forEach(([code,id])=>{const el=document.getElementById(id);if(el){el.dataset.rcTab=code;el.hidden=!rcCanTab(code);}});
     document.querySelectorAll('[data-rc-tab]').forEach(el=>{el.hidden=!rcCanTab(el.dataset.rcTab);});
     const compileTab=document.getElementById('cmpTabCompile');if(compileTab)compileTab.hidden=!['list','compile','archive'].some(t=>rcCanTab('compilation.'+t));
-    Object.entries({upload:'menuUpload',release:'menuRelease',process:'menuProcess',analytics:'menuAnalytics',access:'menuKelolaAkses',logs:'menuLogActivity',bulk:'menuBulkProcess',keyMaster:'menuKeyMaster',compilation:'menuCompilation',approval:'menuApproval',report:'menuReport',timetable:'menuTimetable',people:'menuPeople'}).forEach(([module,id])=>{
+    Object.entries({upload:'menuUpload',release:'menuRelease',process:'menuProcess',adhoc:'menuAdhoc',analytics:'menuAnalytics',access:'menuKelolaAkses',logs:'menuLogActivity',bulk:'menuBulkProcess',keyMaster:'menuKeyMaster',compilation:'menuCompilation',approval:'menuApproval',report:'menuReport',timetable:'menuTimetable',people:'menuPeople',links:'menuPortalLink',docgen:'menuDocGen',discount:'menuDiscountCenter',rental:'menuRental'}).forEach(([module,id])=>{
         const any=(currentUserData?.sysRole==='system manager') || Object.keys(currentUserData?.tabs||{}).some(k=>k.startsWith(module+'.')&&rcCanTab(k));setHiddenSafely(id,!any);
     });
 }
@@ -111,25 +135,46 @@ logActivity=function(detail){
 
 // Tab yang bawaannya MATI (tab_rights): hanya tercentang bila memang sudah diberi, termasuk saat
 // mendaftarkan akun baru. Tab lain bawaannya tercentang mengikuti modulnya (20261163140000).
-const RC_TAB_OPTIN=['access.approval','compilation.amend'];
+const RC_TAB_OPTIN=['access.approval','compilation.amend','compilation.debtor','approval.baddebt','upload.restrictedEdit','upload.baddebt', // 20261163170000
+    'discount.monitor','discount.kebijakan','discount.generate','discount.terbit', // 20261163310000: Sales Distribution hanya bila dicentang
+    'rental.omset']; // 20261163530000: Upload Omset (Admin SASD) hanya bila dicentang
+// Document Generator bawaannya tercentang hanya untuk Admin Depot (peran admin); peran lain bila
+// dicentang - sama dengan tab_rights (20261163190000, tab Done / Not Yet sejak 20261163540000).
+// Warehouse Rental: Fill Form dan Draft bawaannya tercentang hanya untuk Depot Head (20261163530000).
+function rcTabBawaanMati(code,role){return RC_TAB_OPTIN.includes(code)||(['docgen.done','docgen.notyet'].includes(code)&&String(role||'').toLowerCase()!=='admin')||(['rental.form','rental.draft'].includes(code)&&String(role||'').toLowerCase()!=='depot head');}
 // Izin modul akun saat dialog dibuka - acuan ketika peran diganti bolak-balik di dialog.
 let rcMatriksIzinAwal=new Set();
+// Tab dengan aturan sendiri (pemilik, 19 Oktober 2026), sama dengan tab_rights:
+//  * Details Campaign (timetable.campaign) terbuka untuk semua akun walau izin modul Timetable
+//    tidak dicentang - kotaknya tetap dapat diatur.
+//  * Editor Link tidak pernah untuk peran admin - kotaknya dikunci; peran lain bawaannya tercentang.
+const RC_TAB_BEBAS=['timetable.campaign'];
+function rcTabTerkunci(code,role){return code==='links.editor'&&String(role||'').toLowerCase()==='admin';}
+function rcTabKotak(t,on,role,user){
+    const bebas=RC_TAB_BEBAS.includes(t.code),kunci=rcTabTerkunci(t.code,role),aktif=(on||bebas)&&!kunci;
+    const centang=aktif&&(rcTabBawaanMati(t.code,role)?user?.tabs?.[t.code]===true:user?.tabs?.[t.code]!==false);
+    return '<label class="flex gap-2 text-xs py-1"'+(kunci?' title="Peran Admin hanya dapat melihat Daftar Link"':'')+'><input class="perm-tab rounded text-pink-600" data-tabcode="'+rcEsc(t.code)+'"'+(bebas?' data-bebas="1"':'')+(kunci?' data-kunci="1"':'')+' type="checkbox" '+(centang?'checked ':'')+(!aktif?'disabled ':'')+(role==='system manager'?'disabled ':'')+'>'+rcEsc(t.title)
+        +(kunci?' <span class="text-gray-400">(tidak untuk Admin)</span>':'')+(bebas?' <span class="text-gray-400">(semua akun)</span>':'')+'</label>';
+}
 async function renderPermissionMatrix(user) {
     const host=document.getElementById('editModuleMatrix');if(!host)return;
     if(!user||!user.__ulang)rcMatriksIzinAwal=new Set(user?.permissions||[]);
     try {
         if(!rcPermissionCatalog){const r=await fetchApp({action:'permissionCatalog'});if(r.status!=='success')throw Error(r.message||'Katalog izin gagal dimuat');rcPermissionCatalog=r.rows;}
-        const held=user?.permissions||[],role=(user?.sysRole||user?.role||'').toLowerCase();
+        const held=user?.permissions||[],role=(user?.sysRole||user?.role||'').toLowerCase();host.dataset.peran=role;
         host.innerHTML=rcPermissionCatalog.map(c=>{
-            const intrinsic=role==='system manager'||role==='depot head'||role==='management'||(role==='supervisor'&&c.key==='n')||!c.code;
+            const bawaanPeran=(role==='osc'||role==='supervisor')&&c.key==='adhoc'; // 20261163450000: Ad-Hoc bawaan OSC dan Supervisor
+            const intrinsic=role==='system manager'||role==='depot head'||role==='management'||(role==='supervisor'&&c.key==='n')||bawaanPeran||!c.code;
             const on=intrinsic||held.includes(c.code);
-            return '<fieldset class="border border-gray-200 rounded-xl p-3"><legend class="text-xs font-black px-1">'+rcEsc(c.modul)+'</legend><label class="flex gap-2 text-xs font-bold mb-3"><input type="checkbox" class="perm-matrix rounded" data-permkey="'+rcEsc(c.key)+'" '+(on?'checked ':'')+(intrinsic?'disabled ':'')+'onchange="rcMatrixModuleChanged(this)"> Izin modul</label><label class="flex gap-2 text-xs text-blue-700 mb-2"><input type="checkbox" '+((c.tabs||[]).every(t=>user?.tabs?.[t.code]!==false)&&on?'checked ':'')+'onchange="rcMatrixCheckTabs(this)"> Pilih semua tab</label>'+ (c.tabs||[]).map(t=>'<label class="flex gap-2 text-xs py-1"><input class="perm-tab rounded text-pink-600" data-tabcode="'+rcEsc(t.code)+'" type="checkbox" '+(on&&(RC_TAB_OPTIN.includes(t.code)?user?.tabs?.[t.code]===true:user?.tabs?.[t.code]!==false)?'checked ':'')+(!on?'disabled ':'')+(role==='system manager'?'disabled ':'')+'>'+rcEsc(t.title)+'</label>').join('')+'</fieldset>';
+            return '<fieldset class="border border-gray-200 rounded-xl p-3"><legend class="text-xs font-black px-1">'+rcEsc(c.modul)+'</legend><label class="flex gap-2 text-xs font-bold mb-3"><input type="checkbox" class="perm-matrix rounded" data-permkey="'+rcEsc(c.key)+'" '+(bawaanPeran?'data-bawaan-peran="1" ':'')+(on?'checked ':'')+(intrinsic?'disabled ':'')+'onchange="rcMatrixModuleChanged(this)"> Izin modul</label><label class="flex gap-2 text-xs text-blue-700 mb-2"><input type="checkbox" '+((c.tabs||[]).every(t=>user?.tabs?.[t.code]!==false)&&on?'checked ':'')+'onchange="rcMatrixCheckTabs(this)"> Pilih semua tab</label>'+ (c.tabs||[]).map(t=>rcTabKotak(t,on,role,user)).join('')+'</fieldset>';
         }).join('');
     } catch(e) {rcPermissionCatalog=null;host.innerHTML='<p class="text-red-600 text-sm">'+rcEsc(e.message)+'. Buka ulang sebelum menyimpan.</p>';}
 }
-function rcMatrixModuleChanged(input){input.closest('fieldset').querySelectorAll('.perm-tab').forEach(e=>{e.disabled=!input.checked;e.checked=input.checked;});}
+// Mencentang izin modul menyalakan tab bawaannya saja; tab opt-in (mis. Upload Omset) tetap harus
+// dicentang sendiri, supaya hanya akun yang memang diberi yang memegangnya (pemilik, 27 Oktober 2026).
+function rcMatrixModuleChanged(input){const peran=(document.getElementById('editModuleMatrix')||{dataset:{}}).dataset.peran;input.closest('fieldset').querySelectorAll('.perm-tab').forEach(e=>{if(e.dataset.bebas||e.dataset.kunci)return;e.disabled=!input.checked;e.checked=input.checked&&!rcTabBawaanMati(e.dataset.tabcode,peran);});}
 function rcMatrixCheckTabs(input){input.closest('fieldset').querySelectorAll('.perm-tab').forEach(e=>{if(!e.disabled)e.checked=input.checked;});}
-function rcMatrixValues(){const o={};document.querySelectorAll('.perm-matrix').forEach(e=>o[e.dataset.permkey]=e.checked?'Yes':'No');return o;}
+function rcMatrixValues(){const o={};document.querySelectorAll('.perm-matrix').forEach(e=>{if(e.dataset.bawaanPeran)return;o[e.dataset.permkey]=e.checked?'Yes':'No';});return o;}
 // Tab dari modul yang tidak dicentang (kotaknya nonaktif) TIDAK dikirim. Dulu dikirim sebagai
 // "mati" eksplisit, sehingga ketika peran akun itu kemudian memegang modul tersebut - misalnya
 // diangkat menjadi Depot Head yang memegang seluruh izin - tabnya tetap tertutup walau di
@@ -200,7 +245,7 @@ async function rcSubmitProfileEdit(){
 document.addEventListener('DOMContentLoaded',function(){
     const style=document.createElement('style');style.textContent='[hidden]{display:none!important}.rc-wrap{white-space:normal!important;overflow-wrap:anywhere;min-width:120px;max-width:240px}.rc-time{white-space:normal!important;min-width:220px}';document.head.append(style);
     const open=document.getElementById('openCampaign');if(open){const select=document.createElement('select');select.id='openCbType';select.setAttribute('aria-label','Filter Jenis CB');select.className=open.className;select.innerHTML='<option value="">Semua Jenis CB</option>'+RC_CB_LABELS.map(s=>'<option>'+s+'</option>').join('');select.onchange=()=>loadOpenClaims(0);open.parentElement.append(select);}
-    [['releaseTableBody',false],['claimFinTableBody',true],['clearingTableBody',true]].forEach(([id,gross])=>{const row=document.getElementById(id)?.closest('table')?.querySelector('thead tr');if(!row)return;let th=document.createElement('th');th.className='p-3 text-xs font-black text-gray-600';th.textContent='Jenis CB';row.insertBefore(th,row.lastElementChild);if(gross){th=document.createElement('th');th.className='p-3 text-xs font-black text-orange-700';th.textContent='Gross Up Value';row.insertBefore(th,row.lastElementChild);}});
+    [['releaseTableBody',true,true],['claimFinTableBody',true,false],['clearingTableBody',true,false]].forEach(([id,gross,pajak])=>{const row=document.getElementById(id)?.closest('table')?.querySelector('thead tr');if(!row)return;let th=document.createElement('th');th.className='p-3 text-xs font-black text-gray-600';th.textContent='Jenis CB';row.insertBefore(th,row.lastElementChild);if(pajak){th=document.createElement('th');th.className='p-3 text-xs font-black text-gray-600';th.textContent='Status Pajak';row.insertBefore(th,row.lastElementChild);}/* Release: Status Pajak + Gross Up, 27-Oct-2026 */if(gross){th=document.createElement('th');th.className='p-3 text-xs font-black text-orange-700';th.textContent='Gross Up Value';row.insertBefore(th,row.lastElementChild);}});
     const cust=document.getElementById('customerTableBody')?.closest('table')?.querySelector('thead tr');if(cust){const anchor=cust.children[1];['Kode Depot','Nama Depot','Region'].forEach(t=>{const th=document.createElement('th');th.className='p-3 text-xs font-bold';th.textContent=t;cust.insertBefore(th,anchor);});}
     const suffix=document.getElementById('editSuffix');if(suffix){suffix.readOnly=true;suffix.title='Suffix digenerate otomatis oleh sistem';}
 });

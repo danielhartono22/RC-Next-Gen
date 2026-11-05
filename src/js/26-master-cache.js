@@ -18,6 +18,8 @@
             // yang tidak ditemukan, satu kode salah ketik akan ditanyakan ulang ke server
             // pada setiap penekanan tombol.
             const rcMasterDiminta = { cust: new Set(), doc: new Set() };
+            // Sebab kegagalan pengambilan terakhir (pastikanMaster mengembalikan false).
+            let rcMasterGalat = '';
 
             function rcNormKode(v) {
                 return String(v == null ? '' : v).trim().toUpperCase();
@@ -100,7 +102,7 @@
                     perluDoc.push(no);
                 });
 
-                if (!perluCust.length && !perluDoc.length) return;
+                if (!perluCust.length && !perluDoc.length) return true;
 
                 // Server membatasi 2000 kode per permintaan; dipecah di sini supaya unggahan
                 // besar tidak ditolak seluruhnya hanya karena melewati batas satu permintaan.
@@ -111,31 +113,39 @@
                     if (!c.length && !d.length) continue;
                     try {
                         const res = await fetchApp({ action: 'lookupMaster', custCodes: c, docNos: d });
-                        if (res && res.status === 'success') {
-                            (res.customers || []).forEach(function (row) {
-                                const ada = rcIndeks('customerNorm', globalCustomers, x => rcNormKode(x.custCode));
-                                if (!ada.has(rcNormKode(row.custCode))) {
-                                    globalCustomers.push(row);
-                                }
-                            });
-                            (res.documents || []).forEach(function (row) {
-                                row.status = normalizeClaimStatus(row.status);
-                                const ada = rcIndeks('dokumenNorm', globalDocuments, x => rcNormKode(x.noDoc));
-                                if (!ada.has(rcNormKode(row.noDoc))) {
-                                    globalDocuments.push(row);
-                                }
-                            });
+                        // RCBackend.call tidak melempar: galat server / jaringan kembali sebagai
+                        // status 'error'. Dulu baris itu lolos ke penandaan "sudah diminta" di
+                        // bawah, sehingga dokumennya tampil "Tdk di DB" sampai Refresh Data / login
+                        // ulang - kasus ADMSRG, 20 Oktober 2026. Kini diperlakukan sebagai kegagalan.
+                        if (!res || res.status !== 'success') {
+                            throw new Error((res && res.message) || 'Data master tidak dapat dimuat.');
                         }
+                        (res.customers || []).forEach(function (row) {
+                            const ada = rcIndeks('customerNorm', globalCustomers, x => rcNormKode(x.custCode));
+                            if (!ada.has(rcNormKode(row.custCode))) {
+                                globalCustomers.push(row);
+                            }
+                        });
+                        (res.documents || []).forEach(function (row) {
+                            row.status = normalizeClaimStatus(row.status);
+                            const ada = rcIndeks('dokumenNorm', globalDocuments, x => rcNormKode(x.noDoc));
+                            if (!ada.has(rcNormKode(row.noDoc))) {
+                                globalDocuments.push(row);
+                            }
+                        });
                     } catch (e) {
                         // Kegagalan pengambilan TIDAK dicatat sebagai "sudah diminta": kalau
                         // dicatat, satu gangguan jaringan akan membuat barisnya dianggap tidak
-                        // ada selamanya sampai halaman dimuat ulang.
+                        // ada selamanya sampai halaman dimuat ulang. Pemanggil yang menampilkan
+                        // hasil (Preview) membaca false dan sebabnya di rcMasterGalat.
                         if (window.console) console.warn('pastikanMaster gagal', e);
-                        return;
+                        rcMasterGalat = (e && e.message) ? e.message : 'Data master tidak dapat dimuat.';
+                        return false;
                     }
                     c.forEach(k => rcMasterDiminta.cust.add(k));
                     d.forEach(k => rcMasterDiminta.doc.add(k));
                 }
+                return true;
             }
 
             // Bentuk yang lebih mudah dipakai: menerima larik baris apa pun, lalu memungut

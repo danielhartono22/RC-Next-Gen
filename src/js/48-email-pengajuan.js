@@ -153,7 +153,7 @@
                     '<div class="text-[11px] text-gray-600 mb-3">Depot contoh: <strong>'
                     + rcEsc(d.depotContoh || '-') + '</strong></div>'
                     + daftar('TO &mdash; alamat depot', to, 'text-green-700')
-                    + daftar('CC &mdash; OSC &amp; Supervisor sesuai yurisdiksi, dan email tambahan di tab ini', cc, 'text-blue-700')
+                    + daftar('CC &mdash; OSC &amp; Supervisor sesuai yurisdiksi, dan email tambahan di tab ini (email Done: tanpa OSC &amp; Supervisor)', cc, 'text-blue-700')
                     // Depot tanpa OSC/Supervisor dan tanpa email tambahan akan berangkat tanpa
                     // tembusan sama sekali. Dikatakan terus terang di sini, karena CC kosong
                     // mudah disangka kerusakan padahal itu memang keadaan datanya.

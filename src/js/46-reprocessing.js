@@ -13,11 +13,12 @@
             let reproPending = null;
 
             function switchCompilationTab(tab) {
-                const selected=tab==='repro'?'reprocess':tab==='amend'?'amend':['list','compile','archive'].find(t=>rcCanTab('compilation.'+t));
+                const selected=tab==='repro'?'reprocess':tab==='amend'?'amend':tab==='debtor'?'debtor':['list','compile','archive'].find(t=>rcCanTab('compilation.'+t));
                 if(!rcEnterTab('compilation',selected))return;
                 setHiddenSafely('cmpPanelCompile', tab !== 'compile');
                 setHiddenSafely('cmpPanelRepro', tab !== 'repro');
                 setHiddenSafely('cmpPanelAmend', tab !== 'amend');
+                setHiddenSafely('cmpPanelDebtor', tab !== 'debtor'); // 20261163170000
                 const aktif = 'px-5 py-2 text-sm font-bold rounded-lg transition bg-cyan-100 text-cyan-700';
                 const diam = 'px-5 py-2 text-sm font-bold rounded-lg transition text-gray-500 hover:bg-gray-100';
                 const bc = document.getElementById('cmpTabCompile');
@@ -26,8 +27,11 @@
                 if (bc) bc.className = tab === 'compile' ? aktif : diam;
                 if (br) br.className = tab === 'repro' ? aktif : diam;
                 if (ba) ba.className = tab === 'amend' ? aktif : diam;
+                const bd = document.getElementById('cmpTabDebtor');
+                if (bd) bd.className = tab === 'debtor' ? aktif : diam;
                 if (tab === 'repro') loadReprocessing();
                 if (tab === 'amend') bukaAmendDoc();
+                if (tab === 'debtor') { bukaUploadDebtor(); rcZdSpanduk('rcZdMatiDebtor'); /* 20261163620000 */ }
             }
 
             async function loadReprocessing() {

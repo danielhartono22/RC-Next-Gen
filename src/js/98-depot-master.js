@@ -35,13 +35,13 @@
                             : '';
                         setHiddenSafely('depotTanpaAbbr', tanpaAbbr.length === 0);
                     }
-                    // Email Done memakai Email Kepala Admin; selama kosong masih ke Email TO depot.
+                    // Email Done: Email Kepala Admin, bila kosong user yang mengajukan / memproses Done (20261163210000).
                     const tanpaKa = res.tanpaEmailKa || [];
                     const elKa = document.getElementById('depotTanpaEmailKa');
                     if (elKa) {
                         elKa.innerHTML = tanpaKa.length
                             ? '<i class="fas fa-envelope mr-1.5"></i><b>' + tanpaKa.length + ' depot belum punya Email Kepala Admin</b>'
-                              + ' (tujuan email Done - Pengajuan); untuk depot ini email Done masih dikirim ke Email Depot (TO): '
+                              + ' (tujuan email Done - Pengajuan); untuk depot ini email Done dikirim ke user yang mengajukan klaimnya, atau user yang memproses Done: '
                               + tanpaKa.slice(0, 15).map(rcEsc).join(', ') + (tanpaKa.length > 15 ? ', ...' : '') + '.'
                             : '';
                         setHiddenSafely('depotTanpaEmailKa', tanpaKa.length === 0);
@@ -161,7 +161,7 @@
                     dmKolom('dmEmailSm', 'Email SM', d.emailSm, 'text', 'Maksimal 4 alamat.'),
                     dmKolom('dmEmailTo', 'Email Depot (TO)', d.emailTo, 'text', 'Maksimal 4 alamat. Inilah tujuan email otomatis.'),
                     // 20261163100000: tujuan (TO) email "Done - Pengajuan".
-                    dmKolom('dmEmailKa', 'Email Kepala Admin', d.emailKepalaAdmin, 'text', 'Maksimal 4 alamat. Satu-satunya tujuan (TO) email Done - Pengajuan; kosong: email Done ke Email Depot (TO).'),
+                    dmKolom('dmEmailKa', 'Email Kepala Admin', d.emailKepalaAdmin, 'text', 'Maksimal 4 alamat. Tujuan (TO) email Done - Pengajuan; kosong: ke user yang mengajukan klaimnya, atau bila tidak tercatat ke user yang memproses Done.'),
                     '</div>',
                     '<div class="mt-3">' + dmKolom('dmEmailCc', 'Email CC', d.emailCc, 'text',
                         'Daftar siar, maksimal 20 alamat. Alamat yang sudah ada di TO akan DIHAPUS SENDIRI dari CC saat disimpan, '

@@ -28,7 +28,29 @@
                 }
             }
 
+            // 20261163600000: Report membaca snapshot (tiap 2 jam 07:00-17:00 WIB dan saat email
+            // Report dikirim). Tombol ini menghitung ulang sekarang; server menolak menghitung
+            // ulang bila snapshot belum 5 menit, supaya klik beruntun tidak membebani database.
+            async function rtPerbaruiSnapshot() {
+                showLoadingOverlay();
+                try {
+                    const res = await fetchApp({ action: 'reportSegarkan' });
+                    if (res.status !== 'success') throw new Error(res.message || 'Gagal memperbarui data Report.');
+                    showNotification(res.diperbarui
+                        ? 'Data Report diperbarui (' + Number(res.baris || 0).toLocaleString('id-ID') + ' dokumen, data per ' + res.dibuatPada + ').'
+                        : 'Data Report baru saja diperbarui (data per ' + res.dibuatPada + '). Coba lagi beberapa menit lagi.',
+                        res.diperbarui ? 'success' : 'warning');
+                } catch (e) {
+                    showNotification((e && e.message) ? e.message : 'Gagal memperbarui data Report.', 'error');
+                } finally {
+                    hideLoadingOverlay();
+                }
+                rtData = { dashboard: null, cc1: null, cc2: null };
+                await loadReport();
+            }
+
             async function loadReport() {
+                setHiddenSafely('rtBtnPerbarui', false);
                 showLoadingOverlay();
                 try {
                     const f = filterReport();
@@ -63,6 +85,10 @@
 
             // ---- Email otomatis ------------------------------------------------------------
             const RT_HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+            // Nama tampilan jenis email; jenis lain tampil apa adanya (20261163360000).
+            const RT_EMAIL_LABEL = { notachieved: 'Not Achieved', kesehatan: 'Kesehatan RC', compile: 'Closing Campaign' /* 20261163610000 */,
+                debtor: 'Peringatan Toko Lunas' /* 20261163670000 */ };
+            function rtLabelEmail(j) { return RT_EMAIL_LABEL[j] || j; }
 
             async function loadEmailPanel() {
                 showLoadingOverlay();
@@ -79,7 +105,7 @@
                         return '<div class="p-3 border border-gray-200 rounded-xl space-y-2" data-jenis="' + rcEsc(p.jenis) + '">'
                             + '<div class="flex flex-wrap items-center gap-3">'
                             + '<label class="flex items-center gap-2 w-40"><input type="checkbox" class="rt-email-aktif rounded text-blue-600"' + (p.aktif ? ' checked' : '') + '>'
-                            + '<span class="font-black text-gray-800 capitalize">' + rcEsc(p.jenis) + '</span></label>'
+                            + '<span class="font-black text-gray-800 capitalize">' + rcEsc(rtLabelEmail(p.jenis)) + '</span></label>'
                             + '<div class="flex items-center gap-2"><span class="text-xs text-gray-500">Jam</span>'
                             + '<input type="number" min="0" max="23" value="' + Number(p.jam || 0) + '" class="rt-email-jam w-16 px-2 py-1.5 border border-gray-300 rounded-lg text-sm text-center">'
                             + '<span class="text-[10px] text-gray-400">WIB</span></div>'
@@ -98,7 +124,52 @@
                               }).join('')
                             + '<span class="rt-email-hari-catatan text-[11px] ' + (tiapHari ? 'text-blue-600' : 'text-gray-400') + '">'
                             + (tiapHari ? 'Tidak ada yang dicentang: dikirim TIAP HARI' : dipilih.length + ' hari dipilih')
-                            + '</span></div></div>';
+                            + '</span></div>'
+                            // 20261163570000: tolok ukur Top Depot (Daily Top 5, Weekly Top 10).
+                            + (p.tolokUkur
+                                ? '<div class="flex flex-wrap items-center gap-2 pl-1">'
+                                  + '<span class="text-xs text-gray-500 w-14">Top Depot</span>'
+                                  + '<select class="rt-email-ukur px-3 py-1.5 border border-gray-300 rounded-lg text-sm font-bold text-gray-700">'
+                                  + '<option value="outstanding_claim"' + (p.tolokUkur === 'outstanding_claim' ? ' selected' : '') + '>Outstanding Claim % tertinggi</option>'
+                                  + '<option value="clearing_rate"' + (p.tolokUkur === 'clearing_rate' ? ' selected' : '') + '>Clearing Rate terendah</option>'
+                                  + '</select>'
+                                  + '<span class="text-[11px] text-gray-400">Outstanding Claim = belum diajukan Depot (bila approval hidup: belum disetujui)</span></div>'
+                                : '')
+                            // 20261163670000: Peringatan Toko Lunas - 3 jenjang, masing-masing hari ke-N
+                            // (sejak toko lunas di RC) dan CC-nya. TO tetap Email TO depot.
+                            + (Array.isArray(p.jenjang)
+                                ? '<div class="pl-1 space-y-2">'
+                                  + '<p class="text-[11px] text-gray-500">TO = Email TO depot (Depot Master). CC = Email CC depot + CC jenjang. Setiap toko diperingatkan sekali per jenjang; hanya saat ZDAGE Integration hidup.</p>'
+                                  + p.jenjang.map(function (j, i) {
+                                      return '<div class="flex flex-wrap items-center gap-2 rt-email-jj" data-i="' + i + '">'
+                                          + '<span class="text-xs text-gray-500 w-20">Jenjang ' + (i + 1) + '</span>'
+                                          + '<span class="text-xs text-gray-500">hari ke-</span>'
+                                          + '<input type="number" min="1" max="365" value="' + Number(j.hari || 0) + '" class="rt-email-jj-hari w-16 px-2 py-1.5 border border-gray-300 rounded-lg text-sm text-center">'
+                                          + '<span class="text-xs text-gray-500">CC</span>'
+                                          + '<input type="text" value="' + rcEsc((j.cc || []).join(', ')) + '" placeholder="CC jenjang ' + (i + 1) + ', pisahkan dengan koma" '
+                                          + 'class="rt-email-jj-cc flex-1 min-w-[220px] px-3 py-1.5 border border-gray-300 rounded-lg text-sm"></div>';
+                                    }).join('')
+                                  + '</div>'
+                                : '')
+                            // 20261163230000: jenis berpenerima tetap (Laporan Kesehatan RC) tidak
+                            // mengikuti alamat depot; To dan CC-nya diatur di sini (server mengirim
+                            // daftar cc hanya untuk jenis itu). Dipisah koma, maksimal 10 alamat.
+                            // 20261163370000: setiap jadwal punya CC tambahan sendiri. To sendiri hanya Kesehatan RC;
+                            // jadwal lain To dan CC-nya dari Depot Master, kolom ini menambah CC di luar itu.
+                            + (p.toTetap === true || (p.toTetap === undefined && p.jenis === 'kesehatan')
+                                ? '<div class="flex flex-wrap items-center gap-2 pl-1">'
+                                  + '<span class="text-xs text-gray-500 w-14">To</span>'
+                                  + '<input type="text" value="' + rcEsc((p.tujuan || []).join(', ')) + '" placeholder="alamat@perusahaan.co.id" '
+                                  + 'class="rt-email-tujuan flex-1 min-w-[220px] px-3 py-1.5 border border-gray-300 rounded-lg text-sm"></div>'
+                                : '')
+                            + (Array.isArray(p.cc)
+                                ? '<div class="flex flex-wrap items-center gap-2 pl-1">'
+                                  + '<span class="text-xs text-gray-500 w-14">CC</span>'
+                                  + '<input type="text" value="' + rcEsc(p.cc.join(', ')) + '" placeholder="'
+                                  + (p.jenis === 'kesehatan' ? 'opsional, pisahkan dengan koma' : 'CC tambahan (opsional) di luar Email CC Depot Master, pisahkan dengan koma') + '" '
+                                  + 'class="rt-email-cc flex-1 min-w-[220px] px-3 py-1.5 border border-gray-300 rounded-lg text-sm"></div>'
+                                : '')
+                            + '</div>';
                     }).join('');
 
                     const r = res.ringkas || {};
@@ -161,13 +232,22 @@
                     // "biarkan seperti semula", dan pengguna yang baru saja mengosongkan seluruh
                     // centang tidak akan melihat perubahannya tersimpan.
                     const hari = [...el.querySelectorAll('.rt-email-hari:checked')].map(c => Number(c.value));
-                    return {
+                    const baris = {
                         jenis: el.dataset.jenis,
                         aktif: el.querySelector('.rt-email-aktif').checked,
                         jam: Number(el.querySelector('.rt-email-jam').value),
                         subjek: el.querySelector('.rt-email-subjek').value.trim(),
                         hariList: hari
                     };
+                    // 20261163230000: To hanya pada Kesehatan RC. 20261163370000: CC tambahan pada setiap jadwal.
+                    const elTo = el.querySelector('.rt-email-tujuan'), elCc = el.querySelector('.rt-email-cc'), elUkur = el.querySelector('.rt-email-ukur');
+                    if (elUkur) baris.tolokUkur = elUkur.value; // 20261163570000
+                    // 20261163670000: jenjang Peringatan Toko Lunas.
+                    const jj = [...el.querySelectorAll('.rt-email-jj')];
+                    if (jj.length) baris.jenjang = jj.map(d => ({ hari: Number(d.querySelector('.rt-email-jj-hari').value), cc: d.querySelector('.rt-email-jj-cc').value }));
+                    if (elTo) baris.tujuan = elTo.value;
+                    if (elCc) baris.cc = elCc.value;
+                    return baris;
                 });
                 try {
                     const res = await fetchApp({ action: 'emailSettingsSave', rows: rows });
@@ -218,7 +298,7 @@
                 try {
                     const res = await fetchApp({ action: 'emailCompose', jenis: jenis, kirim: false });
                     if (res.status !== 'success') throw new Error(res.message || 'Gagal menyusun pratinjau.');
-                    rcDialog('Pratinjau ' + jenis,
+                    rcDialog('Pratinjau ' + rtLabelEmail(jenis),
                         '<p class="text-xs text-gray-500 mb-2">' + rcEsc(res.message || '') + '</p>'
                         + '<p class="text-xs mb-3"><b>Subjek:</b> ' + rcEsc(res.subjek || '-') + '</p>'
                         + '<div class="border border-gray-200 rounded-lg p-3 bg-white max-h-[50vh] overflow-auto">'

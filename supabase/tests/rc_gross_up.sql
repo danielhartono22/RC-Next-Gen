@@ -2,7 +2,8 @@
 -- Uji Gross Up: rumus, compile, Reprocessing Doc, dan konsistensi data
 -- ==========================================================================================
 -- Dibuat 12 Oktober 2026 ("hitung gross up buat dan testing"); diperbarui untuk aturan
--- 20261162250000 (semua status pajak dihitung, seluruh Rebate 0, disimpan bulat).
+-- 20261162250000 (semua status pajak dihitung, disimpan bulat) dan 20261163430000 (Rebate dan
+-- Rebate Manual = cashback x 1,11).
 --
 -- Menjalankan:  node scripts/apply-sql.mjs --env dev supabase/tests/rc_gross_up.sql
 -- Hasilnya satu tabel: uji, lulus, rinci. Semua perubahan data dibuat di dalam subtransaksi
@@ -10,7 +11,8 @@
 -- bertahan hanya tabel sementara berisi hasil uji.
 --
 -- Aturan yang diuji (rc_private.gross_up_klaim -> rc_private.gross_claimed):
---   0  Jenis CB Rebate / Rebate Manual (RA07, RA7), atau Status Pajak Rebate Non Tax
+--   x 1,11  Jenis CB Rebate / Rebate Manual (RA07, RA7), apa pun status pajaknya (20261163430000)
+--   0       Jenis CB Voucher, atau Status Pajak Rebate Non Tax (selain Rebate)
 --   Badan                        cashback / 0,85
 --   Perorangan (dan subyek kosong), progresif:
 --     s.d. 57.000.000            cashback / 0,95
@@ -44,9 +46,13 @@ from (values
   ('PT Nipsea Paint and Chemicals kini dihitung',     rc_private.gross_up_klaim(85000, 'Badan', 'PT Nipsea Paint and Chemicals', 'CN'), 100000::numeric),
   ('PT Nipsea Paint And Chemicals (Perorangan)',      rc_private.gross_up_klaim(57000000, 'Perorangan', 'PT Nipsea Paint And Chemicals', 'Transfer'), 60000000::numeric),
   ('Ditanggung Perusahaan kini dihitung',             rc_private.gross_up_klaim(85000, 'Badan', 'Ditanggung Perusahaan', 'Transfer'), 100000::numeric),
-  ('Jenis CB Rebate -> 0',                            rc_private.gross_up_klaim(1000000, 'Badan', 'Customer', 'Rebate'),            0::numeric),
-  ('Jenis CB Rebate Manual -> 0',                     rc_private.gross_up_klaim(1000000, 'Badan', 'PT Nipsea Paint and Chemicals', 'Rebate Manual'), 0::numeric),
-  ('Jenis CB RA07 -> 0',                              rc_private.gross_up_klaim(1000000, 'Perorangan', 'Customer', 'RA07'),         0::numeric),
+  ('Jenis CB Rebate -> x 1,11',                       rc_private.gross_up_klaim(1000000, 'Badan', 'Customer', 'Rebate'),            1110000::numeric),
+  ('Jenis CB Rebate Manual -> x 1,11',                rc_private.gross_up_klaim(1000000, 'Badan', 'PT Nipsea Paint and Chemicals', 'Rebate Manual'), 1110000::numeric),
+  ('Jenis CB RA07 -> x 1,11',                         rc_private.gross_up_klaim(1000000, 'Perorangan', 'Customer', 'RA07'),         1110000::numeric),
+  ('Rebate berstatus Rebate Non Tax -> x 1,11',       rc_private.gross_up_klaim(1000000, 'Badan', 'Rebate Non Tax', 'Rebate'),      1110000::numeric),
+  ('Rebate dipotong bulat (999 -> 1.108)',            rc_private.gross_up_klaim(999, null, null, 'Rebate'),                          1108::numeric),
+  ('Rebate cashback negatif -> 0',                    rc_private.gross_up_klaim(-1, 'Badan', 'Customer', 'Rebate'),                 0::numeric),
+  ('Jenis CB Voucher -> 0',                           rc_private.gross_up_klaim(1000000, 'Badan', 'Customer', 'Voucher'),           0::numeric),
   ('Status Rebate Non Tax -> 0',                      rc_private.gross_up_klaim(1000000, 'Badan', 'Rebate Non Tax', 'Transfer'),    0::numeric),
   ('Status Rebate Non-Tax (tanda hubung) -> 0',       rc_private.gross_up_klaim(1000000, 'Badan', 'Rebate Non-Tax', 'CN'),          0::numeric),
   ('Cashback 0 -> 0',                                 rc_private.gross_up_klaim(0, 'Badan', 'Customer', 'Transfer'),                0::numeric),
@@ -67,18 +73,30 @@ from (select count(*) filter (where c.gross_up is distinct from rc_private.gross
              min(c.no_doc) filter (where c.gross_up is distinct from rc_private.gross_up_klaim(c.cb_net, c.tax_subject, ca.tax_status,
                                 coalesce(nullif(c.cashback_type_override, ''), ca.cashback_type))) contoh
         from public.claims c join public.campaigns ca on ca.id = c.campaign_id
-       where c.customer_id is not null and c.archived_at is null) x;
+       where c.customer_id is not null and c.archived_at is null
+         and (to_jsonb(c)->>'adhoc_at') is null) x; -- 20261163440000: gross up dokumen Ad-Hoc diputuskan di Ad-Hoc Process
 
 insert into _hasil_gross(uji, lulus, rinci)
 select 'Data: tidak ada gross up berdesimal', n = 0, format('%s dokumen berdesimal', n)
 from (select count(*) n from public.claims where gross_up <> trunc(gross_up)) x;
 
 insert into _hasil_gross(uji, lulus, rinci)
-select 'Data: seluruh Rebate dan Voucher bernilai 0', n = 0, format('%s dokumen Rebate/Voucher dengan gross up bukan 0', n)
+select 'Data: Voucher dan non-Rebate berstatus Non Tax bernilai 0', n = 0, format('%s dokumen dengan gross up bukan 0', n)
 from (select count(*) n from public.claims c join public.campaigns ca on ca.id = c.campaign_id
-       where c.customer_id is not null and coalesce(c.gross_up, 0) <> 0
-         and (rc_private.jenis_efektif(coalesce(nullif(c.cashback_type_override, ''), ca.cashback_type)) in ('rebate', 'rebate manual', 'voucher') -- 20261163120000
-              or lower(coalesce(ca.tax_status, '')) ~ 'non[[:space:]_-]*tax')) x;
+       cross join lateral (select rc_private.jenis_efektif(coalesce(nullif(c.cashback_type_override, ''), ca.cashback_type)) j) je
+       where c.customer_id is not null and coalesce(c.gross_up, 0) <> 0 and (to_jsonb(c)->>'adhoc_at') is null
+         and (je.j = 'voucher' -- 20261163120000
+              or (je.j not in ('rebate', 'rebate manual') and lower(coalesce(ca.tax_status, '')) ~ 'non[[:space:]_-]*tax'))) x;
+
+-- 20261163430000: Rebate dan Rebate Manual = cashback x 1,11, termasuk yang Done, Expired, dan berstatus Non Tax.
+insert into _hasil_gross(uji, lulus, rinci)
+select 'Data: seluruh Rebate dan Rebate Manual = cashback x 1,11', n = 0,
+       format('%s dari %s dokumen Rebate/Rebate Manual tidak x 1,11%s', n, total, case when n > 0 then '; contoh ' || contoh else '' end)
+from (select count(*) filter (where c.gross_up is distinct from trunc(greatest(coalesce(c.cb_net, 0), 0) * 1.11)) n, count(*) total,
+             min(c.no_doc) filter (where c.gross_up is distinct from trunc(greatest(coalesce(c.cb_net, 0), 0) * 1.11)) contoh
+        from public.claims c join public.campaigns ca on ca.id = c.campaign_id
+       where c.customer_id is not null and (to_jsonb(c)->>'adhoc_at') is null
+         and rc_private.jenis_efektif(coalesce(nullif(c.cashback_type_override, ''), ca.cashback_type)) in ('rebate', 'rebate manual')) x;
 
 insert into _hasil_gross(uji, lulus, rinci)
 select 'Data: PT Nipsea non-Rebate/Voucher kini punya gross up', n = 0, format('%s dokumen PT Nipsea (cashback > 0, bukan Rebate/Voucher) bernilai 0', n)
@@ -95,6 +113,24 @@ from (select count(*) n from public.rc_report_rows v join public.claims c on c.i
 -- ------------------------------------------------------------------------------------------
 -- 3 & 4. Compile dan Reprocessing - dijalankan sungguhan lalu dibatalkan
 -- ------------------------------------------------------------------------------------------
+-- 20261163170000: hanya klaim di Open (lunas / dipindah dari Restricted) yang dapat diajukan.
+-- Uji yang mengajukan dokumen membuka dokumennya lebih dulu, setara Editor Restricted
+-- memindahkannya ke Open; ikut dibatalkan bersama subtransaksinya.
+-- Harapan gross up per jenis: Rebate / Rebate Manual x 1,11, Voucher 0, selain itu terisi.
+create or replace function pg_temp.gu_sesuai(p_gu numeric, p_cb numeric, p_jenis text) returns boolean language sql as $f$
+  select case when rc_private.jenis_efektif(p_jenis) in ('rebate', 'rebate manual') then p_gu = trunc(p_cb * 1.11)
+              when rc_private.jenis_efektif(p_jenis) = 'voucher' then p_gu = 0 else p_gu > 0 end;
+$f$;
+
+-- Lingkungan yang belum memiliki Restricted/Open (prod sebelum 170000) tidak memerlukannya.
+create or replace function pg_temp.uji_buka(p_no_docs text[]) returns void language plpgsql as $f$
+begin
+  if to_regclass('public.rc_clearing_offers') is null then return; end if;
+  execute $q$insert into public.rc_clearing_offers(claim_id, result, reason, deadline_at, status)
+    select c.id, 'RESTRICTED', '{"uji": true}'::jsonb, null, 'offered' from public.claims c where c.no_doc = any($1)
+    on conflict (claim_id) where status in ('offered','overdue') do nothing$q$ using p_no_docs;
+end $f$;
+
 do $uji$
 declare
   v_sm uuid; d record; hasil jsonb; v_hasil jsonb := '[]'; v_doc text; v_c record; harap numeric;
@@ -136,7 +172,7 @@ begin
       harap := rc_private.gross_up_klaim(58000000, d.tax_subject, d.tax_status, d.cashback_type);
       v_hasil := v_hasil || jsonb_build_object('uji', format('Compile %s, %s, %s: cashback dipotong, gross up sesuai aturan', d.tax_subject, d.cashback_type, d.tax_status),
         'lulus', v_doc is not null and v_c.cb_net = 58000000 and v_c.gross_up = harap and v_c.gross_up = trunc(v_c.gross_up)
-                 and (harap = 0) = (rc_private.jenis_efektif(d.cashback_type) = 'rebate'),
+                 and pg_temp.gu_sesuai(harap, 58000000, d.cashback_type),
         'rinci', format('%s: cashback %s, gross up %s (harap %s)', coalesce(v_doc, hasil::text), v_c.cb_net, v_c.gross_up, harap));
     end loop;
 
@@ -166,7 +202,7 @@ begin
       harap := rc_private.gross_up_klaim(219000000, d.tax_subject, d.tax_status, d.jenis);
       v_hasil := v_hasil || jsonb_build_object('uji', format('Reprocessing %s %s: 219.000.000,6 -> gross up dihitung ulang', d.tax_subject, d.jenis),
         'lulus', (hasil->>'berhasil')::int = 1 and v_c.cb_net = 219000000 and v_c.gross_up = harap
-                 and v_c.status = 'not_yet' and (harap = 0) = d.rebate,
+                 and v_c.status = 'not_yet' and pg_temp.gu_sesuai(harap, 219000000, d.jenis),
         'rinci', format('%s: gross up lama %s, baru %s (harap %s), status %s', d.no_doc, d.gross_up, v_c.gross_up, harap, v_c.status));
 
       -- 20261163150000: Reprocessing tidak lagi menulis log per dokumen (Log Activity satu baris per
@@ -197,11 +233,12 @@ begin
       begin
         -- Gross up dikosongkan dulu supaya terbukti dihitung oleh submit, bukan tersisa.
         update public.claims set gross_up = null where id = d.id;
+        perform pg_temp.uji_buka(array[d.no_doc]);
         hasil := public.rc_process_claims('submit', jsonb_build_array(jsonb_build_object('no_doc', d.no_doc, 'version_no', d.version_no)), gen_random_uuid(), '');
         select gross_up, status into v_c from public.claims where id = d.id;
         harap := rc_private.gross_up_klaim(d.cb_net, d.tax_subject, d.tax_status, d.jenis);
         v_hasil := v_hasil || jsonb_build_object('uji', format('Submit %s %s %s: gross up dihitung saat diajukan', d.tax_subject, d.jenis, d.tax_status),
-          'lulus', v_c.gross_up = harap and (harap = 0) = d.rebate,
+          'lulus', v_c.gross_up = harap and pg_temp.gu_sesuai(harap, d.cb_net, d.jenis),
           'rinci', format('%s: gross up %s (harap %s), status %s', d.no_doc, v_c.gross_up, harap, v_c.status));
       exception when others then
         v_hasil := v_hasil || jsonb_build_object('uji', format('Submit %s %s', d.tax_subject, d.jenis), 'lulus', false, 'rinci', d.no_doc || ': ' || sqlerrm);

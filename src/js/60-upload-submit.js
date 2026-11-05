@@ -34,6 +34,10 @@
             // menggantikan mekanisme tick-by-tick lama di Analytics/History. Memakai action backend yang sama
             // (toggleOnHold / markExpired) sehingga tidak perlu perubahan di sisi Apps Script.
             async function submitPostingException(actionType) {
+                // 20261163170000: dokumen yang dipindah dari tab Restricted hanya dapat di-Expired.
+                if (actionType === 'hold' && window.rcExcHanyaExpired) {
+                    showNotification('Dokumen dari tab Restricted hanya dapat di-Expired, tidak dapat di-On Hold.', 'warning'); return;
+                }
                 // Baris diambil dari tabel pratinjau yang dicentang, sama seperti Mass Upload.
                 // Yang berbeda hanya muatannya: No Doc beserta empat tanggal, bukan data klaim.
                 const dicentang = [];

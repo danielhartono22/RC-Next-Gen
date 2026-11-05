@@ -398,6 +398,127 @@
                 } catch (e) { showNotification('Gagal memuat setelan approval.', 'error'); }
             }
 
+            // ---------- Approval Bad Debt (20261163170000) ----------
+            // Saklar terpisah dari approval biasa, bawaannya mati. Server mencatat perubahannya di
+            // Log Activity, jadi layar tidak menulis log kedua.
+            let kaBdAktif = false;
+
+            async function muatSetelanBadDebt() {
+                try {
+                    const res = await fetchApp({ action: 'badDebtApprovalSetelan' });
+                    if (res.status !== 'success') { showNotification(res.message || 'Gagal memuat setelan Approval Bad Debt.', 'error'); return; }
+                    kaBdAktif = res.aktif === true;
+                    const lencana = document.getElementById('kaBdLencana');
+                    lencana.innerText = kaBdAktif ? 'APPROVAL BAD DEBT AKTIF' : 'APPROVAL BAD DEBT MATI';
+                    lencana.className = 'px-3 py-1.5 rounded-lg text-sm font-black ' + (kaBdAktif ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-700');
+                    document.getElementById('kaBdSejak').innerText = res.diubahPada
+                        ? 'Diubah ' + res.diubahPada + ' oleh ' + (res.diubahOleh || '-') + (res.catatan ? ' — ' + res.catatan : '')
+                        : 'Belum pernah diubah (bawaan: mati).';
+                    const n = Number(res.menunggu || 0);
+                    document.getElementById('kaBdMenunggu').innerText = n > 0
+                        ? n.toLocaleString('id-ID') + ' pengajuan toko Bad Debt menunggu keputusan di tab Bad Debt.'
+                        : 'Tidak ada pengajuan toko Bad Debt yang menunggu.';
+                    const btn = document.getElementById('btnKaBd');
+                    btn.innerText = kaBdAktif ? 'Matikan Approval Bad Debt' : 'Hidupkan Approval Bad Debt';
+                    btn.className = 'px-6 py-2.5 font-bold rounded-lg text-sm shadow-md text-white ' + (kaBdAktif ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700');
+                    document.getElementById('kaBdRiwayat').innerHTML = (res.riwayat || []).map(function (r) {
+                        return '<div><span class="font-bold">' + rcEsc(r.waktu) + '</span> &middot; ' + rcEsc(r.aksi) + ' oleh '
+                            + rcEsc(r.oleh || '-') + (r.catatan ? ' &mdash; ' + rcEsc(r.catatan) : '') + '</div>';
+                    }).join('') || '<div class="text-gray-400">Belum ada perubahan.</div>';
+                } catch (e) { showNotification('Gagal memuat setelan Approval Bad Debt.', 'error'); }
+            }
+
+            async function ubahSetelanBadDebt() {
+                const catatan = (document.getElementById('kaBdCatatan').value || '').trim();
+                if (catatan.length < 3) { showNotification('Isi alasan perubahan lebih dulu.', 'warning'); return; }
+                const target = !kaBdAktif;
+                const setuju = await showConfirmModal({
+                    title: target ? 'Hidupkan Approval Bad Debt' : 'Matikan Approval Bad Debt',
+                    message: target
+                        ? 'Pengajuan toko Bad Debt akan menunggu approval di tab Bad Debt (Management of Approval).'
+                        : 'Pengajuan toko Bad Debt akan berjalan seperti pengajuan lain. Yang sudah menunggu tetap diputuskan di tab Bad Debt.'
+                });
+                if (!setuju) return;
+                setDisabledSafely('btnKaBd', true);
+                try {
+                    const res = await fetchApp({ action: 'badDebtApprovalSetel', aktif: target, catatan: catatan });
+                    if (res.status !== 'success') { showNotification(res.message || 'Gagal mengubah setelan.', 'error'); return; }
+                    showNotification(res.message || 'Tersimpan.', 'success');
+                    document.getElementById('kaBdCatatan').value = '';
+                    await muatSetelanBadDebt();
+                } catch (e) {
+                    showNotification((e && e.message) ? e.message : 'Gagal mengubah setelan.', 'error');
+                } finally { setDisabledSafely('btnKaBd', false); }
+            }
+
+            // ---------- ZDAGE Integration (20261163620000) ----------
+            // Bawaan mati (cara lama: semua Not Yet di Open). Hidup = cara baru: Open hanya toko
+            // lunas menurut Upload Debtor, sisanya Restricted. Server mencatat perubahan di Log Activity.
+            let kaZdAktif = false, kaZdDampak = { notYet: 0, open: 0 };
+
+            async function muatSetelanZdage() {
+                try {
+                    const res = await fetchApp({ action: 'zdageSetelan' });
+                    if (res.status !== 'success') { showNotification(res.message || 'Gagal memuat setelan ZDAGE Integration.', 'error'); return; }
+                    kaZdAktif = res.aktif === true;
+                    kaZdDampak = { notYet: Number(res.notYet || 0), open: Number(res.openBilaHidup || 0) };
+                    const lencana = document.getElementById('kaZdLencana');
+                    lencana.innerText = kaZdAktif ? 'ZDAGE AKTIF (CARA BARU)' : 'ZDAGE MATI (CARA LAMA)';
+                    lencana.className = 'px-3 py-1.5 rounded-lg text-sm font-black ' + (kaZdAktif ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-700');
+                    document.getElementById('kaZdSejak').innerText = res.diubahPada
+                        ? 'Diubah ' + res.diubahPada + ' oleh ' + (res.diubahOleh || '-') + (res.catatan ? ' — ' + res.catatan : '')
+                        : 'Belum pernah diubah (bawaan: mati).';
+                    const nt = kaZdDampak.notYet.toLocaleString('id-ID'), op = kaZdDampak.open.toLocaleString('id-ID');
+                    const rs = (kaZdDampak.notYet - kaZdDampak.open).toLocaleString('id-ID');
+                    document.getElementById('kaZdDampak').innerText = (kaZdAktif
+                        ? 'Saat ini ' + op + ' dari ' + nt + ' dokumen Not Yet ada di Open; ' + rs + ' di Restricted.'
+                        : 'Saat ini seluruh ' + nt + ' dokumen Not Yet ada di Open. Bila dihidupkan: ' + op + ' tetap di Open, ' + rs + ' pindah ke Restricted.')
+                        + ' Upload Debtor terakhir: ' + (res.uploadTerakhir || 'belum ada') + '.';
+                    const btn = document.getElementById('btnKaZd');
+                    btn.innerText = kaZdAktif ? 'Matikan ZDAGE (cara lama)' : 'Hidupkan ZDAGE (cara baru)';
+                    btn.className = 'px-6 py-2.5 font-bold rounded-lg text-sm shadow-md text-white ' + (kaZdAktif ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700');
+                    document.getElementById('kaZdRiwayat').innerHTML = (res.riwayat || []).map(function (r) {
+                        return '<div><span class="font-bold">' + rcEsc(r.waktu) + '</span> &middot; ' + rcEsc(r.aksi) + ' oleh '
+                            + rcEsc(r.oleh || '-') + (r.catatan ? ' &mdash; ' + rcEsc(r.catatan) : '') + '</div>';
+                    }).join('') || '<div class="text-gray-400">Belum ada perubahan.</div>';
+                } catch (e) { showNotification('Gagal memuat setelan ZDAGE Integration.', 'error'); }
+            }
+
+            async function ubahSetelanZdage() {
+                const catatan = (document.getElementById('kaZdCatatan').value || '').trim();
+                if (catatan.length < 3) { showNotification('Isi alasan perubahan lebih dulu.', 'warning'); return; }
+                const target = !kaZdAktif;
+                const rs = (kaZdDampak.notYet - kaZdDampak.open).toLocaleString('id-ID');
+                const setuju = await showConfirmModal({
+                    title: target ? 'Hidupkan ZDAGE Integration' : 'Matikan ZDAGE Integration',
+                    message: target
+                        ? 'Cara baru: hanya toko lunas menurut Upload Debtor yang bisa diajukan. ' + rs + ' dokumen Not Yet akan pindah ke Restricted dan tidak bisa diajukan depot sampai tokonya lunas.'
+                        : 'Cara lama (tampilan seperti prod): seluruh dokumen Not Yet kembali ke Open dan bisa diajukan depot; tab Restricted, Upload Debtor, Bad Debt dan kolom Tagihan / Deadline disembunyikan. Data ZDAGE tetap tersimpan dan dipakai lagi saat dihidupkan.'
+                });
+                if (!setuju) return;
+                setDisabledSafely('btnKaZd', true);
+                try {
+                    const res = await fetchApp({ action: 'zdageSetel', aktif: target, catatan: catatan });
+                    if (res.status !== 'success') { showNotification(res.message || 'Gagal mengubah setelan.', 'error'); return; }
+                    // 20261163680000: tab dan kolom ZDAGE ikut saklar - halaman dimuat ulang supaya
+                    // tampilannya langsung menyesuaikan (sesi login bertahan saat dimuat ulang).
+                    showNotification((res.message || 'Tersimpan.') + ' Halaman dimuat ulang...', 'success');
+                    document.getElementById('kaZdCatatan').value = '';
+                    if (currentUserData) currentUserData.zdageAktif = res.aktif === true;
+                    setTimeout(() => window.location.reload(), 1800);
+                } catch (e) {
+                    showNotification((e && e.message) ? e.message : 'Gagal mengubah setelan.', 'error');
+                } finally { setDisabledSafely('btnKaZd', false); }
+            }
+
+            // Spanduk "ZDAGE Integration mati" di tab Restricted dan Upload Debtor.
+            async function rcZdSpanduk(id) {
+                try {
+                    const res = await fetchApp({ action: 'zdageStatus' });
+                    setHiddenSafely(id, !(res && res.status === 'success' && res.aktif === false));
+                } catch (e) { setHiddenSafely(id, true); }
+            }
+
             async function ubahSetelanApproval() {
                 const catatan = (document.getElementById('kaApprovalCatatan').value || '').trim();
                 if (catatan.length < 3) { showNotification('Isi alasan perubahan lebih dulu.', 'warning'); return; }

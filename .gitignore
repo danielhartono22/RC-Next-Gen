@@ -21,6 +21,9 @@ scripts/performance/*-fixture.json
 # email) tidak masuk git. Hanya dokumen UAT/panduan yang boleh.
 outputs/*
 !outputs/rc-uat-20260924/
+# File bank KlikBCA (rekening, No Doc, nominal) dan bahan uji yang disusun dari data klaim.
+MultiTransactionAutoTransferDownload_*.txt
+bahan-uji-clearing-bank/
 
 # Berkas kunci Office yang tertinggal saat dokumen terbuka
 ~$*

@@ -29,6 +29,7 @@
                 { path: '/access',       jenis: 'modul',   modul: 'manage',      menu: 'menuKelolaAkses' },
                 { path: '/log-activity', jenis: 'modul',   modul: 'logActivity', menu: 'menuLogActivity' },
                 { path: '/bulk-process', jenis: 'modul',   modul: 'bulkProcess', menu: 'menuBulkProcess' },
+                { path: '/ad-hoc-process', jenis: 'rcModul', modul: 'adhoc', menu: 'menuAdhoc' },
                 { path: '/key-master',   jenis: 'rcModul', modul: 'keyMaster',   menu: 'menuKeyMaster' },
                 // Modulnya dinamai Document Center; kata compilation bertahan sebagai
                 // pengenal internal, jadi alamatnya mengikuti nama yang dilihat orang.
@@ -39,6 +40,10 @@
                 // Profil tidak punya kartu menu: setiap akun berhak melihat profil depotnya
                 // sendiri, jadi tidak ada yang perlu dijaga di sini.
                 { path: '/people-performance', jenis: 'rcModul', modul: 'people', menu: 'menuPeople' },
+                { path: '/portal-link',  jenis: 'rcModul', modul: 'links',       menu: 'menuPortalLink' },
+                { path: '/document-generator', jenis: 'rcModul', modul: 'docgen', menu: 'menuDocGen' },
+                { path: '/discount-center', jenis: 'rcModul', modul: 'discount', menu: 'menuDiscountCenter' },
+                { path: '/warehouse-rental', jenis: 'rcModul', modul: 'rental', menu: 'menuRental' },
                 { path: '/profile',      jenis: 'profil' }
             ];
 

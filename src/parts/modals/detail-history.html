@@ -52,12 +52,4 @@
              biasa ke sana membuatnya melempar TypeError, dan layar hanya diam - tidak ada
              dialog, tidak ada pesan. Itulah sebab tombol Ubah pada Depot Master terasa
              tidak melakukan apa-apa. -->
-        <div id="rcDialogModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[80] p-4">
-            <div class="rc-dialog-panel bg-white rounded-2xl shadow-2xl w-full overflow-hidden flex flex-col max-h-[92vh]">
-                <div class="p-4 border-b border-gray-100 flex justify-between items-center">
-                    <h3 class="font-black text-gray-800 text-lg tracking-tight" id="rcDialogTitle">-</h3>
-                    <button onclick="rcTutupDialog()" class="text-gray-400 hover:text-red-500 bg-gray-50 w-9 h-9 rounded-full"><i class="fas fa-times"></i></button>
-                </div>
-                <div id="rcDialogBody" class="flex-1 overflow-auto p-5"></div>
-            </div>
-        </div>
+        <!--#include view/parts/dialog.html-->

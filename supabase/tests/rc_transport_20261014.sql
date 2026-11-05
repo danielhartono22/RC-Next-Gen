@@ -11,6 +11,15 @@
 create temp table if not exists _hasil_1014(urut serial, uji text, lulus boolean, rinci text);
 truncate _hasil_1014;
 
+-- 20261163170000: hanya klaim di Open (lunas / dipindah dari Restricted) yang dapat diajukan.
+-- Uji yang mengajukan dokumen membuka dokumennya lebih dulu, setara Editor Restricted
+-- memindahkannya ke Open; ikut dibatalkan bersama subtransaksinya.
+create or replace function pg_temp.uji_buka(p_no_docs text[]) returns void language sql as $f$
+  insert into public.rc_clearing_offers(claim_id, result, reason, deadline_at, status)
+  select c.id, 'RESTRICTED', '{"uji": true}'::jsonb, null, 'offered' from public.claims c where c.no_doc = any(p_no_docs)
+  on conflict (claim_id) where status in ('offered','overdue') do nothing;
+$f$;
+
 do $uji$
 declare v_sm uuid; r jsonb; l jsonb; hasil jsonb := '[]'; d1 text; d2 text; v_galat text; n bigint; v_hari date;
   d record; c public.claims%rowtype; s rc_private.claim_sensitive%rowtype; v_dep record; v_ids uuid[]; v_o public.email_outbox%rowtype;
@@ -100,6 +109,7 @@ begin
     begin
       update public.email_settings set aktif = false where jenis = 'pengajuan';
       insert into public.pengaturan_sistem(kunci, nilai) values ('approval_aktif', 'false'::jsonb) on conflict (kunci) do update set nilai = 'false'::jsonb;
+      perform pg_temp.uji_buka(array[d.no_doc]);
       perform public.rc_process_claims('submit', jsonb_build_array(jsonb_build_object('no_doc', d.no_doc, 'version_no', d.version_no, 'jenis_cashback', 'Voucher')), gen_random_uuid(), '');
       select * into c from public.claims where id = d.id;
       hasil := hasil || jsonb_build_array(jsonb_build_array('Voucher, approval MATI: langsung Done', c.status = 'done', d.no_doc || ' -> ' || c.status));
@@ -109,6 +119,7 @@ begin
     begin
       update public.email_settings set aktif = false where jenis = 'pengajuan';
       insert into public.pengaturan_sistem(kunci, nilai) values ('approval_aktif', 'true'::jsonb) on conflict (kunci) do update set nilai = 'true'::jsonb;
+      perform pg_temp.uji_buka(array[d.no_doc]);
       perform public.rc_process_claims('submit', jsonb_build_array(jsonb_build_object('no_doc', d.no_doc, 'version_no', d.version_no, 'jenis_cashback', 'Voucher')), gen_random_uuid(), '');
       select * into c from public.claims where id = d.id;
       v_ok := c.status = 'submitted' and c.pending_approval->>'target_status' = 'done';
@@ -121,6 +132,7 @@ begin
     begin
       update public.email_settings set aktif = false where jenis = 'pengajuan';
       update public.customers set ktp = '3201010101010001', npwp = '012345678901234' where id = d.customer_id;
+      perform pg_temp.uji_buka(array[d.no_doc]);
       perform public.rc_process_claims('submit', jsonb_build_array(jsonb_build_object('no_doc', d.no_doc, 'version_no', d.version_no)), gen_random_uuid(), '');
       select * into c from public.claims where id = d.id;
       select * into s from rc_private.claim_sensitive where claim_id = d.id;
@@ -150,9 +162,20 @@ begin
     update public.depot_profiles set email_kepala_admin = null where depot_id = v_dep.depot_id;
     perform rc_private.email_pengajuan_antre('clearing', 'UJI-1014', v_ids, v_sm, '');
     select * into v_o from public.email_outbox where konteks->>'batch' = 'UJI-1014' order by dibuat_pada desc limit 1;
-    hasil := hasil || jsonb_build_array(jsonb_build_array('Email Done: tanpa Email Kepala Admin tetap ke Email TO depot',
-      coalesce(array_length(v_o.tujuan, 1), 0) > 0 and not ('kepala.admin.uji@example.invalid' = any(v_o.tujuan)),
-      format('%s: TO %s alamat', v_dep.depot_code, coalesce(array_length(v_o.tujuan, 1), 0))));
+    -- 20261163210000 (pemilik, 20 Oktober 2026): tanpa Email Kepala Admin, email Done ke user yang
+    -- mengajukan klaimnya, bila tidak tercatat ke user yang memproses Done (apa pun perannya);
+    -- tanpa alamat, ditahan. Tidak lagi jatuh ke Email TO depot.
+    hasil := hasil || jsonb_build_array(jsonb_build_array('Email Done: tanpa Email Kepala Admin ke pengaju / user yang memproses Done, bukan Email TO',
+      coalesce(v_o.tujuan, '{}') = coalesce(nullif(
+          coalesce((select array_agg(distinct lower(btrim(p.business_email)) order by lower(btrim(p.business_email)))
+                      from public.claims k join public.profiles p on p.id = k.submitted_by
+                     where k.id = any(v_ids) and p.status = 'active' and coalesce(p.business_email, '') like '%@%'), '{}'), '{}'),
+        (select array_agg(distinct lower(btrim(p.business_email)) order by lower(btrim(p.business_email)))
+           from public.profiles p
+          where (p.id = v_sm or p.id in (select k.cleared_by from public.claims k where k.id = any(v_ids)))
+            and p.status = 'active' and coalesce(p.business_email, '') like '%@%'), '{}')
+        and not (coalesce(v_dep.email_to, '') <> '' and lower(btrim(v_dep.email_to)) = any(coalesce(v_o.tujuan, '{}'))),
+      format('%s: %s', v_dep.depot_code, case when v_o.id is null then 'ditahan (tanpa email user)' else 'TO ' || array_to_string(v_o.tujuan, ', ') end)));
     raise exception 'UJI_SELESAI';
   exception when others then if sqlerrm <> 'UJI_SELESAI' then hasil := hasil || jsonb_build_array(jsonb_build_array('Email Done', false, sqlerrm)); end if;
   end;

@@ -1,6 +1,7 @@
             // Daftar resmi Jenis CB. Penulisannya harus persis seperti di sini; ini yang
             // dipakai validasi grid maupun formulir tunggal, dan server memakai daftar yang sama.
-            const RC_JENIS_CB = ['Transfer', 'CN', 'Voucher', 'Rebate', 'Rebate Manual'];
+            // Others (20261163440000): sesudah approval masuk Ad-Hoc Process, bukan Release.
+            const RC_JENIS_CB = ['Transfer', 'CN', 'Voucher', 'Rebate', 'Rebate Manual', 'Others'];
             // Susunan kolom grid, dipilih menurut mode posting.
             //
             // Posting Exception memakai TABEL YANG SAMA dengan Mass Upload - bukan kotak
@@ -219,7 +220,7 @@
             async function previewUploadData(mode) {
                 const nd = rcNoDocPratinjau(mode);
                 if (nd.length) {
-                    await pastikanMaster([], nd);
+                    let termuat = await pastikanMaster([], nd);
                     // Pelanggannya baru diketahui setelah dokumennya ada.
                     const kode = [];
                     nd.forEach(function (n) {
@@ -227,7 +228,14 @@
                             String(d.noDoc).trim().toUpperCase() === String(n).trim().toUpperCase());
                         if (db && db.custCode) kode.push(db.custCode);
                     });
-                    if (kode.length) await pastikanMaster(kode, []);
+                    if (termuat !== false && kode.length) termuat = await pastikanMaster(kode, []);
+                    // Data gagal dimuat (jaringan / server): pratinjau tidak dibuat, supaya dokumen
+                    // yang ada tidak ditandai "Tdk di DB" (kasus ADMSRG, 20 Oktober 2026).
+                    if (termuat === false) {
+                        showNotification('Data dokumen gagal dimuat dari server (' + (rcMasterGalat || 'tanpa keterangan')
+                            + '). Pratinjau dibatalkan - silakan klik Preview lagi.', 'error');
+                        return;
+                    }
                 }
 
                 massUploadDataValid = []; hasMasterUpdateFlag = false; let v = 0;
@@ -264,6 +272,8 @@
                     // perubahan status ini hanya boleh lewat Posting Exception.
                     else if (String(db.status || "").trim().toLowerCase() === "expired") { isValid = false; trInfo = `<span class="bg-gray-800 text-white px-2 py-0.5 rounded shadow-sm font-bold"><i class="fas fa-times-circle"></i> Expired (Permanen)</span>`; }
                     else if (String(db.status || "").trim().toLowerCase() === "on hold") { isValid = false; trInfo = `<span class="bg-purple-100 text-purple-700 px-2 py-0.5 rounded shadow-sm font-bold"><i class="fas fa-pause-circle"></i> Sedang Ditahan (On Hold)</span>`; }
+                    // 20261163170000: hanya dokumen di Open (lunas / dipindah dari Restricted) yang dapat diajukan.
+                    else if (db.bolehAjukan === false) { isValid = false; trInfo = `<span class="bg-slate-200 text-slate-800 px-2 py-0.5 rounded shadow-sm font-bold" title="Belum lunas menurut Upload Debtor. Pemegang akses Restricted (Editor) dapat memindahkannya ke Open."><i class="fas fa-lock"></i> Restricted (belum lunas)</span>`; }
                     else if (String(db.status || "").trim().toLowerCase() !== "not yet" && String(db.status || "").trim() !== "") { isValid = false; trInfo = `<span class="bg-red-100 text-red-700 px-2 py-0.5 rounded shadow-sm font-bold"><i class="fas fa-ban"></i> Duplikat</span>`; }
                     else {
                         let cmp = globalCampaigns.find(c => c.codeCampaign === db.codeCampaign) || {}; let cst = globalCustomers.find(c => c.custCode === db.custCode) || {};

@@ -87,6 +87,27 @@
                                 </select>
                             </div>
                         </div>
+                        <!-- 20261163710000: Upload File Bank KlikBCA Bisnis (MultiTransactionAutoTransferDownload).
+                             Jalur tambahan di samping Posting Done manual: file dibaca di browser, dinilai server
+                             (pratinjau), lalu hanya baris OK yang di-Clearing lewat alur Clearing yang sama.
+                             20261163750000: tanpa pilihan Mode - dokumen Pending Finance di-Clearing, dokumen yang
+                             sudah Done hanya disimpan Bukti TF-nya; hasilnya tampil di Laporan Workflow. -->
+                        <div id="clrBankPanel" class="mb-5 p-4 bg-sky-50 border border-sky-200 rounded-xl">
+                            <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                <span class="font-bold text-sky-900 text-sm"><i class="fas fa-file-invoice-dollar mr-2"></i>Upload File Bank (KlikBCA Bisnis)</span>
+                                <span class="text-[11px] text-sky-800">MultiTransactionAutoTransferDownload_DDMMYYYYHHMMSS.txt &middot; pilih file, pratinjau muncul otomatis &middot; Tgl Transfer = Eff Date &middot; hanya baris Status "Berhasil" dengan nominal = Net CB yang diproses: dokumen Pending Finance di-Clearing (Done), dokumen yang sudah Done disimpan Bukti TF-nya saja.</span>
+                            </div>
+                            <div class="mt-3 flex flex-wrap items-end gap-3">
+                                <input type="file" id="clrBankFile" accept=".txt,text/plain" onchange="clrBankPilih(this)" class="text-sm file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-sky-600 file:text-white file:font-bold">
+                                <div id="clrBankTahunWrap" class="hidden">
+                                    <label class="block text-xs font-bold text-sky-900 mb-1">Tahun transfer <span class="font-normal">(nama file tanpa tanggal)</span></label>
+                                    <input type="number" id="clrBankTahun" min="2020" max="2100" placeholder="2026" class="w-28 px-3 py-1.5 border border-sky-300 rounded-lg text-sm font-bold">
+                                </div>
+                                <button type="button" id="btnClrBankPratinjau" onclick="clrBankPratinjau()" disabled class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-lg text-sm shadow-sm disabled:opacity-40"><i class="fas fa-search mr-1.5"></i>Pratinjau</button>
+                                <button type="button" onclick="clrBankBatal()" class="px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold rounded-lg text-sm">Bersihkan</button>
+                            </div>
+                            <div id="clrBankHasil" class="hidden mt-4"></div>
+                        </div>
                         <!-- Mass process: tempel daftar No Document, lalu baris yang cocok dicentang
                              sekaligus. Posting-nya tetap lewat tombol yang sama di bawah, karena
                              Clearing menuntut Tgl Clearing aktual - satu jalur posting, satu aturan. -->

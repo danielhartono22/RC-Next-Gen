@@ -70,6 +70,10 @@
                     if (res.status !== 'success') { showNotification(res.message || "Gagal menarik data.", "error"); return; }
                     rcCompState = Object.assign(rcCompState, { offset: offset, rows: res.rows || [], canArchive: !!res.canArchive,
                         total: Number(res.total) || 0, filter: filter });
+                    // 20261163270000: tagihan Upload Debtor untuk baris halaman ini.
+                    if (offset === 0) rcTagihanKosongkan();
+                    await rcTagihanMuat(rcCompState.rows.map(r => r.noDoc));
+                    if (ke !== rcCompMuatKe) return;
                     setHiddenSafely('btnArchivedList', !res.canArchive);
                     setHiddenSafely('compArchiveBar', !res.canArchive);
                     renderCompilation();
@@ -113,6 +117,16 @@
                   unduh: [['Cashback', r => Math.trunc(Number(r.cbNet) || 0)]] },
                 { k: 'grossUpCb', judul: 'Gross Up', baku: true, kelas: 'text-right font-bold text-orange-700 whitespace-nowrap', sel: r => rcMoney(r.grossUpCb),
                   unduh: [['Gross Up', r => Math.trunc(Number(r.grossUpCb) || 0)]] },
+                // 20261163390000: rekening sesuai yang diproses (salinan dokumen; tanpa salinan: master).
+                { k: 'rekening', judul: 'Rekening', baku: true, kelas: 'text-xs whitespace-nowrap', sel: r => rcRekeningHtml(r),
+                  unduh: [['Bank', r => r.bank || ''], ['No Rekening', r => compTeksUnduh(r.noRek)], ['Nama Rekening', r => r.namaRek || ''],
+                          ['Sumber Rekening', r => rcRekeningSumber(r)]] },
+                // 20261163270000: tagihan toko dari Upload Debtor (ZDAGE) yang berlaku untuk depotnya.
+                // Berbeda dari "Total Tagihan" (isian lama dokumen) di bawah.
+                { k: 'tagihan', judul: 'Tagihan', baku: true, zdage: true, kelas: 'text-right text-xs whitespace-nowrap', sel: r => rcTagihanSel(r.noDoc),
+                  unduh: [['Tagihan', r => rcTagihanUnduh(r.noDoc)]] },
+                { k: 'bulanTagihan', judul: 'Final Billing Month', baku: true, zdage: true, kelas: 'text-xs whitespace-nowrap', sel: r => rcEsc(rcTagihanBulan(r.noDoc)),
+                  unduh: [['Final Billing Month', r => rcTagihanBulanUnduh(r.noDoc)]] },
                 { k: 'batch', judul: 'Batch', baku: true, kelas: 'text-[10px] text-gray-500',
                   sel: r => [r.batchUpload, r.batchRelease, r.batchClaim, r.batchClearing].map(rcFull).filter(Boolean).map(rcEsc).join('<br>') || '-',
                   unduh: [['Batch Upload', r => compTeksUnduh(r.batchUpload)], ['Batch Release', r => compTeksUnduh(r.batchRelease)],
@@ -154,12 +168,14 @@
 
             // Pilihan kolom disimpan per browser, sama seperti tab Open.
             let compKolomAktif = null;
+            // 20261163680000: kolom ZDAGE (Tagihan, Final Billing Month) hanya saat saklar hidup.
+            function compKolomDaftar() { return COMP_KOLOM.filter(c => !c.zdage || rcZdageAktif()); }
             function compKolomMuat() {
                 if (compKolomAktif) return compKolomAktif;
                 let simpan = null;
                 try { simpan = JSON.parse(window.localStorage.getItem('rcCompKolom') || 'null'); } catch (e) { simpan = null; }
                 compKolomAktif = {};
-                COMP_KOLOM.forEach(c => { compKolomAktif[c.k] = (simpan && typeof simpan[c.k] === 'boolean') ? simpan[c.k] : c.baku; });
+                compKolomDaftar().forEach(c => { compKolomAktif[c.k] = (simpan && typeof simpan[c.k] === 'boolean') ? simpan[c.k] : c.baku; });
                 return compKolomAktif;
             }
             function compKolomSimpan() {
@@ -173,21 +189,21 @@
             }
             function compKolomRender() {
                 const aktif = compKolomMuat();
-                document.getElementById('compKolomDaftar').innerHTML = COMP_KOLOM.map(c =>
+                document.getElementById('compKolomDaftar').innerHTML = compKolomDaftar().map(c =>
                     '<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" class="rounded text-cyan-600" '
                     + 'onchange="compKolomUbah(\'' + c.k + '\', this.checked)"' + (aktif[c.k] ? ' checked' : '') + '>' + rcEsc(c.judul) + '</label>').join('');
             }
             function compKolomUbah(kunci, nyala) { compKolomMuat()[kunci] = nyala; compKolomSimpan(); renderCompilation(); }
             function compKolomSemua(semua) {
                 const aktif = compKolomMuat();
-                COMP_KOLOM.forEach(c => { aktif[c.k] = semua ? true : c.baku; });
+                compKolomDaftar().forEach(c => { aktif[c.k] = semua ? true : c.baku; });
                 compKolomSimpan(); compKolomRender(); renderCompilation();
             }
 
             function renderCompilation() {
                 const rows = rcCompState.rows || [];
                 const aktif = compKolomMuat();
-                const kolom = COMP_KOLOM.filter(c => aktif[c.k]);
+                const kolom = compKolomDaftar().filter(c => aktif[c.k]);
                 rcCompState.perId = new Map(rows.map(r => [String(r.id), r]));
 
                 let totalCb = rows.reduce((s, r) => s + (Number(r.cbNet) || 0), 0);
@@ -209,7 +225,7 @@
                     + kolom.map(c => '<td class="p-3 ' + (c.kelas || '') + '">' + c.sel(r) + '</td>').join('')
                     + '</tr>').join('')
                     || '<tr><td colspan="' + (kolom.length + 1) + '" class="p-8 text-center text-gray-500">Tidak ada data untuk filter ini.</td></tr>';
-                setTextSafely('compKolomRingkas', kolom.length + ' dari ' + COMP_KOLOM.length + ' kolom ditampilkan');
+                setTextSafely('compKolomRingkas', kolom.length + ' dari ' + compKolomDaftar().length + ' kolom ditampilkan');
                 setTextSafely('compTotalHasil', Number(rcCompState.total || 0).toLocaleString('id-ID'));
                 setDisabledSafely('btnCompPilihSemua', !rcCompState.total);
                 renderRcPager('compPager', rcCompState.offset || 0, rows.length, rcCompState.total || 0, 'loadCompilation', 100);
@@ -262,11 +278,12 @@
 
             // Mengunduh HANYA baris yang dicentang (semua halaman), dengan kolom dari Pilih Kolom,
             // persis seperti Unduh yang Dipilih di tab Open.
-            function compUnduhDipilih() {
+            async function compUnduhDipilih() {
                 const dipilih = rcPilihanData('cb-comp').filter(r => r && typeof r === 'object');
                 if (dipilih.length === 0) { showNotification('Centang baris yang akan diunduh lebih dulu.', 'warning'); return; }
+                await rcTagihanMuat(dipilih.map(r => r.noDoc)); // 20261163270000: baris dari halaman lain
                 const aktif = compKolomMuat();
-                const kolom = COMP_KOLOM.filter(c => aktif[c.k]).flatMap(c => c.unduh);
+                const kolom = compKolomDaftar().filter(c => aktif[c.k]).flatMap(c => c.unduh);
                 if (kolom.length === 0) { showNotification('Pilih minimal satu kolom lewat Pilih Kolom.', 'warning'); return; }
                 const aoa = [kolom.map(k => k[0])].concat(dipilih.map(r => kolom.map(k => k[1](r))));
                 const wb = XLSX.utils.book_new();

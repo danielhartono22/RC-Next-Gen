@@ -63,7 +63,7 @@
       ]
     },
     {
-      "source": "/(upload|release|process|analytics|access|log-activity|bulk-process|key-master|document-center|approval|report|timetable|profile|people-performance)",
+      "source": "/(upload|release|process|analytics|access|log-activity|bulk-process|ad-hoc-process|key-master|document-center|approval|report|timetable|profile|people-performance|portal-link|document-generator|discount-center|warehouse-rental)",
       "headers": [
         {
           "key": "Cache-Control",
@@ -73,6 +73,15 @@
     },
     {
       "source": "/dashboard(/.*)?",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/details-campaign",
       "headers": [
         {
           "key": "Cache-Control",
@@ -115,6 +124,10 @@
       "destination": "/"
     },
     {
+      "source": "/ad-hoc-process",
+      "destination": "/"
+    },
+    {
       "source": "/key-master",
       "destination": "/"
     },
@@ -140,6 +153,22 @@
     },
     {
       "source": "/people-performance",
+      "destination": "/"
+    },
+    {
+      "source": "/portal-link",
+      "destination": "/"
+    },
+    {
+      "source": "/document-generator",
+      "destination": "/"
+    },
+    {
+      "source": "/discount-center",
+      "destination": "/"
+    },
+    {
+      "source": "/warehouse-rental",
       "destination": "/"
     }
   ]

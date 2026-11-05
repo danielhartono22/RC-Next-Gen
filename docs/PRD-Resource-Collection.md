@@ -1,35 +1,42 @@
 # PRD — Resource Collection Next Gen
 
-Versi 1.1 • 24 September 2026 • Pemilik produk: Daniel • Status: spesifikasi kerja berdasarkan kode, database, keputusan pemilik, dan audit saat ini.
+Versi 2.0 • 17 Oktober 2026 • Pemilik produk: Daniel • Status: spesifikasi kerja berdasarkan kode, database dev/prod, dan keputusan pemilik sampai 17 Oktober 2026.
 
-Dokumen ini membedakan **aturan aktif**, **implementasi yang sudah diuji**, dan **target berikutnya**. Target kapasitas maupun SLA bukan hasil pengukuran. Bukti implementasi terbaru ada pada [laporan audit](audit/application-2026-09-22.md); dokumen September sebelumnya merupakan riwayat, bukan gambaran lengkap versi terbaru.
+Dokumen ini membedakan **aturan aktif**, **implementasi yang sudah diuji**, dan **target berikutnya**. Target kapasitas maupun SLA bukan hasil pengukuran. Versi 1.1 (24 September 2026) beserta [spesifikasi 23-24 September](rc-release-2026-09-24.md) adalah riwayat; bila berbeda, dokumen ini yang berlaku.
 
-Perubahan terbaru, People Performance, seluruh izin tab, diagram, batas upload, dan acceptance criteria rinci tercantum pada [spesifikasi 23-24 September](rc-release-2026-09-24.md), yang menggantikan aturan lama bila berbeda.
+**Status lingkungan per 17 Oktober 2026**
 
-Aturan nominal: kartu ringkasan report memakai satuan **jt**; Details dan ekspor tetap memakai rupiah penuh tanpa pecahan rupiah. Persentase serta jumlah dokumen tetap memakai satuannya sendiri.
+| Lingkungan | Supabase | Frontend | Isi |
+|---|---|---|---|
+| DEV | `fimjgmjjsplwgmuwzwbx` | https://resource-collection-dev.vercel.app, localhost `npm run dev:dev` | Seluruh fitur, termasuk Upload Debtor, Open/Restricted, dan Bad Debt (migrasi `20261163170000`) |
+| PROD | `vvojshgcduqlugngpzkj` | https://rc.bi-nipponpaint.com | Sampai migrasi `20261163160000` (Amend Doc, CC per jenis, kode kejadian batch, tautan Customer Master) |
+
+Aturan rilis: setiap perubahan masuk **dev lebih dulu**; prod hanya sesudah disetujui pemilik. Fitur yang baru ada di dev ditandai **[DEV]**.
+
+Aturan nominal: kartu ringkasan report memakai satuan **jt**; Details dan ekspor memakai rupiah penuh tanpa pecahan (dipotong, bukan dibulatkan). Persentase serta jumlah dokumen memakai satuannya sendiri.
 
 ## 1. Masalah, tujuan, dan ukuran keberhasilan
 
-Resource Collection mengelola klaim cashback depot, mulai dari data sumber, kelengkapan pengajuan, persetujuan, release, penagihan ke Finance, sampai clearing dan laporan. Sistem legacy menggunakan Spreadsheet/Apps Script, identitas yang diteruskan browser, pengambilan dataset besar, dan sinkronisasi Document Center terpisah. Migrasi memindahkan otorisasi dan transaksi ke Supabase, dengan frontend statis di Vercel.
+Resource Collection mengelola klaim cashback depot, mulai dari compile dokumen, kelengkapan pengajuan, persetujuan, release, penagihan ke Finance, sampai clearing dan laporan. Sistem legacy menggunakan Spreadsheet/Apps Script; migrasi memindahkan otorisasi dan transaksi ke Supabase, dengan frontend statis di Vercel.
 
 Tujuan produk:
 
-1. Menjamin status klaim mencerminkan keputusan yang benar-benar disetujui.
-2. Menjamin setiap pengguna hanya mengakses depot dan modul dalam kewenangannya.
-3. Menghilangkan akun setengah terbentuk: Auth, profil, yurisdiksi, dan audit harus konsisten.
-4. Mempertahankan tampilan, navigasi, format identitas, dan hasil bisnis yang telah disepakati.
-5. Menyediakan laporan yang bisa ditelusuri ke data dan definisi perhitungan yang sama.
-6. Menyiapkan pertumbuhan melalui pagination/agregasi di server dan pengujian staging.
+1. Status klaim mencerminkan keputusan yang benar-benar disetujui.
+2. Setiap pengguna hanya mengakses depot dan tab dalam kewenangannya.
+3. Akun tidak pernah setengah terbentuk: Auth, profil, yurisdiksi, dan audit konsisten.
+4. Tampilan, navigasi, format identitas, dan hasil bisnis yang telah disepakati dipertahankan.
+5. Laporan dapat ditelusuri ke data dan definisi perhitungan yang sama.
+6. **[DEV]** Hanya klaim toko yang sudah lunas menurut data debtor SAP yang dapat diajukan.
 
 | Indikator | Kriteria penerimaan |
 |---|---|
 | Registrasi valid | Akun muncul setelah refresh server; role, depot/OSC/region sama dengan pilihan yang disimpan |
-| Registrasi gagal | Tidak meninggalkan akun aktif, grant, atau ledger parsial |
 | Retry transaksi | Request ID yang sama tidak menghasilkan transaksi/akun kedua |
-| Status sebelum approval | Submit baru menjadi Submitted sampai approval; blank ditampilkan sebagai Not Yet |
-| Claim Process Expired | Efektif langsung pada transisi yang diizinkan dan tidak masuk antrean approval |
-| Hak akses | Permintaan lintas depot dan eskalasi role ditolak server |
-| Audit | Aktor berasal dari JWT; keputusan dan waktu dapat ditelusuri |
+| Approval | Approval menyala: submit menjadi Submitted sampai diputuskan; mati: langsung Approved |
+| Hak akses | Permintaan lintas depot, tanpa tab, dan eskalasi role ditolak server |
+| Audit | Aktor berasal dari JWT; keputusan, batch, dan alasan dapat ditelusuri per dokumen |
+| Log | Log Activity satu baris per proses, bukan per dokumen |
+| **[DEV]** Gerbang lunas | Pengajuan klaim di luar Open ditolak server dari jalur mana pun |
 | Mutu data | Temuan memiliki jumlah, definisi query, pemilik tindak lanjut, dan bukti penyelesaian |
 | Kapasitas | Diterima hanya setelah pengukuran staging, bukan berdasarkan halaman masih terbuka |
 
@@ -37,67 +44,69 @@ Tujuan produk:
 
 ### 2.1 Cakupan aktif
 
-Auth dan sesi; registrasi mandiri dan registrasi oleh pengelola; Access Management; Claim Upload; Management of Approval; Release Doc; Claim Process; Bulk Process/Rebate; Key Master customer/campaign/depot; Analytics; Report dan dashboard publik; Timetable; perubahan profil depot; Log Activity; integrasi email yang sudah ada; pengarsipan/reprocessing dan fungsi Compile RC yang terdapat pada source saat ini.
+Auth dan sesi; registrasi mandiri, registrasi dan upload user oleh pengelola; Access Management (Daftar User, Registrasi, Approval Request, Arsip User, Email Otomatis, Email Pengajuan, Approval On/Off, Exclude Campaign, Grade Depot); Claim Upload (Mass Upload, Manual Input, Open, **[DEV]** Restricted; Posting Claim dan Posting Exception); Management of Approval (Within Payment Term, Overdue, On Hold & Expired, **[DEV]** Bad Debt, History); Release; Claim Process (Claim, Clearing); Bulk Process (Rebate); Key Master (Customer, Campaign, Depot); Document Center (Cashback List, Compile, Reprocessing Doc, Amend Doc, **[DEV]** Upload Debtor, Arsip); Analytics; Report dan dashboard publik; Timetable; People Performance; Log Activity; email pengajuan dan email otomatis.
 
-Pengembangan dan perbaikan mempertahankan struktur UI. Penyesuaian pilihan role, validasi, notifikasi, dan perilaku tombol diperbolehkan untuk menyelaraskan UI dengan backend.
+Pengembangan mempertahankan struktur UI. Penyesuaian pilihan, validasi, notifikasi, dan perilaku tombol diperbolehkan untuk menyelaraskan UI dengan backend.
 
 ### 2.2 Ditunda
 
-Migrasi penuh backend **Document Center legacy**, parser/sumber Upload_CB legacy, Print Document, pemindahan trigger sinkronisasi 15 menit, dan cutover alur dokumen baru lintas sistem. Adanya kode Compilation RC tidak membuktikan integrasi Document Center selesai. Tidak boleh menonaktifkan job legacy tanpa inventaris, rekonsiliasi, dan rencana cutover yang disepakati.
-
-Staging terpisah belum tersedia. Pengujian 1.000.000 klaim dan hingga 1.500 concurrent users tetap pekerjaan berikutnya; project yang telah dipakai depot tidak boleh dijadikan target stress test.
+- Print Document dan parser/sumber Upload_CB legacy belum dimigrasikan.
+- Pengujian 1.000.000 klaim dan hingga 1.500 concurrent users; project yang dipakai depot (prod) tidak boleh menjadi target stress test. Project dev dapat dipakai untuk uji fungsional, bukan pengganti staging beban.
+- Pengiriman email sungguhan dari dev (kredensial Gmail tidak dipasang di dev; ditunda atas instruksi pemilik, 17 Oktober 2026).
 
 ## 3. Pengguna, peran, dan yurisdiksi
 
-Role menentukan cara menghitung yurisdiksi. Permission modul menentukan tindakan. Menyembunyikan tombol hanya membantu pengguna; otorisasi selalu diperiksa server.
+**Peran menentukan jangkauan depot; tab yang dicentang menentukan tindakan** (keputusan pemilik 6 Oktober 2026). Siapa pun yang diberi sebuah tab dapat menjalankan seluruh aksinya dalam jangkauan depotnya. Menyembunyikan tombol hanya membantu pengguna; otorisasi selalu diperiksa server (`can_tab`/`require_tab` + `can_access`).
 
-| Role kanonis | Label | Sumber depot efektif | Access Management |
-|---|---|---|---|
-| `admin` | Admin Depot | Grant depot RP | Viewer bila memiliki akses modul |
-| `osc` | OSC | Depot assigned | Viewer bila memiliki akses modul |
-| `others` | Non-OSC | Depot assigned; departemen terpisah | Viewer bila memiliki akses modul |
-| `finance` | Finance | Depot assigned | Viewer bila memiliki akses modul |
-| `depot head` | Depot Head | Depot assigned; hak modul melekat pada role | Viewer |
-| `management` | Management | Area depot langsung dan/atau region terpilih; hak modul melekat | Viewer |
-| `supervisor` | Supervisor | Area depot langsung dan/atau gabungan depot OSC binaan | Mengelola akun dalam kewenangannya |
-| `system manager` | System Manager | Seluruh depot | Mengelola keseluruhan; membuat System Manager |
+| Role kanonis | Label | Sumber depot efektif |
+|---|---|---|
+| `admin` | Admin Depot | Grant depot RP |
+| `osc` | OSC | Depot assigned |
+| `others` | Non-OSC | Depot assigned; departemen terpisah |
+| `finance` | Finance | Depot assigned |
+| `depot head` | Depot Head | Depot assigned; hak modul melekat pada role (bawaan WPT saja) |
+| `management` | Management | Area depot langsung dan/atau region terpilih; hak modul melekat |
+| `supervisor` | Supervisor | Area depot langsung dan/atau gabungan depot OSC binaan |
+| `system manager` | System Manager | Seluruh depot; memegang semua tab |
 
 Ketentuan:
 
-- Hanya Supervisor dan System Manager boleh mengubah Access Management. Role lain tetap dapat membaca sesuai scope dan izin.
-- Supervisor tidak boleh mengelola System Manager, memilih depot/OSC di luar kewenangan, atau mengambil region yang sebagian depotnya berada di luar kewenangan.
-- Depot asal adalah identitas organisasi; depot efektif adalah izin baca/tulis. Keduanya tidak boleh disamakan secara diam-diam.
-- Perubahan role membersihkan mapping yang tidak lagi sesuai dan membangun ulang akses efektif.
-- Mengubah identitas saja tidak boleh menonaktifkan akun atau menghapus permission yang tidak dikirim.
-- Departemen seperti Finance/Sales tidak menggantikan kode role Non-OSC.
-- Akun Pending, Rejected, nonaktif, deleted, atau wajib ganti PIN tidak boleh mengakses operasi bisnis yang membutuhkan akun aktif.
-- Penghapusan akun dibatasi System Manager, bukan akun sendiri, dengan alasan dan pemeliharaan referensi histori.
+- Pemegang tab Access Management mengelola akun dalam kewenangannya. Pemegang non-Supervisor hanya dapat memberi peran setingkat dirinya ke bawah (tidak pernah Supervisor/Management/System Manager) dan hanya izin yang ia pegang.
+- **Tab opt-in** (bawaan tidak tercentang, termasuk untuk akun baru): Approval On/Off, Amend Doc, **[DEV]** Upload Debtor, Bad Debt (Management of Approval), Restricted (Editor), Bad Debt (Tandai). Depot Head bawaannya tidak memegang Overdue serta On Hold & Expired sampai dicentang.
+- Depot asal adalah identitas organisasi; depot efektif adalah izin baca/tulis.
+- Perubahan role membersihkan mapping yang tidak lagi sesuai; mengubah identitas saja tidak menonaktifkan akun atau menghapus permission yang tidak dikirim.
+- Akun Pending, Rejected, nonaktif, deleted, suspended, atau wajib ganti PIN tidak mengakses operasi bisnis.
+- Penghapusan akun dibatasi System Manager, dengan alasan; arsip dapat dipulihkan.
 
 ## 4. Perjalanan pengguna
 
-### 4.1 Pendaftaran mandiri
+### 4.1 Pendaftaran dan registrasi
 
-Pengguna mengisi User ID, nama, email korespondensi, PIN, role yang diminta, dan depot. Auth membuat profil Pending. UI menyatakan bahwa persetujuan diperlukan. Pengelola dalam scope meninjau permohonan; approve mengaktifkan profil dan menetapkan depot asal. Role berbasis depot mendapat mapping depot yang disetujui. Supervisor/Management memerlukan konfigurasi OSC/region lanjutan melalui Edit Akses. Permission tidak boleh diberikan berdasarkan input pengguna sendiri. Permintaan System Manager tidak boleh otomatis menjadi hak global.
+Pendaftaran mandiri membuat profil Pending; pengelola dalam scope meninjaunya. Registrasi oleh pengelola dan upload user (template tujuh kolom: User ID, Nama Lengkap, Kode Depot, Email, Role, PIN, Resource Partner / Area) mengikuti [spesifikasi upload user](rc-user-upload-approval.md). Suffix akun dibuat server. Akun baru wajib mengganti PIN awal.
 
-### 4.2 Registrasi oleh pengelola
+### 4.2 Klaim normal (end-to-end)
 
-Pengelola membuka Registrasi, menerima pilihan role/depot dari server, mengisi identitas dan mapping, lalu menekan Buat Akun. Selama request berjalan tombol ditahan. Edge memverifikasi JWT, database memvalidasi kewenangan, kemudian Auth membuat akun. Trigger menyelesaikan profil aktif, suffix, mapping, dan audit dalam transaksi Auth. Pengelola melihat akun baru setelah refresh daftar dan melengkapi permission melalui Edit Akses. Akun baru wajib mengganti PIN awal sebelum bekerja.
+1. **Key Master** disiapkan (bagian FR-MASTER).
+2. **Document Center > Compile** (OSC): unggah compile cashback, maksimal 2.000 baris; dokumen dibuat **Not Yet**. Abbr No Doc mengikuti Depot Master; gross up dihitung sistem; nominal dipotong tanpa desimal.
+3. **[DEV] Document Center > Upload Debtor** (OSC): unggah ekspor SAP ZDAGE; klaim toko yang lunas ditawarkan ke depot dengan batas proses 7 hari (FR-DEBTOR).
+4. **Claim Upload > Open** (admin depot): hanya klaim yang siap diajukan **[DEV: lunas atau dipindah dari Restricted]**. Pindahkan ke Mass Upload (Tgl Lunas terisi dari tarikan ZDAGE) atau unduh template, lengkapi data, lalu **Posting Claim**.
+5. **Management of Approval** bila approval menyala; bila mati, pengajuan langsung Approved.
+6. **Release** → Released; **Claim Process > Claim** → Claimed; **Clearing** → Done dengan tanggal transfer/proses aktual yang dipilih pengguna (itulah Tgl Done).
+7. Rebate lewat **Bulk Process**; Rebate Manual dan Voucher Done setelah disetujui.
 
-### 4.2.1 Upload user oleh pengelola
+Setiap transisi menyimpan aktor, versi, batch, alasan bila ada, dan riwayat per dokumen.
 
-Template hanya berisi User ID, Nama Lengkap, Kode Depot, Email, Role, PIN, dan Resource Partner / Area. Area diisi kode depot, dipisahkan koma jika lebih dari satu. Semua upload masuk Pending dan Approval Request; tidak ada grant efektif sebelum approval. Reviewer memeriksa seluruh area, kemudian approve mengaktifkan role, area, dan suffix otomatis. Reject tetap tidak aktif. Retry tidak membuat duplikat atau mengganti PIN. Lihat [spesifikasi upload user dan bukti pengujian](rc-user-upload-approval.md).
+### 4.3 Pengecualian
 
-### 4.3 Klaim normal
+- **Posting Exception** (Claim Upload): On Hold atau Expired. Approval menyala: menunggu keputusan di tab On Hold & Expired; mati: langsung berlaku. **[DEV]** Klaim Restricted hanya dapat di-Expired.
+- **Expired dari Claim Process** (Released/Claimed) berlaku langsung.
+- **Reprocessing Doc**: On Hold kembali Not Yet dengan nilai revisi; alasan wajib; email ke depot.
+- **Amend Doc**: mengubah Net CB dokumen status apa pun (kecuali tanpa Customer Master); banyak dokumen sekaligus, alasan per baris atau umum; satu baris salah membatalkan semuanya; email peringatan ke depot.
+- Reject di tiap tahap mengembalikan dokumen satu tahap (atau ke Not Yet) dengan alasan.
 
-Admin memilih klaim Not Yet, melengkapi field, menjalankan preview, lalu submit. Sistem menyimpan permohonan dan mengubah status menjadi Submitted. Approver meninjau versi terbaru. Setelah approve, dokumen masuk Release, lalu Claim dan Clearing sesuai permission. Setiap transisi menyimpan aktor, versi, batch bila diperlukan, dan histori.
+### 4.4 Pemantauan
 
-### 4.4 Pengecualian
-
-Hold/Expired dari Upload mengirim permohonan ke Management of Approval; nilai efektif tidak berubah sebelum keputusan. Expired yang diposting dari Claim Process pada dokumen Released/Claimed berlaku langsung sesuai aturan modul dan tidak memerlukan approval tambahan.
-
-### 4.5 Pemantauan
-
-Pengguna berizin membaca dashboard, laporan, timeline, log, dan outstanding sesuai scope. Dashboard publik menampilkan agregat yang diizinkan tanpa identitas customer, rekening, KTP/NPWP, atau detail akun.
+Analytics (History dengan kolom Remark, Summary), Report, dashboard publik (identik dengan Report, tanpa identitas customer/rekening/KTP/NPWP), Timetable (Expired dihitung selesai seperti Done), People Performance, dan Log Activity, sesuai scope.
 
 ## 5. Persyaratan fungsional dan acceptance criteria
 
@@ -105,222 +114,222 @@ Pengguna berizin membaca dashboard, laporan, timeline, log, dan outstanding sesu
 
 | ID | Persyaratan | Acceptance criteria |
 |---|---|---|
-| AUTH-01 | Login User ID + PIN menggunakan Supabase Auth | PIN dikirim utuh termasuk spasi; tidak disimpan di laporan/log/frontend storage |
-| AUTH-02 | Kompatibilitas alias legacy | Coba casing input dahulu, lalu uppercase/lowercase hanya pada invalid credentials; hentikan pada rate limit/network error |
-| AUTH-03 | Identitas baru kanonis | User ID dipangkas dan uppercase; hanya huruf, angka, titik, underscore, strip; unik |
-| AUTH-04 | Sesi per tab | Reload memakai sessionStorage; logout membersihkan sesi dan cache versi dokumen |
-| AUTH-05 | Gate PIN awal | Bootstrap bisnis tidak mengembalikan dokumen sebelum PIN diganti; perubahan PIN membersihkan gate |
-| AUTH-06 | Status akun | Pending/Rejection/nonaktif memiliki pesan jelas dan tidak diberi data bisnis |
-| AUTH-07 | Penggantian/reset PIN | Mengikuti alur request/review yang sudah ada; tidak membuka PIN lama atau mereset diam-diam saat retry |
-
-PIN Registrasi minimal 8 karakter dan maksimal 72 byte UTF-8. Email korespondensi berbeda dari alias login internal. Kasus alias impor yang tidak mengikuti pola casing tetap perlu rekonsiliasi; fallback tidak boleh mengubah kredensial akun nyata.
+| AUTH-01 | Login User ID + PIN menggunakan Supabase Auth | PIN dikirim utuh; tidak disimpan di log/frontend storage |
+| AUTH-02 | Kompatibilitas alias legacy | Casing input dicoba dahulu, lalu uppercase/lowercase hanya pada invalid credentials |
+| AUTH-03 | Identitas kanonis | User ID dipangkas dan uppercase; huruf, angka, titik, underscore, strip; unik |
+| AUTH-04 | Sesi | Bertahan saat reload (sessionStorage), berakhir saat browser/tab ditutup; logout membersihkan sesi |
+| AUTH-05 | Gate PIN awal | Data bisnis tidak dikembalikan sebelum PIN diganti |
+| AUTH-06 | Suspended | 3 PIN salah berturut-turut men-suspend akun di server; reaktivasi mempertahankan ID dan PIN |
+| AUTH-07 | Status akun | Pending/Rejected/nonaktif/suspended memiliki pesan jelas dan tidak diberi data bisnis |
 
 ### FR-ACCESS — Access Management dan Registrasi
 
 | ID | Persyaratan | Acceptance criteria |
 |---|---|---|
-| ACCESS-01 | Satu katalog role server | Delapan role tersedia untuk SM; opsi SM tidak tersedia untuk Supervisor |
-| ACCESS-02 | Pilihan sesuai scope | Depot/OSC/region yang tidak dapat diberikan tidak ditawarkan dan tetap ditolak bila payload dimanipulasi |
-| ACCESS-03 | Mapping sesuai role | Depot untuk semua role non-System Manager; Supervisor dapat menambah OSC, Management dapat menambah region |
-| ACCESS-04 | Pembuatan atomik | Manual: Auth + profil + mapping + ledger + audit atomik. Upload: profil Pending + proposal atomik; mapping diterapkan saat approval |
-| ACCESS-05 | Idempotensi | UUID request sama + payload sama mengembalikan akun yang sama; payload berbeda ditolak |
-| ACCESS-06 | Trust boundary | `user_metadata` dari browser tidak bisa mengaktifkan akun; envelope pengelola berasal dari Admin API yang terverifikasi |
-| ACCESS-07 | Sinkronisasi tampilan | Sesudah sukses, refresh data server selesai sebelum menampilkan daftar; kegagalan refresh diberi pesan terpisah |
-| ACCESS-08 | Respons berurutan | Respons refresh lama tidak boleh menimpa hasil refresh yang lebih baru |
-| ACCESS-09 | Edit akses | Permission approval ikut tersimpan; field yang tidak dikirim dipertahankan; perubahan role membersihkan region/mapping lama |
-| ACCESS-10 | Viewer | Dapat membuka tab, mencari, dan menyegarkan; create/update/review/delete ditolak server |
-| ACCESS-11 | Review registrasi | Hanya satu keputusan atas Pending; reviewer tidak menyetujui diri sendiri; keputusan lintas scope ditolak |
-| ACCESS-12 | Keamanan rendering | Nama, departemen, label master, perubahan profil, dan detail log diperlakukan sebagai teks |
+| ACCESS-01 | Satu katalog role dan tab server | Matriks izin dibangun dari `tab_catalog`; tab opt-in tidak tercentang kecuali sudah diberi |
+| ACCESS-02 | Pilihan sesuai scope | Depot/OSC/region di luar kewenangan tidak ditawarkan dan ditolak bila payload dimanipulasi |
+| ACCESS-03 | Anti-eskalasi | Pemberi hanya memberi peran setingkat ke bawah dan izin yang ia pegang |
+| ACCESS-04 | Pembuatan atomik | Auth + profil + mapping + ledger + audit atomik; upload user lewat Pending + approval |
+| ACCESS-05 | Idempotensi | UUID request sama + payload sama mengembalikan hasil yang sama; payload berbeda ditolak |
+| ACCESS-06 | Approval On/Off | Saklar sistem dengan alasan dan riwayat; dokumen yang sudah diajukan tetap diputuskan |
+| ACCESS-07 | **[DEV]** Approval Bad Debt | Saklar terpisah (bawaan mati) dengan alasan dan riwayat |
+| ACCESS-08 | Email Pengajuan | Saklar aktif, mode uji + alamat uji, CC Semua Email, CC wajib per jenis (bagian FR-EMAIL) |
+| ACCESS-09 | Keamanan rendering | Nama, label master, dan detail log diperlakukan sebagai teks |
 
-Form tetap memakai tata letak yang sama. Suffix dibuat server, bukan input Registrasi. Akun baru selain role dengan hak intrinsik tidak otomatis mendapat seluruh permission modul. Ini harus dijelaskan dalam pesan sukses.
+### FR-CLAIM — Claim Upload
 
-### FR-CLAIM — Upload, preview, dan submit
-
-- Pilihan dokumen mengikuti depot, status, arsip, dan permohonan yang sedang menunggu.
-- Preview memvalidasi dokumen unik, versi, field wajib, angka, tanggal, rekening, dan identitas pajak sesuai jenis cashback.
-- Nomor rekening, kode customer, KTP/NPWP, dan nomor dokumen adalah teks; leading zero tidak boleh hilang.
-- Field Approval tidak lagi berasal dari upload pengguna. Persetujuan dilakukan di Management of Approval.
-- Nilai Jenis CB yang diketik pengguna dikirim sebagai override terkontrol; nilai otomatis dapat mengikuti Campaign Master. Alias legacy seperti Voucher dipetakan sesuai aturan yang sudah diimplementasikan.
-- Batas Claim Upload adalah 500 toko/baris; compile Document Center maksimal 2.000 baris.
-- Tanggal ambigu tidak ditebak. Konversi mengikuti parser dan format yang disepakati; server menerima bentuk kanonis.
-- Hasil parsial harus menyebut dokumen berhasil/gagal dan alasan. UI hanya memperbarui dokumen yang benar-benar berhasil.
-- Submit baru menambah pending request, versi, dan jejak audit; status menjadi `submitted`. Retry tidak menggandakan transaksi.
-
-Penerimaan: submit satu dan batch, duplikat dalam file, versi usang, field tak dikenal, tanggal tidak sah, leading zero, nilai negatif, dan kegagalan lintas depot harus memiliki hasil eksplisit.
+- Batas Claim Upload 500 baris per proses (server membagi daftar lebih panjang per 500).
+- Preview memvalidasi dokumen, versi, field wajib, angka, tanggal, rekening, dan identitas pajak sesuai Jenis CB. NPWP terisi = Badan (KTP hanya tampil di Customer Master); Transfer memerlukan No/Nama Rekening dan Bank.
+- Nomor rekening, kode customer, KTP/NPWP, dan nomor dokumen adalah teks; leading zero tidak hilang.
+- Tgl Lunas wajib saat Posting Claim. Format tanggal masukan: dd-mm-yyyy, dd.mm.yy, ddmmyy, ddmmyyyy; tampilan dd-Mmm-yyyy.
+- Jenis CB yang diketik adalah override terkontrol (Transfer, CN, Voucher, Rebate, Rebate Manual); bila berbeda dari Campaign Master, dokumen bertanda "CB Type Changed".
+- Rekening yang diisi berbeda dari master memperbarui Customer Master (satu baris log per proses).
+- Dokumen tanpa Customer Master terlihat tetapi tidak dapat diproses.
+- Expired dan On Hold dikunci dari Posting Claim; hanya lewat Posting Exception / Reprocessing.
+- **[DEV]** Hanya klaim di Open yang dapat diajukan; dokumen Restricted ditandai "Restricted (belum lunas)" di preview dan ditolak server.
+- Hasil parsial menyebut dokumen berhasil/gagal dan alasannya.
 
 ### FR-APPROVAL — Management of Approval
 
-Antrean memisahkan pengajuan normal dan permohonan Hold/Expired. Detail memuat data versi terkini sebelum keputusan. Approve membutuhkan permission `approve_claim`; identitas approver berasal dari JWT. Dokumen yang sudah diputuskan tidak muncul lagi sebagai pending.
-
 | Kejadian | Status sebelum keputusan | Hasil keputusan |
 |---|---|---|
-| Submit normal | Submitted + pending submit | Approve menjadi Approved; Reject kembali Not Yet dan dapat diajukan ulang |
-| Submit Rebate Manual (RA07/RA7) | Submitted + pending submit | Approved kemudian Done; kedua tahap tercatat |
-| Hold dari Upload | Status efektif sebelumnya | Hold efektif hanya sesudah approve; reject mempertahankan kondisi sebelumnya |
-| Expired dari Upload | Status efektif sebelumnya | Expired efektif hanya sesudah approve |
-| Expired dari Claim Process | Released atau Claimed yang valid | Langsung Expired, tanpa permohonan approval |
+| Submit normal (approval menyala) | Submitted + pending submit | Approve → Approved; Reject → Not Yet |
+| Submit, approval mati | — | Langsung Approved; email "pengajuan langsung" |
+| Submit Rebate Manual / Voucher | Submitted (bila approval menyala) | Approve → Done; approval mati → langsung Done |
+| Overdue | TOP aktual melebihi TOP master | Diputuskan di tab Overdue (tidak memblokir upload) |
+| Hold / Expired dari Upload | Status efektif sebelumnya + pending | Efektif sesudah approve; approval mati → langsung |
+| Expired dari Claim Process | Released/Claimed | Langsung Expired |
+| **[DEV]** Toko Bad Debt, Approval Bad Debt menyala | Submitted + pending Bad Debt | Hanya di tab Bad Debt (bukan WPT/Overdue); Approve → Approved (Done untuk RM/Voucher) |
 
-Blank dan NULL pada tampilan legacy disetarakan dengan Not Yet. `pending_approval` adalah permohonan, bukan status workflow tambahan yang boleh menimpa status efektif.
+`pending_approval` adalah permohonan, bukan status workflow tambahan.
 
 ```mermaid
 flowchart LR
-  N[Not Yet] -->|Submit| P[Submitted]
+  C0[Compile] --> N[Not Yet]
+  N -->|"[DEV] lunas / dipindah Editor"| O[Open]
+  N -->|"[DEV] belum lunas"| RS[Restricted]
+  RS -->|Editor: Pindah ke Open| O
+  RS -->|Posting Exception| E[Expired]
+  O -->|Posting Claim, approval menyala| P[Submitted]
+  O -->|Posting Claim, approval mati| A[Approved]
+  P -->|Approve| A
   P -->|Reject| N
-  P -->|Approve normal| A[Approved]
-  A -->|Rebate Manual| D[Done]
-  A -->|Rebate| B[Bulk Process]
-  B --> D
+  A -->|Rebate Manual / Voucher| D[Done]
+  A -->|Rebate| B[Bulk Process] --> D
   A -->|Release| R[Released]
-  R -->|Posting Claim| C[Claimed]
-  C -->|Clearing| D
-  R -->|Expired Claim Process| E[Expired]
-  C -->|Expired Claim Process| E
+  R -->|Claim| CL[Claimed]
+  CL -->|Clearing| D
+  R -->|Expired Claim Process| E
+  CL -->|Expired Claim Process| E
+  N -->|Posting Exception On Hold| H[On Hold]
+  H -->|Reprocessing| N
 ```
 
 ### FR-WORKFLOW — Release, Claim, Clearing, Bulk Process
 
-Release hanya mengambil dokumen yang sudah memenuhi tahap persetujuan. Claim dan Clearing memeriksa status, permission, depot, versi, dan kelengkapan yang relevan. Reject/unhold/reprocessing menggunakan transisi eksplisit dan alasan; jangan membangun transisi berdasarkan label UI semata. Batch dan timestamp dibuat server.
+Transisi memeriksa status, tab, depot, versi, dan kelengkapan. Rebate hanya lewat Bulk Process; Bulk Process tidak menyentuh non-Rebate. Clearing mewajibkan tanggal transfer/proses aktual (tidak boleh di masa depan); Tgl Done = tanggal itu dengan jam proses WIB. Batch dan timestamp dibuat server. Request ID berbeda dengan versi lama ditolak.
 
-Bulk Rebate memakai aturan tersendiri; tidak dapat dipakai untuk melewati permohonan approval yang belum selesai. Ekspor setelah posting hanya memasukkan dokumen yang benar-benar sukses. Dua pengguna yang mengubah versi sama tidak boleh menimpa perubahan tanpa pemberitahuan konflik. Request ID berbeda dengan versi lama harus ditolak, bukan diperlakukan sebagai retry sah.
+**Nomor batch** (15 karakter, satu nomor urut per proses): `K T SSS DDMMYY NNNN`
 
-### FR-MASTER — Key Master dan profil depot
+- K = kejadian terakhir dokumen: 0 biasa, 1 Amend Doc, 2 Reprocessing, 3 Expired, 4 Jenis CB diganti. Terbawa ke proses berikutnya; batch yang sudah terbit tidak diubah; bila beberapa kejadian, yang terakhir berlaku.
+- T = tahap: 1 Submit, 2 Release/Bulk, 3 Claim, 4 Done/Expired, 5 Compile.
+- SSS = suffix akun (3 digit, unik, terkunci setelah dipakai); DDMMYY = tanggal proses WIB; NNNN = urutan per tahap+suffix+hari, tidak pernah berulang.
+- Dokumen dengan kode berbeda dalam satu proses hanya berbeda digit pertama. Batch legacy 13–14 digit.
 
-Customer menyimpan kode/nama, data pajak, rekening, dan relasi depot. Campaign menyimpan kode/nama, jenis cashback, status pajak, periode, serta metadata relevan. Depot menyimpan kode/nama, alamat, region, dan master link. Import/update menjaga referensi dan tidak mengasumsikan mapping dari pola kode.
+### FR-MASTER — Key Master
 
-Data sensitif hanya dapat dibaca melalui scope/permission yang sesuai. Arsip mempertahankan referensi histori. Perubahan alamat/nama/master link dari alur request depot memerlukan review yang sesuai. Pengguna tidak menyetujui request dirinya sendiri. Data sumber anomali dipertahankan sampai rekonsiliasi dengan bukti; angka, rekening, dan tanggal tidak diisi menggunakan tebakan.
+- **Customer**: kode, nama, Kode Depot (wajib untuk customer baru), TOP, KTP, NPWP, subyek pajak, rekening, contact person. Unggah massal otomatis per 2.000 baris (maks 50.000 baris / 20 MB) dengan pemeriksaan lebih dulu; **sel kosong = data lama dipertahankan, "-" = dikosongkan**. Menyimpan Customer Master otomatis menautkan klaim "Customer Master belum ada" dengan kode sama, mengisi Subyek Pajak/Gross Up yang kosong. **[DEV]** Label Bad Debt.
+- **Campaign**: kode, nama, Jenis CB, status pajak, periode campaign, SO start/end, Billing start/end, status, memo, Exclude Campaign.
+- **Depot**: kode, nama, Abbr, region, alamat, Email TO, Email CC, Email Kepala Admin, grade.
+- Data diarsipkan, bukan dihapus, dan dapat dipulihkan. Data sumber anomali tidak diisi dengan tebakan.
+
+### FR-DOC — Document Center
+
+| Tab | Aturan |
+|---|---|
+| Cashback List / Compile | Filter langsung, 100 baris per halaman, pilih lintas halaman, unduh kolom terpilih; compile tanpa kolom Abbr (ikut Depot Master), maks 2.000 baris |
+| Reprocessing Doc | Hanya On Hold; total cashback revisi + alasan wajib; gross up dihitung ulang; email ke depot |
+| Amend Doc (opt-in) | Banyak dokumen (maks 200), template/copas, semua status; remark "Doc Amendment - <tahap>", pelaku merah di Process by; email peringatan |
+| **[DEV]** Upload Debtor (opt-in) | FR-DEBTOR |
+| Arsip | Arsip/pulihkan baris dengan alasan; dokumen tanpa master tetap dapat diarsip |
+
+### FR-DEBTOR — [DEV] Upload Debtor, Open, Restricted, Bad Debt
+
+**File ZDAGE**: sheet "Data", kolom A–T. A Distribution Channel (= kode depot), B Customer, C Customer Name, D Term-FI, E Over Due Amt, F Total, G–S 13 bulan mundur (G = bulan tarikan), T "<bulan S". Tanggal tarikan dari nama file EXPORT_YYYYMMDD_HHMMSS, atau wajib diisi. File ditolak seluruhnya bila header salah, bulan tidak berurutan, kode toko ganda, angka tidak terbaca, atau bulan tarikan lebih tua dari data yang berlaku. Kode toko yang tidak ada di Customer Master dibiarkan. Peringatan bila Total ≠ jumlah G..T.
+
+**Cakupan**: hanya depot di kolom A yang dinilai dengan data baru. Pop up menampilkan depot lain dalam jangkauan: tidak dicentang = data debtor lama; dicentang "Tidak ada tagihan" = seluruh toko lunas; tanpa data = tidak dinilai.
+
+**Penilaian per klaim Not Yet** (toleransi Rp 1, mode per kolom; Bulan SO = SO start, Bulan Bill = Billing end):
+
+1. Lebih dulu: tanpa Customer Master; Bad Debt; dikembalikan depot; kode toko tidak ada di data → Lunas; campaign tanpa SO/Billing atau SO start sesudah Billing end → **Periode Salah**.
+2. Skala prioritas: **1** tidak ada Over Due Amount; **2** lunas selama periode campaign (Bulan SO s/d Bill); **3** lunas sebelum periode campaign (termasuk T). Semua aturan gagal dicatat; penyebab utama = prioritas tertinggi yang gagal. Kolom sesudah Bulan Bill diabaikan.
+
+**Pratinjau**: kartu Belum Lunas (Over due / Selama campaign / Sebelum campaign), Lunas, Bad Debt, Periode Salah, Campaign Bermasalah (ringkasan per campaign untuk perbaikan Campaign Master); tabel per klaim dengan penyebab; unduh.
+
+**Terapkan** (idempoten): tawaran baru untuk Lunas dengan deadline hari ini + 7 (WIB); Tgl Lunas kosong diisi tanggal tarikan; tawaran aktif dinilai ulang — bila tidak lunas lagi dibatalkan dan klaim kembali ke Restricted; satu baris log. Job harian 07:00 WIB menandai tawaran lewat batas sebagai overdue dan mengantrekan **satu email per depot** (TO Email TO depot; CC Email CC depot + CC Semua Email + CC wajib Debtor; subjek "[RC] Warning – Toko lunas belum diproses – <Nama Depot>"; tabel Nama Campaign | Jumlah Toko | Total Net CB + Total; remark baku), berulang setiap hari sampai diproses atau dikembalikan.
+
+**Open**: hanya klaim dengan tawaran aktif (atau toko Bad Debt bila Approval Bad Debt menyala). Kolom Deadline (7–5 hari hijau, 4–3 kuning, 2–1 oranye, 0 merah, lewat merah tua "Lewat X hari"), urut deadline terdekat; label "Restricted" untuk klaim pindahan; Kembalikan ke Not Yet (alasan wajib → Restricted, tidak ditawarkan otomatis lagi; OSC dapat menawarkan ulang dari Upload Debtor).
+
+**Restricted** (terlihat bawaan, hanya baca): seluruh Not Yet lainnya dengan alasan (Belum lunas + rincian, Bad Debt, Periode salah, Dikembalikan depot, Belum ada data debtor, Belum dinilai). Pindah ke Open hanya pemegang **Restricted (Editor)** (alasan wajib, tanpa deadline). Pindah ke Posting Exception boleh siapa saja, **hanya Expired**. Tandai/Cabut Bad Debt dengan izin **Bad Debt (Tandai)**.
+
+**Bad Debt** per toko dengan alasan; membatalkan tawaran aktif toko itu. Approval Bad Debt menyala → klaimnya di Open dan diajukan lewat tab Bad Debt; mati → tetap Restricted sampai Editor memindahkannya. Email pengajuan memuat remark "Bad Debt".
 
 ### FR-REPORT — Analytics, Report, dashboard publik, ekspor
 
-- Definisi status, nilai, gross-up, outstanding, aging, dan filter harus sama antara dashboard dalam aplikasi dan publik bila scope/filter sama.
-- Report dan dashboard publik memakai komponen bersama untuk mencegah perbedaan rumus/rendering.
-- Dashboard publik hanya mengembalikan agregat yang disetujui. URL publik frontend tidak otomatis membuat tabel detail menjadi publik.
-- Filter region/depot/campaign dan agregasi dijalankan server; data kosong dibedakan dari error/akses ditolak.
-- Report/export memiliki header, filter, tanggal pengambilan dan timezone yang konsisten. Identitas panjang tidak menjadi notasi eksponen. Ekspor CSV menetralkan formula berbahaya.
-- Status master terbaru dan snapshot dokumen dibedakan. Untuk field yang bisnisnya mengikuti master terbaru, laporan harus memakai resolver yang sama dengan workflow.
+- Definisi status, nilai, gross up, outstanding, dan filter sama antara aplikasi dan dashboard publik; Report dan dashboard publik memakai komponen bersama dan harus identik.
+- Analytics History memiliki kolom **Remark** dari satu sumber: "Doc Amendment - <tahap>", "Document Reprocessed", "CB Type Changed" (boleh lebih dari satu).
+- Unduhan Excel sama dengan layar: sumber sama, ID sebagai teks, nominal dipotong.
+- Teks tabel (kode/nama toko, campaign, depot) dapat diblok dan disalin tanpa memicu klik.
 
-Jalur saat ini mencakup `/report`, `/analytics`, `/dashboard`, `/dashboard/cost-center-1`, dan `/dashboard/cost-center-2`. Respons Vercel yang meminta login adalah proteksi deployment, bukan bukti bahwa Auth aplikasi gagal.
+### FR-OPS — Timetable, log, email, People Performance
 
-### FR-OPS — Timetable, log, email, arsip, Compile RC
+- **Log Activity**: satu baris per proses (mis. "Workflow RELEASE: 19 dokumen") dengan batch di kolom Batch; jejak per dokumen di riwayat dokumen. Log tidak berisi PIN/token.
+- Timetable per depot dan campaign; Expired dihitung selesai.
 
-Timetable menampilkan jadwal dan pencapaian menurut depot/region serta permission. Penandaan dan perubahan dicatat. Log mencatat aktor, entitas, jenis kejadian, waktu, dan ringkasan yang aman; log tidak berisi PIN/token. Filter log tidak mengubah otorisasi server.
+### FR-EMAIL — Email
 
-Email mengikuti konfigurasi/template/outbox yang sudah ada. Sukses enqueue berbeda dari email terkirim; kegagalan dan retry perlu terlihat. Audit tidak mengirim ulang email ke pengguna nyata. Compile RC yang sudah terdapat dalam kode memerlukan preview/commit tervalidasi, duplicate handling, scope, dan pelacakan sumber; fungsi tersebut tidak boleh dianggap sebagai selesainya migrasi Document Center legacy.
+- **Email Pengajuan** (antrean `email_outbox`, pengirim cron prod): jenis Pengajuan (approval mati), Approval & Approved, Done, On Hold & Expired, Amend Doc, Reprocessing, **[DEV]** Debtor. TO Email TO depot; email Done ke Email Kepala Admin bila diisi, subjek memuat nama depot. CC = OSC/Supervisor depot + CC Semua Email + CC wajib per jenis (`depots.email_cc` tidak dipakai kecuali email Debtor). Mode uji mengalihkan semua ke alamat uji dengan spanduk "MODE UJI".
+- **Email Otomatis** terjadwal: Daily, Weekly, Timetable.
+- **Dev hanya email uji**: penjaga server menahan email non-uji; kredensial Gmail dan cron pengirim tidak dipasang di dev.
 
 ## 6. Data, relasi, dan sumber kebenaran
 
 | Entitas | Fungsi dan invariant |
 |---|---|
-| `auth.users` / `profiles` | Satu identitas Auth dengan satu profil; role/status dikendalikan server |
-| `depots` / `user_depot_grants` | Master organisasi dan assignment kanonis |
+| `auth.users` / `profiles` | Satu identitas Auth dengan satu profil; role/status/suffix dikendalikan server |
+| `depots` / `depot_profiles` / `user_depot_access` | Master organisasi, profil/email depot, dan scope efektif |
 | `user_supervision` / `user_region_access` | Sumber yurisdiksi Supervisor dan Management |
-| `user_depot_access` | Hasil materialisasi scope; harus sama dengan perhitungan sumbernya |
-| `permissions` / `user_permissions` | Katalog tindakan dan grant eksplisit; role intrinsik tetap berlaku |
-| `customers` / `customer_depots` | Customer dapat terkait beberapa depot; tidak terlihat tanpa mapping yang sah |
-| `campaigns` | Aturan campaign dan informasi master yang berlaku |
-| `claims` | Dokumen bisnis, referensi master, nilai, versi, status efektif, dan pending approval |
-| `claim_status_history` / `activity_logs` | Riwayat transisi dan audit aktor |
-| `managed_registrations` | Ledger privat request registrasi; tidak menyimpan password |
-| `profile_change_requests` / request depot/PIN | Antrean perubahan dengan pemohon, status, reviewer dan waktu |
-| `email_outbox` | Status pengiriman terpisah dari transaksi bisnis |
-| Snapshot/staging migration | Bukti sumber dan reject; bukan tabel yang boleh langsung ditulis browser |
+| `permissions` / `user_permissions` / `rc_private.tab_catalog` / `user_tab_access` | Katalog izin modul, tab, dan centang tab per akun |
+| `customers` / `customer_depots` | Customer dapat terkait beberapa depot |
+| `campaigns` | Aturan campaign, periode, SO dan Billing |
+| `claims` | Dokumen, referensi master (`customer_id` atau `source_customer_code` bila master belum ada), nilai, versi, status, pending approval, batch, `batch_event_code`, `amended_at`, `bad_debt_remark_id` |
+| `claim_status_history` / `activity_logs` | Riwayat per dokumen (aktor, batch, alasan) dan log satu baris per proses |
+| `email_settings` / `email_outbox` | Konfigurasi dan status pengiriman email |
+| `pengaturan_sistem` | `approval_aktif`, **[DEV]** `approval_bad_debt`, `zdage_toleransi`, `zdage_mode` |
+| **[DEV]** `rc_zdage_uploads` / `rc_zdage_rows` / `rc_zdage_depot_data` / `rc_zdage_hasil` | Upload ZDAGE, barisnya, data debtor yang berlaku per depot, hasil penilaian terakhir per klaim |
+| **[DEV]** `rc_clearing_offers` / `rc_bad_debt_remarks` | Tawaran (LUNAS/REOFFER/RESTRICTED; offered/overdue/processed/returned/cancelled) dan remark Bad Debt |
 
-Field angka finansial menggunakan tipe numerik di database; browser hanya melakukan konversi yang jelas. Nilai kosong tidak otomatis menjadi nol. Periode berupa tanggal; timestamp transaksi disimpan sebagai timestamp berzona. Tampilan bisnis menggunakan Asia/Jakarta (UTC+7). Dataset audit 22 September: 2.756 klaim, 2.067 customer, 100 campaign, 52 depot, 7 profil (6 aktif).
+Seluruh tabel publik ber-RLS; tabel Upload Debtor hanya diakses lewat RPC. Field finansial bertipe numerik; nilai kosong tidak otomatis nol. Tampilan bisnis Asia/Jakarta. Prod 16 Oktober 2026: 32.416 klaim; 644 klaim masih tanpa Customer Master (313 kode).
 
 ## 7. Perhitungan bisnis
 
-Rumus aplikasi adalah implementasi keputusan bisnis yang sudah ada, bukan penetapan kebijakan pajak baru. Jenis cashback, subyek pajak, status pajak campaign, periode, dan pilihan override harus memiliki prioritas yang terdokumentasi. Gross-up harus menggunakan resolver yang sama untuk posting dan report; hasil kosong tidak boleh diisi dari kolom yang salah. Rujukan karakterisasi dan koreksi: [audit field upload](rc-audit-field-upload.md).
-
-Acceptance criteria perhitungan mencakup nilai nol, batas bracket, pecahan, pembulatan, badan/pribadi, pajak ditanggung perusahaan/customer, Rebate Non Tax, RA07/RA7, dan alias Voucher. Perubahan formula memerlukan contoh input/output yang disetujui pemilik sebelum mengubah saldo historis. Temuan cashback melebihi net value atau volume sama dengan rupiah adalah sinyal rekonsiliasi, bukan bukti otomatis bahwa transaksi salah.
+- **Gross up** dihitung sistem (`rc_private.gross_up_klaim`), disimpan bulat: 0 untuk Rebate, Rebate Manual, Voucher, dan campaign Rebate Non Tax; selain itu untuk semua status pajak — Badan flat 15%, Perorangan (atau subyek kosong) progresif. Subyek pajak dari Customer Master (NPWP = Badan; hanya KTP = Perorangan).
+- **Periode dokumen** = periode campaign; On Hold menimpa SO/Billing selama tertahan; Reprocessing mengosongkan penimpaan.
+- Input Document Center (compile, reprocessing, amend) dipotong tanpa desimal.
+- Perubahan formula memerlukan contoh input/output yang disetujui pemilik sebelum mengubah saldo historis.
 
 ## 8. Kontrak API dan konsistensi
 
-Frontend `src/parts` + `src/js` dibangun menjadi `public/index.html`; adapter `scripts/rc-legacy-adapter.js` menerjemahkan action UI menjadi RPC/Edge Supabase. `ResourceCollection`, `DocumentCenter`, dan `index (4)/(5).html` menjadi referensi legacy, bukan entrypoint runtime baru.
-
-Upload memakai action=submit_upload dengan request_id, user_code, full_name, business_email, role, home_depot, depot_codes[], dan password. Source upload ditetapkan oleh Edge, tidak mengambil flag aktivasi dari browser. Respons pertama activation=pending.
-
-Kontrak Registrasi manual:
-
-```text
-POST /functions/v1/rc-admin + JWT pengguna
-action=create, request_id=UUID, user_code, full_name, business_email,
-role, department, home_depot, depot_codes[], osc_codes[], regions[], password
-
-200 replay / 201 created:
-status=success, id, user_code, message, source, activation
-
-400 input salah; 401 sesi tidak sah; 403 kewenangan;
-409 konflik pembuatan; 413 payload terlalu besar; 503 hasil belum terkonfirmasi.
-```
-
-Edge memanggil `rc_prepare_registration` sebagai pengguna. Admin API hanya berjalan setelah rencana divalidasi. Supabase Auth dapat menulis app metadata sesudah INSERT; trigger INSERT dan UPDATE metadata sama-sama ditangani. Error tidak boleh dilaporkan sebagai sukses hanya karena objek Auth telah dibuat.
-
-`rc_legacy_manageable` mengembalikan users, depots, profileRequests, canEdit, registrationOptions. `rc_update_access` menegakkan role/mapping dan menjaga field yang tidak dikirim. `rc_process_claims` menerima action, item beserta version, request ID, dan alasan. Server tidak memakai requesterRole/requesterId dari browser sebagai kewenangan.
+Frontend `src/parts` + `src/js` dibangun menjadi `public/index.html` (`node scripts/build-rc-frontend.mjs [--env dev]`); adapter `scripts/rc-legacy-adapter.js` menerjemahkan action UI menjadi RPC/Edge Supabase. Mutasi klaim lewat `rc_process_claims` (action, item + versi, request ID, alasan; maks 500 per panggilan). RPC Upload Debtor: `rc_zdage_stage`, `rc_zdage_preview`, `rc_zdage_apply`, `rc_zdage_discard`, `rc_zdage_riwayat`, `rc_clearing_return`, `rc_clearing_reoffer`, `rc_clearing_dikembalikan`, `rc_restricted_claims`, `rc_restricted_pindah`, `rc_bad_debt_set`, `rc_bad_debt_revoke`, `rc_bad_debt_approval_setelan/setel`, `rc_approval_bad_debt`. Server tidak memakai role/ID dari browser sebagai kewenangan. Kontrak Registrasi (`rc-admin` Edge) tidak berubah dari versi 1.1.
 
 ## 9. Persyaratan nonfungsional
 
 ### 9.1 Keamanan dan privasi
 
-RLS aktif untuk tabel publik; anonymous tidak boleh menulis tabel inti. Mutasi klaim melalui RPC terotorisasi. Fungsi security definer memakai search_path tetap dan EXECUTE terbatas. Service role/PAT hanya berada di server/lingkungan kerja, tidak di bundle frontend. Data sensitif tidak muncul di dashboard publik, log, atau laporan audit agregat. Input yang dirender sebagai HTML harus di-escape. CSP saat ini masih mengizinkan inline/eval untuk kompatibilitas legacy; hardening lanjut diperlukan.
+RLS aktif; anonymous tidak menulis tabel inti. Fungsi security definer memakai `search_path` kosong dan EXECUTE terbatas. Service role/PAT/token hanya di `.env` lingkungan kerja, tidak di bundle frontend, dokumen, atau git. Data sensitif tidak muncul di dashboard publik, log, atau audit agregat. Input yang dirender sebagai HTML di-escape.
 
 ### 9.2 Kinerja dan kapasitas — target, belum tersertifikasi
 
-Staging harus terpisah sebelum seed 1.000.000 klaim dummy. Model data mencakup relasi depot/customer/campaign, distribusi status, skew pencarian, dan indeks yang realistis. Load bertahap 100/250/500/750/1.000 users; stress sampai 1.250/1.500; spike naik-turun; soak 500–1.000 selama beberapa jam bila generator/biaya memungkinkan.
-
-Tetapkan baseline pengguna tunggal dan beban ringan dahulu. Catat avg, P50/P95/P99, RPS, throughput, error, timeout, query duration, API latency, CPU/memory, koneksi dan antrean. Threshold ditetapkan dari baseline dan kapasitas environment, ditandatangani sebelum test utama; tidak mengubah threshold setelah melihat kegagalan. Breaking point adalah level pertama yang melanggar threshold stabil/benar, bukan level saat halaman mati saja. Recovery harus mengembalikan latency/error/antrean mendekati baseline setelah beban diturunkan.
-
-Kesenjangan aktif: pengambilan legacy masih membatasi dokumen 20.000 dan log 2.000, sebagian pagination dilakukan di browser, serta suffix akun aktif hanya 001–999. Ini harus diselesaikan sebelum mengklaim dukungan 1 juta baris/1.000 akun unik. Jumlah virtual user tidak sama dengan akun unik ataupun request serentak. Rencana terinci: [load test plan](load-test-plan.md).
+Rencana tetap mengikuti [load test plan](load-test-plan.md): staging terpisah, 1.000.000 klaim dummy, beban bertahap sampai 1.500 users, baseline dan threshold ditandatangani sebelum test utama. Kesenjangan: dokumen legacy dimuat sampai 20.000 baris; suffix akun 001–999.
 
 ### 9.3 Keandalan, observabilitas, dan UX
 
-Request ID dapat ditelusuri; konflik versi memberi pesan muat ulang. Pesan membedakan operasi gagal, operasi berhasil tetapi refresh gagal, dan tidak ada data. Monitoring memisahkan frontend, Auth, Edge, RPC, query DB, koneksi, dan outbox. Tidak ada retry otomatis tak terbatas. Backup/restore harus diuji sebelum cutover. RPO/RTO, retensi audit, dan anggaran kapasitas masih perlu ditetapkan; jangan mengasumsikan paket gratis mencukupi target stress.
+Request ID dapat ditelusuri; konflik versi memberi pesan muat ulang. Pesan membedakan gagal, berhasil-tetapi-refresh-gagal, dan tidak ada data. Kegagalan email dicatat tanpa membatalkan transaksi. Tidak ada retry otomatis tak terbatas.
 
 ## 10. Verifikasi dan release criteria
 
 | Lapisan | Pemeriksaan wajib |
 |---|---|
-| Unit/kontrak | Konversi field, metadata terpercaya, PIN, mapping, idempotensi, pesan error |
-| Database | Delapan role, lintas scope, race, suffix, stale version, cleanup role, approval |
-| HTTP | Login native, create serentak, satu profil/ledger/audit, daftar langsung terlihat, PIN gate |
-| Frontend | Registrasi, reset setelah sukses, form tetap pada error, refresh overlap, viewer, escaping |
-| Workflow | Submitted sebelum approve; Hold/Expired upload; Expired Claim Process langsung |
-| Data | 36 aturan audit dan rekonsiliasi temuan menurut pemilik master |
-| Visual/UAT | Tampilan desktop/mobile dan alur pengguna nyata; belum digantikan oleh unit test |
-| Performance | Staging + dummy + kapasitas generator terukur; dilarang melaporkan simulasi yang tidak benar-benar dijalankan |
+| Frontend | `npm run check` bersih; `npm test` (adapter, UI, parser ZDAGE) |
+| Database | Suite SQL dengan subtransaksi yang dibatalkan (`supabase/tests/*.sql`), dijalankan di dev lalu prod sesudah transport |
+| Migration | Penjaga MD5 pra-citra per fungsi; gladi di prod dalam transaksi yang dibatalkan sebelum transport; cadangan definisi di `.runtime/` |
+| Browser | Uji puppeteer pada localhost → dev untuk alur yang berubah |
+| UAT | Alur pengguna nyata per role; belum digantikan unit test |
 
-Release dapat dinyatakan siap untuk skenario tertentu setelah tes terkait lulus, bukti tersimpan, deployment backend/frontend konsisten, dan batas yang belum diuji disebutkan. UAT seluruh modul serta stress test bukan otomatis lulus karena build/test lokal lulus.
+Hasil 17 Oktober 2026 (dev): suite Upload Debtor 43/43; regresi 15/15, 10/10, 15/15, 20/20, 42/42; uji node 32/32; browser 9/9. `npm test` 95/97 — dua kegagalan format ekspor (Clearing Rate, ekspor Bulk) sudah ada sebelum Upload Debtor dan belum diperbaiki.
 
 ## 11. Deployment, rollback, dan operasional
 
-Urutan: backup definisi/schema relevan → uji migration dalam rollback transaction → apply migration bernama dalam transaksi → deploy Edge → HTTP smoke dummy + cleanup → build/check/test frontend → review hasil → deploy frontend sesuai jalur release → verifikasi URL/rute dan versi aset.
-
-Project `vvojshgcduqlugngpzkj` berlabel DEV pada dokumen lama tetapi telah digunakan depot. Perlakukan sebagai environment operasional bersama. Localhost menggunakan backend tersebut; localhost bukan otomatis staging. Vercel production dan preview harus menunjuk backend yang dimaksud secara eksplisit.
-
-Riwayat migration remote perlu direkonsiliasi sebelum `supabase db push` umum. File migration bernomor tinggi telah diterapkan manual; angka filename merupakan urutan, bukan bukti tanggal deployment. Jangan menerapkan semua file lama secara buta.
-
-Rollback kode menggunakan artefak frontend/Edge sebelumnya dan definisi fungsi yang dibackup. Jangan menghapus ledger/profil/kolom baru yang sudah berisi transaksi untuk memaksa rollback; lakukan perbaikan maju bila schema telah dipakai. Catat dampak kompatibilitas: frontend lama Registrasi tidak membawa mapping yang kini wajib; deploy frontend baru diperlukan untuk memakai kontrak lengkap.
+Urutan: kerjakan di dev → uji → minta persetujuan pemilik → cocokkan MD5 pra-citra prod → gladi di prod (transaksi dibatalkan) → cadangkan definisi/data terdampak → terapkan migration satu per satu → uji pascatransport di prod → `npm run deploy` (frontend prod) → build ulang lokal untuk dev. Jangan `supabase db push`; ledger migration remote tidak sinkron sejak 15 September 2026, jadi hanya file yang dimaksud yang diterapkan. Rollback memakai definisi fungsi yang dicadangkan; kolom/tabel yang sudah berisi transaksi diperbaiki maju, bukan dihapus.
 
 ## 12. Prioritas tindak lanjut dan keputusan terbuka
 
-| Prioritas | Pekerjaan | Pemilik yang dibutuhkan | Selesai bila |
-|---|---|---|---|
-| P1 | Rekonsiliasi rekening, pajak, periode, dan nilai sumber | Pemilik master/Finance/depot | Data diperbaiki berdasar sumber dan audit ulang bersih/pengecualian terdokumentasi |
-| P1 | Melengkapi scope/permission akun aktif yang kosong | Supervisor/SM | Akses sesuai tanggung jawab, tanpa grant tebakan |
-| P1 | Rekonsiliasi alias akun lama yang tidak cocok | Pengelola Auth | Identitas login tervalidasi tanpa kehilangan akses |
-| P1 | Staging terpisah + migration ledger | Pengelola infrastruktur | Restore reproducible; backend test tidak menunjuk data operasional |
-| P1 | Pagination server dan batas suffix | Engineering + pemilik format batch | Tidak terpotong pada dataset target; format batch disepakati |
-| P2 | Hardening DOM/CSP dan audit dependency | Engineering | Sink render aman dan dependensi dibatasi tanpa regresi UI |
-| P2 | Recovery/outbox monitoring | Operasional | Kegagalan terlihat, retry terkendali, RPO/RTO diuji |
-| P2 | UAT seluruh role/modul, mobile dan export | Pemilik produk + pengguna depot | Checklist penerimaan ditandatangani |
-| Berikutnya | Integrasi Document Center | Pemilik kedua sistem | Sumber/job terinventaris, kesetaraan data terbukti, cutover disetujui |
+| Prioritas | Pekerjaan | Selesai bila |
+|---|---|---|
+| P1 | Transport Upload Debtor/Restricted ke prod (`20261163170000`) | Disetujui pemilik. **Dampak**: begitu terpasang, depot tidak dapat mengajukan klaim sampai OSC meng-upload ZDAGE untuk depotnya atau Editor memindahkan klaim ke Open |
+| P1 | Campaign tanpa SO/Billing (prod: 153 klaim) | Campaign Master dilengkapi sebelum/bersamaan transport Upload Debtor |
+| P1 | Customer Master untuk 644 klaim / 313 kode tanpa master | Master diisi; klaim otomatis tertaut |
+| P1 | Tick email otomatis 07:05 WIB gagal ("Akses tab access.email tidak diizinkan") karena penyusun email menuntut tab saat dijalankan cron | Daily/Weekly/Timetable terjadwal dapat terkirim lagi |
+| P1 | Isi CC wajib per jenis dan Email Kepala Admin di prod | Seluruh depot terisi |
+| P2 | Dua tes format ekspor yang gagal | `npm test` 97/97 |
+| P2 | Email dev sungguhan (kredensial Gmail di dev) | Ditunda atas instruksi pemilik |
+| P2 | Staging beban, UAT seluruh role, hardening CSP | Bukti tersimpan dan checklist ditandatangani |
 
-Pertanyaan bisnis yang belum diputuskan: pengecualian cashback melebihi nilai transaksi; aturan mutu volume; penyelesaian tanggal historis kosong; masa retensi audit; format suffix setelah kapasitas 999; angka SLA/RPO/RTO dan budget; sumber dokumen baru saat Document Center belum cutover. Ketidakpastian ini tidak boleh diisi dengan perubahan data otomatis.
+Keputusan terbuka: urutan prioritas bila beberapa kejadian batch terjadi (saat ini kejadian terakhir yang berlaku); pengecualian cashback melebihi nilai transaksi; retensi audit; format suffix setelah 999; SLA/RPO/RTO.
 
 ## 13. Referensi implementasi
 
-- [Instruksi migrasi dan keputusan cakupan](../System-Instruction-Migrasi-Claim-System-ke-Supabase.md)
-- [Source frontend](../src/js/75-kelola-akses.js), [adapter](../scripts/rc-legacy-adapter.js)
-- [Migration Access](../supabase/migrations/20261151010000_access_registration_sync.sql), [trigger metadata Auth](../supabase/migrations/20261151020000_registration_auth_metadata.sql), [lock request registrasi](../supabase/migrations/20261151030000_registration_request_lock.sql)
-- [Edge Registrasi](../supabase/functions/rc-admin/handler.mjs)
-- [Tes database](../supabase/queries/test_access_registration.sql), [tes HTTP](../scripts/test_registration_http.mjs), [tes kontrak/UI](../scripts/test_registration_sync.mjs)
-- [Aturan approval terbaru](rc-approval-fix.md), [rute aplikasi](rc-rute.md)
-- [Supabase Admin createUser](https://supabase.com/docs/reference/javascript/auth-admin-createuser) dan [deployment Edge lewat Management API](https://supabase.com/docs/reference/api/v1-deploy-a-function)
+- Migration utama terbaru: [Upload Debtor](../supabase/migrations/20261163170000_upload_debtor_zdage.sql) [DEV], [kode kejadian batch + tautan Customer Master](../supabase/migrations/20261163160000_batch_kode_kejadian_dan_tautan_customer_master.sql), [Amend + CC per jenis](../supabase/migrations/20261163150000_amend_email_cc_per_jenis_log_ringkas.sql), [Amend Doc](../supabase/migrations/20261163140000_amend_doc_dan_remark_kejadian.sql), [Tgl Done Clearing](../supabase/migrations/20261163130000_tgl_done_ikut_clearing_dan_periksa_customer.sql)
+- Frontend: [Upload Debtor](../src/js/51-upload-debtor.js), [Open](../src/js/85-tab-open.js), [Restricted](../src/js/86-tab-restricted.js), [Amend Doc](../src/js/49-amend-doc.js), [Approval](../src/js/47-approval.js), [adapter](../scripts/rc-legacy-adapter.js)
+- Uji: [Upload Debtor](../supabase/tests/rc_zdage.sql), [batch & tautan master](../supabase/tests/rc_batch_kejadian_dan_tautan_master.sql), [parser ZDAGE](../scripts/test_zdage_parser.mjs)
+- [Prompt workflow untuk AI](prompt-workflow-resource-collection-dev.md), [lingkungan dev](lingkungan-dev.md), [muat ulang data prod](muat-ulang-data-prod.md), [aturan approval](rc-approval-fix.md), [rute aplikasi](rc-rute.md), [upload user](rc-user-upload-approval.md)

@@ -4,6 +4,7 @@
             // "exception" (hanya untuk menahan/menghanguskan dokumen lewat modul Upload, bukan tick-by-tick di Analytics).
             function setPostingMode(mode) {
                 currentPostingMode = mode;
+                window.rcExcHanyaExpired = false; // 20261163170000: batasan Restricted hanya untuk batch yang dipindah
                 let bC = document.getElementById('modeBtnClaim'), bE = document.getElementById('modeBtnException');
                 if (bC) bC.className = "px-5 py-2 text-sm font-bold rounded-lg transition " + (mode === 'claim' ? "bg-green-100 text-green-700" : "text-gray-500 hover:bg-gray-100");
                 if (bE) bE.className = "px-5 py-2 text-sm font-bold rounded-lg transition " + (mode === 'exception' ? "bg-red-100 text-red-700" : "text-gray-500 hover:bg-gray-100");

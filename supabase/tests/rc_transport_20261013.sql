@@ -124,8 +124,10 @@ begin
          and (cl.no_doc ilike '%'||kata||'%' or coalesce(cu.customer_code,cl.source_customer_code) ilike '%'||kata||'%'
           or coalesce(cu.customer_name,'Customer Master belum ada') ilike '%'||kata||'%');
       o := public.rc_open_claims_filtered(p_search => kata, p_limit => 200);
-      hasil := hasil || jsonb_build_array(jsonb_build_array('Tab Open: cari "' || kata || '"', (o->>'total')::bigint = lama,
-        format('total %s (harap %s)', o->>'total', lama)));
+      -- 20261163170000: Not Yet terbagi dua - Open (lunas) dan Restricted; jumlah keduanya = seluruh Not Yet yang cocok.
+      o := o || jsonb_build_object('restricted', (public.rc_restricted_claims(p_search => kata, p_limit => 200))->>'total');
+      hasil := hasil || jsonb_build_array(jsonb_build_array('Tab Open + Restricted: cari "' || kata || '"', (o->>'total')::bigint + (o->>'restricted')::bigint = lama,
+        format('Open %s + Restricted %s (harap %s)', o->>'total', o->>'restricted', lama)));
     end loop;
     execute 'reset role';
     raise exception 'UJI_SELESAI';

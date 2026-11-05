@@ -531,6 +531,38 @@
       return processClaims('reject_bulk', docItems(body.docsToProcess), String(body.reason || ''));
     },
 
+    // Ad-Hoc Process (20261163440000): dokumen berjenis Others sesudah approval. Satu request ID per
+    // isi kiriman, sama dengan processClaims, supaya klik ganda tidak memproses dua kali.
+    adhocProses: function (body) {
+      var items;
+      try {
+        items = (body.items || []).map(function (x) {
+          return { no_doc: String(x.noDoc).trim(), version_no: versionOf(x.noDoc), jenis_cb: String(x.jenisCb || ''),
+            cb_net: x.cbNet === null || x.cbNet === undefined ? '' : String(x.cbNet), pajak: !!x.pajak,
+            lanjut_claim: !!x.lanjutClaim, lanjut_clearing: !!x.lanjutClearing };
+        });
+      } catch (e) { return Promise.resolve(fail(e.message)); }
+      var key = 'adhoc|' + JSON.stringify(items);
+      if (!inFlight.has(key)) inFlight.set(key, crypto.randomUUID());
+      return rpc('rc_adhoc_proses', { p_items: items, p_request_id: inFlight.get(key) }).then(function (r) {
+        inFlight.delete(key);
+        (r.processed || []).forEach(function (row) { versions.set(String(row.no_doc).trim().toUpperCase(), Number(row.version_no)); });
+        return ok(r);
+      });
+    },
+    adhocTolak: function (body) {
+      var items;
+      try { items = docItems(body.docs); } catch (e) { return Promise.resolve(fail(e.message)); }
+      var reason = String(body.reason || 'Reject pada tahap Ad-Hoc Process');
+      var key = 'adhoc_tolak|' + JSON.stringify(items) + '|' + reason;
+      if (!inFlight.has(key)) inFlight.set(key, crypto.randomUUID());
+      return rpc('rc_adhoc_tolak', { p_items: items, p_request_id: inFlight.get(key), p_reason: reason }).then(function (r) {
+        inFlight.delete(key);
+        (r.processed || []).forEach(function (row) { versions.set(String(row.no_doc).trim().toUpperCase(), Number(row.version_no)); });
+        return ok(r);
+      });
+    },
+
     processWorkflow: function (body) {
       var stage = body.workflowType;
       var approve = { release: 'release', claim: 'claim', clearing: 'clearing' };
@@ -560,12 +592,20 @@
       return processClaims(action, items, reason);
     },
 
+    // 20261163710000: Clearing lewat Upload File Bank KlikBCA - pratinjau lalu proses baris OK.
+    clearingBankPreview: function (body) {
+      return rpc('rc_clearing_bank_preview', { p_nama_file: String(body.namaFile || ''), p_sidik: String(body.sidik || ''),
+        p_tahun: Number(body.tahun) || null, p_tahun_sumber: String(body.tahunSumber || ''), p_baris: body.baris || [],
+        p_mode: ['arsip', 'otomatis'].includes(body.mode) ? body.mode : 'clearing' /* 20261163730000, otomatis 20261163750000 */ });
+    },
+    clearingBankProses: function (body) { return rpc('rc_clearing_bank_proses', { p_upload: body.uploadId }); },
+
     // Satu halaman antrean. body.setelah adalah kursor "berikutnya" dari halaman sebelumnya;
     // tanpa kursor, halaman pertama. Layar memanggil berulang sampai kursornya habis
     // (src/js/27-muat-bertahap.js).
     getWorkflowData: function (body) {
       return rpcHalaman('rc_legacy_workflow', body, 1000).then(function (data) {
-        rememberVersions([].concat(data.releaseData, data.claimFinData, data.clearingData, data.bulkRebateData));
+        rememberVersions([].concat(data.releaseData, data.claimFinData, data.clearingData, data.bulkRebateData, data.adhocData || []));
         return data;
       });
     },
@@ -769,6 +809,10 @@
     // Jalur simpannya <id campaign>/<nama berkas>. Server memeriksanya sekali lagi terhadap id
     // campaign yang bersangkutan, sehingga baris campaign tidak dapat diarahkan ke berkas milik
     // campaign lain walaupun browser mengirim jalur yang lain.
+    // Upload Variant Campaign Master (20261163510000): pratinjau (simpan=false) lalu simpan.
+    campaignVariantUnggah: function (b) {
+      return rpc('rc_campaign_variant_unggah', { p_rows: b.rows || [], p_simpan: !!b.simpan });
+    },
     campaignMemoUpload: function (body) {
       var berkas = body.file;
       if (!berkas) return Promise.resolve(fail('Tidak ada berkas yang dipilih.'));
@@ -825,6 +869,8 @@
 
     // Pasangan depot x campaign yang ditandai Not Achieved, untuk kartu Detail Not Achieved.
     timetableNotAchieved: function () { return rpc('rc_timetable_not_achieved'); },
+    // Tab Details Campaign (20261163200000): seluruh campaign dari Campaign Master.
+    timetableCampaigns: function () { return rpc('rc_timetable_campaigns'); },
 
     // Membatalkan email yang masih mengantre atau sudah gagal, supaya satu pengiriman yang
     // terlanjur diantrekan tidak perlu dihentikan lewat SQL langsung ke tabel.
@@ -872,6 +918,8 @@
     reportDashboard: function (body) { return rpc('rc_report_dashboard', { p_filter: body.filter || {} }); },
     costCenter:      function (body) { return rpc('rc_cost_center',      { p_filter: body.filter || {} }); },
     costCenter2:     function (body) { return rpc('rc_cost_center_2',    { p_filter: body.filter || {} }); },
+    // 20261163600000: tombol Perbarui Data - snapshot Report dihitung ulang (paling sering 5 menit sekali).
+    reportSegarkan:  function ()     { return rpc('rc_report_segarkan',  {}); },
     timetableMatrix: function (body) { return rpc('rc_timetable_matrix', { p_filter: body.filter || {} }); },
 
     timetableMark: function (body) {
@@ -909,6 +957,80 @@
     depotProfileRequest: function (b) { return rpc('rc_depot_profile_request', {p_kode: b.kode, p_perubahan: b.changes}); },
     peoplePerformance: function (b) { return rpc('rc_people_performance', {p_role: b.role || 'osc', p_user_code: b.userId || ''}); },
     peopleHistory: function (b) { return rpc('rc_people_history', {p_role: b.role, p_user_code: b.userId, p_from: b.from, p_to: b.to, p_grain: b.grain}); },
+    // Portal Link (20261163180000): Daftar Link untuk setiap akun, Editor Link hanya bila dicentang.
+    linkList: function () { return rpc('rc_link_list'); },
+    linkEditorList: function (b) { return rpc('rc_link_editor_list', { p_arsip: !!(b && b.arsip) }); },
+    linkSimpan: function (b) { return rpc('rc_link_simpan', { p: b.link || {} }); },
+    linkPin: function (b) { return rpc('rc_link_pin', { p_tab: String(b.tab || ''), p_pinned: !!b.pinned }); },
+    linkArsip: function (b) { return rpc('rc_link_arsip', { p_ids: b.ids || [], p_arsip: !!b.arsip, p_reason: String(b.alasan || '') }); },
+    // Document Generator (20261163550000): satu halaman daftar toko (saringan dijalankan server) dan
+    // pembentukan Tanda Terima. sumber: 'done' atau 'notyet'; saring: {dari, sampai, batch} (isi form,
+    // hanya Done) dan {depot, campaign, unduh, master, cari} (daftar saja). kunciSaja: kunci toko siap
+    // cetak dari seluruh hasil saringan.
+    docgenList: function (b) {
+      b = b || {};
+      return rpc('rc_docgen_list', { p_sumber: b.sumber || 'done', p_saring: b.saring || {}, p_hal: b.hal || 0, p_per: b.per || 100, p_kunci_saja: !!b.kunciSaja });
+    },
+    docgenGenerate: function (b) {
+      return rpc('rc_docgen_generate', { p_toko: b.toko || [], p_sumber: b.sumber || 'done', p_saring: b.saring || {} });
+    },
+    // Warehouse Rental (20261163530000): setiap RPC memeriksa tab rental.* dan yurisdiksi sendiri.
+    rentalInit: function () { return rpc('rc_rental_init'); },
+    rentalRevenue: function (b) { return rpc('rc_rental_revenue', { p_depot: b.depotId, p_tanggal: b.tanggal }); },
+    rentalSimpan: function (b) {
+      return rpc('rc_rental_simpan', { p_id: b.id || null, p_depot: b.depotId, p_tanggal: b.tanggal, p_data: b.data || {}, p_submit: !!b.submit });
+    },
+    rentalGet: function (b) { return rpc('rc_rental_get', { p_id: b.id }); },
+    rentalList: function (b) { return rpc('rc_rental_list', { p_status: b.status }); },
+    rentalBatal: function (b) { return rpc('rc_rental_batal', { p_id: b.id, p_alasan: String(b.alasan || '') }); },
+    rentalOmsetUnggah: function (b) { return rpc('rc_rental_omset_unggah', { p_rows: b.rows || [], p_simpan: !!b.simpan, p_nama: String(b.nama || '') }); },
+    rentalOmsetData: function (b) { return rpc('rc_rental_omset_data', { p_tahun: Number(b && b.tahun) || null }); },
+    // PDF hasil submit: bucket privat rental-pdf/<id form>/<nama berkas>. Kebijakan Storage hanya
+    // menerima unggahan pertama untuk form Submitted dalam jangkauan; jalurnya lalu dicatat server.
+    rentalPdfUpload: function (b) {
+      var id = String(b.id || ''), nama = String(b.nama || 'F01AW.pdf').replace(/[^A-Za-z0-9._-]+/g, '_');
+      if (!/^[0-9a-f-]{36}$/i.test(id)) return Promise.resolve(fail('Form belum dikenali.'));
+      if (!b.file) return Promise.resolve(fail('PDF belum dibuat.'));
+      var jalur = id + '/' + nama;
+      return client()
+        .then(function (sb) { return sb.storage.from('rental-pdf').upload(jalur, b.file, { contentType: 'application/pdf', upsert: false }); })
+        .then(function (res) {
+          if (res.error) throw new Error(res.error.message || 'Gagal mengunggah PDF.');
+          return rpc('rc_rental_pdf_set', { p_id: id, p_path: jalur });
+        });
+    },
+    // Tautan bertanda tangan berumur pendek dengan nama berkas unduhan, lalu diunduh langsung.
+    rentalPdfUnduh: function (b) {
+      var jalur = String(b.path || '');
+      if (!jalur) return Promise.resolve(fail('Form ini belum memiliki PDF.'));
+      return client()
+        .then(function (sb) { return sb.storage.from('rental-pdf').createSignedUrl(jalur, 300, { download: String(b.nama || 'F01AW.pdf') }); })
+        .then(function (res) {
+          if (res.error) throw new Error(res.error.message || 'Gagal membuka PDF.');
+          var a = document.createElement('a'); a.href = res.data.signedUrl; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove();
+          return ok({ url: res.data.signedUrl });
+        });
+    },
+    // Discount Center (20261163310000-350000): setiap RPC memeriksa tab discount.* sendiri.
+    discDashboard: function () { return rpc('rc_disc_dashboard'); },
+    discAck: function (b) { return rpc('rc_disc_ack', { p_items: b.items || [] }); },
+    discMonitor: function (b) { return rpc('rc_disc_monitor', { p_periode: (b && b.periode) || null }); },
+    discData: function (b) {
+      return rpc('rc_disc_data', { p_sheet: b.sheet, p_periode: b.periode || null, p_cari: b.cari || '', p_offset: Number(b.offset) || 0 });
+    },
+    discKonfigurasi: function () { return rpc('rc_disc_konfigurasi'); },
+    discUnggah: function (b) {
+      return rpc('rc_disc_unggah', { p_sheet: b.sheet, p_rows: b.rows || [], p_konteks: b.konteks || {}, p_simpan: !!b.simpan });
+    },
+    discGenerate: function (b) {
+      return rpc('rc_disc_generate', { p_periode: b.periode, p_ct: b.ct, p_targets: b.targets || [], p_komponen: b.komponen || null,
+        p_per_grup: !!b.perGrup, p_sumber: b.sumber || 'SEMUA', p_catat: !!b.catat });
+    },
+    discDraftBuat: function (b) { return rpc('rc_disc_draft_buat', { p_periode: b.periode }); },
+    discTerbitList: function (b) { return rpc('rc_disc_terbit_list', { p_periode: b.periode }); },
+    discTerbit: function (b) { return rpc('rc_disc_terbit', { p_ids: b.ids || [] }); },
+    discAturWilayah: function (b) { return rpc('rc_disc_atur_wilayah', { p_ids: b.ids || [], p_wilayah: String(b.wilayah || '') }); },
+    discTarik: function (b) { return rpc('rc_disc_tarik', { p_ids: b.ids || [], p_alasan: String(b.alasan || '') }); },
     depotRequests: function () { return rpc('rc_depot_profile_requests'); },
     depotReview: function (body) {
       return rpc('rc_depot_profile_review', {
@@ -925,6 +1047,9 @@
     // Sejak 20261162010000 bootstrap tidak lagi mengirim daftar dokumen; dokumen datang HANYA
     // lewat sini. Versinya wajib dicatat - tanpa itu Posting Claim dan Posting Exception
     // menolak setiap dokumen dengan "belum dimuat; segarkan data lebih dulu".
+    // 20261163270000: tagihan Upload Debtor (ZDAGE) per No Doc - Open, Document Center, Analytics.
+    tagihanDokumen: function (body) { return rpc('rc_tagihan_dokumen', { p_no_doc: body.noDocs || [] }); },
+
     lookupMaster: function (body) {
       return rpc('rc_lookup_master', {
         p_cust: body.custCodes || [], p_doc: body.docNos || [],
@@ -999,6 +1124,32 @@
       }), p_alasan: String(body.alasan || '') });
     },
     amendRiwayat: function (body) { return rpc('rc_amend_riwayat', { p_limit: Number(body.limit) || 50 }); },
+    // 20261163170000: Upload Debtor (ZDAGE), tawaran toko lunas, dan Bad Debt.
+    zdageStage: function (body) {
+      return rpc('rc_zdage_stage', { p_file_name: String(body.fileName || ''), p_extracted_at: body.extractedAt || null,
+        p_rows: body.rows || [], p_upload_id: body.uploadId || null });
+    },
+    zdagePreview: function (body) { return rpc('rc_zdage_preview', { p_upload_id: body.uploadId, p_kosong: body.kosong || [] }); },
+    zdageApply: function (body) { return rpc('rc_zdage_apply', { p_upload_id: body.uploadId, p_kosong: body.kosong || [] }); },
+    zdageDiscard: function (body) { return rpc('rc_zdage_discard', { p_upload_id: body.uploadId }); },
+    zdageRiwayat: function () { return rpc('rc_zdage_riwayat'); },
+    clearingReturn: function (body) { return rpc('rc_clearing_return', { p_no_docs: body.docs || [], p_reason: String(body.alasan || '') }); },
+    clearingReoffer: function (body) { return rpc('rc_clearing_reoffer', { p_no_docs: body.docs || [] }); },
+    clearingDikembalikan: function () { return rpc('rc_clearing_dikembalikan'); },
+    badDebtSet: function (body) { return rpc('rc_bad_debt_set', { p_no_docs: body.docs || [], p_reason: String(body.alasan || '') }); },
+    badDebtRevoke: function (body) { return rpc('rc_bad_debt_revoke', { p_no_docs: body.docs || [], p_reason: String(body.alasan || '') }); },
+    badDebtApprovalSetelan: function () { return rpc('rc_bad_debt_approval_setelan'); },
+    badDebtApprovalSetel: function (body) { return rpc('rc_bad_debt_approval_setel', { p_aktif: !!body.aktif, p_catatan: String(body.catatan || '') }); },
+    // 20261163620000: saklar ZDAGE Integration (cara baru / cara lama).
+    zdageSetelan: function () { return rpc('rc_zdage_setelan'); },
+    zdageSetel: function (body) { return rpc('rc_zdage_setel', { p_aktif: !!body.aktif, p_catatan: String(body.catatan || '') }); },
+    zdageStatus: function () { return rpc('rc_zdage_status'); },
+    restrictedClaims: function (body) {
+      return rpc('rc_restricted_claims', { p_search: body.search || '', p_campaign: body.campaign || '',
+        p_offset: Number(body.offset) || 0, p_limit: 200, p_cb_type: body.cbType || '' });
+    },
+    restrictedPindah: function (body) { return rpc('rc_restricted_pindah', { p_no_docs: body.docs || [], p_reason: String(body.alasan || '') }); },
+    approvalBadDebt: function (body) { return rpc('rc_approval_bad_debt', { p_depot: String(body.depot || ''), p_search: String(body.search || '') }); },
     reprocessingList: function (body) {
       return rpc('rc_reprocessing_list', {
         p_search: body.search || '', p_offset: 0, p_limit: 2000

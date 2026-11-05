@@ -3,7 +3,7 @@
             // ============================================================================
             // Susunannya mengikuti Dashboard.html pada RC_Reporting_AppsScript: kartu KPI,
             // Tren Volume & Nilai, Distribusi Status, Aging, Clearing Rate per Region, Top 10
-            // Depot Outstanding %, tabel Performa per Campaign, lalu Cost Center 1 dan 2
+            // Depot Outstanding Claim % (20261163570000), tabel Performa per Campaign, lalu Cost Center 1 dan 2
             // beserta diagram masing-masing.
             //
             // Seluruhnya menggambar ke id yang sama - rtKpi, rtChartVolume, rtCc1Body dan
@@ -42,6 +42,30 @@
                 return '<td class="p-3 text-right ' + (kelas || '') + '" data-sort="' + Number(n || 0)
                     + '">' + rtPersen(n) + '</td>';
             }
+            // Indikator warna (pemilik, 30 Oktober 2026): Outstanding Claim hijau = rendah, merah =
+            // tinggi; Clearing Rate sebaliknya (hijau = tinggi). Gradasinya sama dengan email
+            // (rc_private.warna_persen): merah #EA4335 sampai hijau #34A853.
+            function rtWarna(baik) {
+                const p = Math.max(0, Math.min(1, Number(baik) || 0));
+                const c = (a, b) => Math.round(a + (b - a) * p).toString(16).padStart(2, '0');
+                return '#' + c(234, 52) + c(67, 168) + c(53, 83);
+            }
+            function rtWarnaOc(n) { return rtWarna(1 - Number(n || 0)); }
+            function rtWarnaCr(n) { return rtWarna(Number(n || 0)); }
+            function rtBadge(n, warna, judul) {
+                return '<span class="inline-block min-w-[56px] text-center px-2 py-0.5 rounded font-black text-[11px] text-white" style="background:'
+                    + warna + '"' + (judul ? ' title="' + rcEsc(judul) + '"' : '') + '>' + rtPersen(n) + '</span>';
+            }
+            function rtSelOc(r) {
+                return '<td class="p-3 text-right" data-sort="' + Number(r.outstandingClaimRate || 0) + '">'
+                    + rtBadge(r.outstandingClaimRate, rtWarnaOc(r.outstandingClaimRate), rcNominalPenuh(r.outstandingClaimValue)) + '</td>';
+            }
+            function rtSelCr(n) { return '<td class="p-3 text-right" data-sort="' + Number(n || 0) + '">' + rtBadge(n, rtWarnaCr(n)) + '</td>'; }
+            // Urutan bawaan tabel Report: Outstanding Claim % tertinggi dulu (lalu nilainya).
+            function rtUrutOc(rows) {
+                return (rows || []).slice().sort((a, b) => Number(b.outstandingClaimRate || 0) - Number(a.outstandingClaimRate || 0)
+                    || Number(b.outstandingClaimValue || 0) - Number(a.outstandingClaimValue || 0));
+            }
             function rtGambarChart(id, konfig) {
                 if (rtChart[id]) { rtChart[id].destroy(); delete rtChart[id]; }
                 const el = document.getElementById(id);
@@ -51,7 +75,9 @@
 
             function renderReportDashboard(res) {
                 const k = res.kpi || {};
-                document.getElementById('rtDibuatPada').innerText = 'Data per ' + (res.dibuatPada || '-');
+                // 20261163600000: waktu snapshot Report, diperbarui tiap 2 jam di jam kerja.
+                document.getElementById('rtDibuatPada').innerText = 'Data per ' + (res.dibuatPada || '-')
+                    + ' (diperbarui tiap 2 jam, 07:00-17:00 WIB)';
 
                 // Setiap kartu memuat nilai sekaligus jumlahnya, sesuai permintaan pemilik.
                 // Nominalnya diringkas ke juta supaya tidak melewati lebar kartu; angka
@@ -73,13 +99,18 @@
                      Number(k.outstandingQty || 0).toLocaleString('id-ID') + ' dokumen',
                      'text-orange-700', rcNominalPenuh(k.outstandingValue)],
                     ['Clearing Rate', rtPersen(k.clearingRate),
-                     'Done + Expired dari Net CB', 'text-indigo-700', '']
+                     'Done + Expired dari Net CB', '', '', rtWarnaCr(k.clearingRate)],
+                    // 20261163570000: klaim yang belum melewati titik Depot (Not Yet; bila approval
+                    // hidup juga Submitted), terhadap Net CB. Tolok ukur Top 10 Depot.
+                    ['Outstanding Claim', rtPersen(k.outstandingClaimRate),
+                     Number(k.outstandingClaimQty || 0).toLocaleString('id-ID') + ' dok &middot; ' + rcEsc(rcNominalRingkas(k.outstandingClaimValue)),
+                     '', rcNominalPenuh(k.outstandingClaimValue), rtWarnaOc(k.outstandingClaimRate)]
                 ];
                 document.getElementById('rtKpi').innerHTML = kartu.map(function (c) {
                     const judulPenuh = c[4] ? ' title="' + rcEsc(c[4]) + '"' : '';
                     return '<div class="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm overflow-hidden">'
                         + '<p class="text-[10px] font-black text-gray-500 uppercase tracking-wider truncate">' + rcEsc(c[0]) + '</p>'
-                        + '<p class="rc-kpi-value font-black ' + c[3] + (c[4] ? ' rc-kpi-money' : '') + ' mt-1"' + judulPenuh + '>' + rcEsc(c[1]) + '</p>'
+                        + '<p class="rc-kpi-value font-black ' + c[3] + (c[4] ? ' rc-kpi-money' : '') + ' mt-1"' + judulPenuh + (c[5] ? ' style="color:' + c[5] + '"' : '') + '>' + rcEsc(c[1]) + '</p>'
                         + '<p class="rc-kpi-sub">' + c[2] + '</p></div>';
                 }).join('');
 
@@ -139,39 +170,38 @@
                     type: 'bar',
                     data: { labels: rg.map(r => r.region),
                             datasets: [{ label: 'Clearing Rate', data: rg.map(r => Number(r.clearingRate) * 100),
-                                         backgroundColor: '#2563eb', borderRadius: 4 }] },
+                                         backgroundColor: rg.map(r => rtWarnaCr(r.clearingRate)), borderRadius: 4 }] },
                     options: { responsive: true, maintainAspectRatio: false,
                         scales: { y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' } } },
                         plugins: { legend: { display: false },
                             tooltip: { callbacks: { label: c => Number(c.raw).toFixed(1) + '%' } } } }
                 });
 
-                // ---- Top 10 depot outstanding % --------------------------------------------
+                // ---- Top 10 depot Outstanding Claim % ---------------------------------------
                 // Proporsional, bukan nominal: depot kecil yang seluruh klaimnya tertahan tetap
-                // muncul, dan itu justru yang perlu ditindaklanjuti.
-                const top = (res.depot || []).slice()
-                    .sort((a, b) => Number(b.outstandingRate) - Number(a.outstandingRate)).slice(0, 10);
+                // muncul, dan itu justru yang perlu ditindaklanjuti. Sejak 20261163570000 memakai
+                // Outstanding Claim (belum melewati titik Depot), bukan outstanding lama.
+                const top = (res.depot || []).filter(d => Number(d.outstandingClaimValue) > 0)
+                    .sort((a, b) => Number(b.outstandingClaimRate) - Number(a.outstandingClaimRate)
+                                 || Number(b.outstandingClaimValue) - Number(a.outstandingClaimValue)).slice(0, 10);
                 rtGambarChart('rtChartDepot', {
                     type: 'bar',
                     data: { labels: top.map(d => d.kodeDepot + ' - ' + d.namaDepot),
-                            datasets: [{ label: 'Outstanding %',
-                                         data: top.map(d => Number(d.outstandingRate) * 100),
-                                         backgroundColor: '#f97316', borderRadius: 4 }] },
+                            datasets: [{ label: 'Outstanding Claim %',
+                                         data: top.map(d => Number(d.outstandingClaimRate) * 100),
+                                         backgroundColor: top.map(d => rtWarnaOc(d.outstandingClaimRate)), borderRadius: 4 }] },
                     options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
                         scales: { x: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' } } },
                         plugins: { legend: { display: false },
                             tooltip: { callbacks: { label: function (c) {
                                 const row = top[c.dataIndex] || {};
-                                return Number(c.raw).toFixed(1) + '% - ' + rcNominalPenuh(row.outstandingValue)
+                                return Number(c.raw).toFixed(1) + '% - ' + rcNominalPenuh(row.outstandingClaimValue)
                                     + ' dari ' + rcNominalPenuh(row.netCb);
                             } } } } }
                 });
 
                 // ---- Performa per campaign --------------------------------------------------
-                document.getElementById('rtPerformaBody').innerHTML = (res.campaign || []).map(function (c) {
-                    const kelasRate = Number(c.clearingRate) < 0.5 ? 'bg-red-100 text-red-700'
-                        : Number(c.clearingRate) < 0.8 ? 'bg-yellow-100 text-yellow-800'
-                        : 'bg-green-100 text-green-700';
+                document.getElementById('rtPerformaBody').innerHTML = rtUrutOc(res.campaign).map(function (c) {
                     return '<tr class="border-b border-gray-100 hover:bg-blue-50">'
                         + '<td class="p-3"><span class="font-black text-gray-800">' + rcEsc(c.kodeCampaign) + '</span>'
                         + '<span class="text-gray-500 text-xs block max-w-[260px] truncate" title="' + rcEsc(c.namaCampaign) + '">' + rcEsc(c.namaCampaign) + '</span></td>'
@@ -181,12 +211,11 @@
                         + '<td class="p-3 text-right">' + Number(c.outstandingQty || 0).toLocaleString('id-ID') + '</td>'
                         + '<td class="p-3 text-right text-orange-700 font-bold" data-sort="' + Number(c.outstandingValue || 0) + '" title="' + rcEsc(rcNominalPenuh(c.outstandingValue)) + '">' + rcEsc(rcNominal(c.outstandingValue)) + '</td>'
                         + '<td class="p-3 text-right" data-sort="' + Number(c.outstandingRate || 0) + '">' + rtPersen(c.outstandingRate) + '</td>'
-                        + '<td class="p-3 text-right" data-sort="' + Number(c.clearingRate || 0) + '">'
-                        + '<span class="px-2 py-0.5 rounded font-black text-[11px] ' + kelasRate + '">' + rtPersen(c.clearingRate) + '</span></td></tr>';
-                }).join('') || '<tr><td colspan="8" class="p-6 text-center text-gray-400">Tidak ada data.</td></tr>';
+                        + rtSelCr(c.clearingRate) + rtSelOc(c) + '</tr>';
+                }).join('') || '<tr><td colspan="9" class="p-6 text-center text-gray-400">Tidak ada data.</td></tr>';
 
                 // ---- Performa per region ---------------------------------------------------
-                document.getElementById('rtRegionBody').innerHTML = (res.region || []).map(function (r) {
+                document.getElementById('rtRegionBody').innerHTML = rtUrutOc(res.region).map(function (r) {
                     return [
                         '<tr class="border-b border-gray-100 hover:bg-blue-50">',
                         '<td class="p-3 font-black text-gray-800">' + rcEsc(r.region) + '</td>',
@@ -194,26 +223,30 @@
                         rtSelUang(r.netCb, ''),
                         rtSelUang(r.netClaimed, 'text-green-700 font-bold'),
                         rtSelUang(r.outstandingValue, 'text-orange-700 font-bold'),
-                        rtSelPersen(r.clearingRate, 'font-black'),
+                        rtSelCr(r.clearingRate),
+                        rtSelOc(r),
                         '</tr>'
                     ].join('');
-                }).join('') || '<tr><td colspan="6" class="p-6 text-center text-gray-400">Belum ada region terisi. Isi lewat Key Master &rarr; Depot Master.</td></tr>';
+                }).join('') || '<tr><td colspan="7" class="p-6 text-center text-gray-400">Belum ada region terisi. Isi lewat Key Master &rarr; Depot Master.</td></tr>';
 
                 // ---- Performa per depot ----------------------------------------------------
-                document.getElementById('rtDepotTblBody').innerHTML = (res.depot || []).map(function (d) {
+                document.getElementById('rtDepotTblBody').innerHTML = rtUrutOc(res.depot).map(function (d) {
                     return [
                         '<tr class="border-b border-gray-100 hover:bg-blue-50">',
-                        '<td class="p-3"><span class="font-black text-gray-800">' + rcEsc(d.kodeDepot) + '</span>',
-                        '<span class="text-gray-500 text-xs block">' + rcEsc(d.namaDepot) + ' &middot; ' + rcEsc(d.region || '-') + '</span></td>',
+                        // Kode Depot, Nama Depot, dan Region (kode saja) sebagai kolom terpisah (pemilik, 30 Oktober 2026).
+                        '<td class="p-3 font-black text-gray-800 whitespace-nowrap">' + rcEsc(d.kodeDepot) + '</td>',
+                        '<td class="p-3 text-gray-700">' + rcEsc(d.namaDepot) + '</td>',
+                        '<td class="p-3 text-gray-600 whitespace-nowrap">' + rcEsc(d.region || '-') + '</td>',
                         '<td class="p-3 text-right">' + Number(d.qty || 0).toLocaleString('id-ID') + '</td>',
                         rtSelUang(d.netCb, ''),
                         rtSelUang(d.netClaimed, 'text-green-700 font-bold'),
                         rtSelUang(d.outstandingValue, 'text-orange-700 font-bold'),
                         rtSelPersen(d.outstandingRate, ''),
-                        rtSelPersen(d.clearingRate, Number(d.clearingRate) < 0.5 ? 'font-black text-red-600' : 'font-black text-gray-800'),
+                        rtSelCr(d.clearingRate),
+                        rtSelOc(d),
                         '</tr>'
                     ].join('');
-                }).join('') || '<tr><td colspan="7" class="p-6 text-center text-gray-400">Tidak ada data.</td></tr>';
+                }).join('') || '<tr><td colspan="10" class="p-6 text-center text-gray-400">Tidak ada data.</td></tr>';
 
                 rcAktifkanUrutSemua('rtPaneDashboard');
             }
@@ -311,10 +344,11 @@
             }
 
             function renderCostCenter1(rows) {
-                document.getElementById('rtCc1Body').innerHTML = rows.map(function (r) {
+                document.getElementById('rtCc1Body').innerHTML = rtUrutOc(rows).map(function (r) {
                     return '<tr class="border-b border-gray-100 hover:bg-blue-50">'
-                        + '<td class="p-3"><span class="font-bold text-gray-800">' + rcEsc(r.kodeDepot) + '</span>'
-                        + '<span class="text-gray-500 text-xs block">' + rcEsc(r.namaDepot) + '</span></td>'
+                        + '<td class="p-3 font-bold text-gray-800 whitespace-nowrap">' + rcEsc(r.kodeDepot) + '</td>'
+                        + '<td class="p-3 text-gray-700">' + rcEsc(r.namaDepot) + '</td>'
+                        + '<td class="p-3 text-gray-600 whitespace-nowrap">' + rcEsc(r.region || '-') + '</td>'
                         + '<td class="p-3"><span class="font-bold text-gray-700">' + rcEsc(r.kodeCampaign) + '</span>'
                         + '<span class="text-gray-500 text-xs block max-w-[220px] truncate" title="' + rcEsc(r.namaCampaign) + '">' + rcEsc(r.namaCampaign) + '</span></td>'
                         + '<td class="p-3 text-right">' + Number(r.qty || 0).toLocaleString('id-ID') + '</td>'
@@ -322,8 +356,8 @@
                         + '<td class="p-3 text-right text-green-700 font-bold" data-sort="' + Number(r.netClaimed || 0) + '" title="' + rcEsc(rcNominalPenuh(r.netClaimed)) + '">' + rcEsc(rcNominal(r.netClaimed)) + '</td>'
                         + '<td class="p-3 text-right text-emerald-700" data-sort="' + Number(r.grossClaimed || 0) + '" title="' + rcEsc(rcNominalPenuh(r.grossClaimed)) + '">' + rcEsc(rcNominal(r.grossClaimed)) + '</td>'
                         + '<td class="p-3 text-right text-gray-600" data-sort="' + Number(r.cbExpired || 0) + '" title="' + rcEsc(rcNominalPenuh(r.cbExpired)) + '">' + rcEsc(rcNominal(r.cbExpired)) + '</td>'
-                        + '<td class="p-3 text-right font-black" data-sort="' + Number(r.clearingRate || 0) + '">' + rtPersen(r.clearingRate) + '</td></tr>';
-                }).join('') || '<tr><td colspan="8" class="p-6 text-center text-gray-400">Tidak ada data.</td></tr>';
+                        + rtSelCr(r.clearingRate) + rtSelOc(r) + '</tr>';
+                }).join('') || '<tr><td colspan="11" class="p-6 text-center text-gray-400">Tidak ada data.</td></tr>';
             }
 
             function renderCostCenter2(rows, catatan) {
@@ -681,13 +715,16 @@
                 qty: 'Klaim', netCb: 'Net CB', netClaimed: 'Net Claimed', grossClaimed: 'Gross Claimed',
                 cbExpired: 'CB Expired', outstandingQty: 'Outstanding', outstandingValue: 'Outstanding Amt',
                 outstandingRate: 'Outstanding %', clearingRate: 'Clearing Rate',
+                outstandingClaimQty: 'Outstanding Claim (dok)', outstandingClaimValue: 'Outstanding Claim Amt',
+                outstandingClaimRate: 'Outstanding Claim %',
                 bulan: 'Periode', label: 'Bulan', namaBulan: 'Bulan', nilai: 'Nilai',
                 kelompok: 'Umur', status: 'Status'
             };
 
             const RT_URUT_KOLOM = ['Keterangan', 'Nilai', 'bulan', 'namaBulan', 'label', 'kelompok', 'status',
                 'kodeDepot', 'namaDepot', 'region', 'kodeCampaign', 'namaCampaign', 'qty', 'netCb', 'netClaimed',
-                'grossClaimed', 'cbExpired', 'outstandingQty', 'outstandingValue', 'outstandingRate', 'clearingRate', 'nilai'];
+                'grossClaimed', 'cbExpired', 'outstandingQty', 'outstandingValue', 'outstandingRate', 'clearingRate',
+                'outstandingClaimQty', 'outstandingClaimValue', 'outstandingClaimRate', 'nilai'];
             function rtUrutKolom(k) { const i = RT_URUT_KOLOM.indexOf(k); return i < 0 ? RT_URUT_KOLOM.length : i; }
 
             // KPI berupa satu objek, bukan daftar baris. Diubah menjadi pasangan nama-nilai
@@ -701,6 +738,8 @@
                     cbExpired: 'CB Expired', qtyExpired: 'Qty Expired',
                     grossClaimed: 'Gross Claimed', outstandingQty: 'Outstanding (dok)',
                     outstandingValue: 'Outstanding (nilai)', clearingRate: 'Clearing Rate',
+                    outstandingClaimQty: 'Outstanding Claim (dok)', outstandingClaimValue: 'Outstanding Claim (nilai)',
+                    outstandingClaimRate: 'Outstanding Claim %',
                     jumlahDepot: 'Jumlah Depot', jumlahCampaign: 'Jumlah Campaign'
                 };
                 return Object.keys(k).map(function (key) {

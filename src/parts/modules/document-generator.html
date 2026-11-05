@@ -1,0 +1,108 @@
+                <!-- MODULE: DOCUMENT GENERATOR (20261163190000, 20261163540000) -->
+                <!-- Tanda Terima per toko per depot, untuk seluruh toko (tanpa syarat lunas). Tab Done:
+                     klaim yang sudah Done (sudah Clearing), dapat disaring Tgl Done. Tab Not Yet: seluruh
+                     klaim Not Yet. Admin depot mengunduhnya sebagai PDF - 2 form per A4 - lalu sales
+                     membawanya ke toko untuk ditandatangani. Daftar dan isi form datang dari server dan
+                     dibatasi jangkauan depot akun. -->
+                <div id="modDocGen" class="module-section hidden">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 md:p-8">
+                        <div class="flex flex-wrap justify-between items-center gap-3 border-b border-gray-100 pb-4 mb-5">
+                            <div>
+                                <h2 class="text-2xl font-extrabold text-gray-800"><i class="fas fa-file-signature text-violet-600 mr-2"></i>Document Generator</h2>
+                                <p class="text-sm text-gray-500 mt-1" id="dgRingkas">Tanda terima untuk toko dengan klaim Done.</p>
+                            </div>
+                            <button onclick="dgMuat()" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-bold bg-white hover:bg-gray-50"><i class="fas fa-sync-alt text-blue-500 mr-2"></i>Segarkan</button>
+                        </div>
+                        <div class="flex gap-2 p-1 bg-gray-50 rounded-xl mb-5">
+                            <button id="docTabDone" onclick="switchDocGenTab('done')" class="px-5 py-2 text-sm font-bold rounded-lg bg-violet-100 text-violet-700">Done</button>
+                            <!-- 20261163690000: tab Not Yet ditiadakan (pemilik, 4 November 2026). -->
+                        </div>
+
+                        <div id="dgKpi" class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5"></div>
+
+                        <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-4 flex flex-wrap gap-3 rc-filter-bar shadow-sm">
+                            <div class="w-44 flex-shrink-0">
+                                <label class="block text-xs font-bold text-gray-700 mb-1.5">Depot</label>
+                                <select id="dgDepot" onchange="dgSaring()" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm font-bold text-gray-700"></select>
+                            </div>
+                            <div class="w-64 flex-shrink-0">
+                                <label class="block text-xs font-bold text-gray-700 mb-1.5">Campaign</label>
+                                <select id="dgCampaign" onchange="dgSaring()" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm font-bold text-gray-700"></select>
+                            </div>
+                            <!-- Saringan klaim, hanya tab Done: Tgl Done (tanggal Clearing) dari / sampai, inklusif, dan
+                                 No Batch Clearing (sama persis). Keduanya membatasi klaim yang masuk form. -->
+                            <div id="dgSaringDone" class="flex flex-wrap gap-3 flex-shrink-0">
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-700 mb-1.5" title="Tanggal Done (tanggal Clearing), inklusif. Kosong = seluruh klaim Done.">Tgl Done</label>
+                                    <div class="flex items-center gap-1.5"><input type="date" id="dgDari" onchange="dgSaringKlaimBerubah()" class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm"><span class="text-xs text-gray-400">s/d</span><input type="date" id="dgSampai" onchange="dgSaringKlaimBerubah()" class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm"></div>
+                                </div>
+                                <div class="w-48">
+                                    <label class="block text-xs font-bold text-gray-700 mb-1.5" title="Hanya klaim dengan No Batch Clearing ini yang masuk form. Kosong = semua batch.">No Batch Clearing</label>
+                                    <input id="dgBatch" list="dgBatchList" onchange="dgSaringKlaimBerubah()" autocomplete="off" placeholder="Semua batch" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm font-mono">
+                                    <datalist id="dgBatchList"></datalist>
+                                </div>
+                            </div>
+                            <div class="w-40 flex-shrink-0">
+                                <label class="block text-xs font-bold text-gray-700 mb-1.5">Status Unduh</label>
+                                <select id="dgUnduh" onchange="dgSaring()" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm font-bold text-gray-700">
+                                    <option value="">Semua</option><option value="belum">Belum diunduh</option><option value="sudah">Sudah diunduh</option><option value="berubah">Data berubah sejak unduh</option>
+                                </select>
+                            </div>
+                            <div class="w-44 flex-shrink-0">
+                                <label class="block text-xs font-bold text-gray-700 mb-1.5">Customer Master</label>
+                                <select id="dgMaster" onchange="dgSaring()" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm font-bold text-gray-700">
+                                    <option value="">Semua</option><option value="siap">Siap cetak</option><option value="kurang">Belum lengkap</option>
+                                </select>
+                            </div>
+                            <!-- 20261163740000: saringan Remark (PDA / PDH / PDA + PDH; PP = ada Bukti TF yang ikut tercetak). -->
+                            <div class="w-44 flex-shrink-0">
+                                <label class="block text-xs font-bold text-gray-700 mb-1.5" title="PDA = posting date available, PDH = posting date hidden, PP = ada Bukti Transfer (file bank) yang ikut tercetak">Remark</label>
+                                <select id="dgRemark" onchange="dgSaring()" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm font-bold text-gray-700">
+                                    <option value="">Semua</option><option value="pda">PDA saja</option><option value="pdh">PDH saja</option><option value="campur">PDA + PDH</option><option value="pp">PP (ada Bukti TF)</option><option value="tanpa_pp">Tanpa PP</option>
+                                </select>
+                            </div>
+                            <div class="flex-1 min-w-[200px]">
+                                <label class="block text-xs font-bold text-gray-700 mb-1.5">Cari</label>
+                                <input type="search" id="dgCari" oninput="dgCariTunda()" autocomplete="off" placeholder="Kode / nama toko, pemilik, sales, no. form..." class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                            </div>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-3 mb-3">
+                            <span id="dgPilihInfo" class="text-sm font-bold text-gray-700">0 toko dipilih</span>
+                            <button onclick="dgPilihSemuaHasil(true)" class="text-xs font-bold text-violet-700 hover:underline">Pilih semua hasil filter yang siap cetak</button>
+                            <button onclick="dgPilihSemuaHasil(false)" class="text-xs font-bold text-gray-500 hover:underline">Kosongkan pilihan</button>
+                            <!-- 20261163730000: Bukti TF (data file bank KlikBCA) dicetak sesudah form PDA. -->
+                            <label class="ml-auto flex items-center gap-2 text-sm font-bold text-gray-700" title="Dokumen yang di-Clearing / diarsip lewat Upload File Bank mendapat halaman Bukti Transfer sesudah Tanda Terima PDA">
+                                <input type="checkbox" id="dgSertaBukti" checked class="rounded text-violet-600"> Sertakan Bukti Transfer
+                            </label>
+                            <button id="dgBtnUnduh" onclick="dgUnduhTerpilih()" disabled class="bg-violet-600 hover:bg-violet-700 text-white text-sm font-bold py-2 px-4 rounded-lg shadow-sm disabled:opacity-40"><i class="fas fa-file-pdf mr-1.5"></i>Unduh PDF</button>
+                        </div>
+
+                        <div class="table-container border border-gray-200 rounded-xl overflow-x-auto">
+                            <table class="w-full text-left text-xs">
+                                <thead class="bg-gray-50 text-gray-600 uppercase text-[11px]">
+                                    <tr>
+                                        <th class="p-3 w-8"><input type="checkbox" id="dgPilihHalaman" onchange="dgPilihHalaman(this.checked)" class="rounded" title="Pilih semua di halaman ini"></th>
+                                        <th class="p-3 whitespace-nowrap">Depot</th>
+                                        <th class="p-3">Toko</th>
+                                        <th class="p-3 whitespace-nowrap">Nama Pemilik</th>
+                                        <th class="p-3 whitespace-nowrap">Subyek Pajak</th>
+                                        <th class="p-3 whitespace-nowrap">Campaign</th>
+                                        <th class="p-3 whitespace-nowrap">Jenis CB</th>
+                                        <th class="p-3 text-right whitespace-nowrap">Total Net CB</th>
+                                        <th class="p-3 whitespace-nowrap" id="dgKolTgl">Tgl Done</th>
+                                        <th class="p-3 whitespace-nowrap">Unduh Terakhir</th>
+                                        <th class="p-3">Status</th>
+                                        <th class="p-3 text-center whitespace-nowrap">Aksi</th>
+                                        <!-- 20261163700000: PDA = posting date available (Tanggal Proses mulai 01-Oct-2026), PDH = posting date hidden.
+                                             20261163740000: PP = ada Bukti Transfer (file bank) yang tercetak sesudah form PDA. -->
+                                        <th class="p-3 whitespace-nowrap" title="PDA = posting date available (Tanggal Proses mulai 01-Oct-2026 dicetak); PDH = posting date hidden (sebelum 01-Oct-2026 / tanpa tanggal, kolom tidak dicetak); PP = ada Bukti Transfer dari file bank">Remark</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dgBody"></tbody>
+                            </table>
+                        </div>
+                        <div id="dgPager" class="flex flex-wrap items-center justify-between gap-2 mt-3 text-xs text-gray-600"></div>
+                        <p id="dgCatatan" class="text-xs text-gray-400 mt-3"></p>
+                    </div>
+                </div>

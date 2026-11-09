@@ -15,6 +15,6 @@ window.RC_ENV = {
   dataBackend: 'supabase',
   supabaseUrl: 'https://vvojshgcduqlugngpzkj.supabase.co',
   supabasePublishableKey: 'sb_publishable_CO-7bzo2xZnUg3LQEjWP5Q_zEqvAVLd',
-  appsScriptUrl: 'https://script.google.com/macros/s/AKfycbyaYkDLi2i3O8Aprc5V80prTbvzrG1IlCQ_xRKCVsclHu_58_-6wjwQtbmjqxVjmYgw/exec',
+  appsScriptUrl: '', // diisi saat deploy bila fallback Apps Script dibutuhkan
   environment: 'dev'
 };

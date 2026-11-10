@@ -332,7 +332,7 @@
                     ['Tanggal Efektif', x.tglEfektif], ['No. Referensi', x.transId], ['Layanan', x.layanan], ['Ke Rekening', x.keRek],
                     ['Bank Tujuan', x.bankTujuan], ['Nama Penerima', x.namaPenerima || '-'],
                     ['Nominal', 'Rp ' + dgRupiah(x.nominal)],
-                    ['Biaya', 'Rp ' + dgRupiah(x.biaya) + (x.biayaOleh ? ' (' + x.biayaOleh + ')' : '')],
+                    ['Biaya', x.sumber === 'template' ? '-' : 'Rp ' + dgRupiah(x.biaya) + (x.biayaOleh ? ' (' + x.biayaOleh + ')' : '')],
                     ['Berita', x.berita], ['Status', x.status]
                 ];
                 baris.forEach((r, i) => {
@@ -340,13 +340,14 @@
                     set('helvetica', 'normal', 9, DG_REDUP); doc.text(r[0], kiri + 2, ry); doc.text(':', kiri + 38, ry);
                     const nilai = dgTeks(r[1]) || '-';
                     if (r[0] === 'Nominal') set('courier', 'bold', 11, DG_MERAH);
-                    else if (r[0] === 'Status') set('helvetica', 'bold', 9.5, nilai === 'BERHASIL' ? [26, 127, 55] : DG_MERAH);
+                    else if (r[0] === 'Status') set('helvetica', 'bold', 9.5, nilai === 'BERHASIL' || nilai === 'DIPROSES' ? [26, 127, 55] : DG_MERAH);
                     else set('helvetica', r[0] === 'No. Referensi' || r[0] === 'Ke Rekening' ? 'bold' : 'normal', 9.5, DG_TEKS);
                     doc.text(dgPas(doc, nilai, kanan - kiri - 44), kiri + 41, ry);
                 });
                 doc.setFillColor.apply(doc, DG_BIRU); doc.rect(X, y(H - 6), L, 6, 'F');
                 set('helvetica', 'normal', 7, [255, 255, 255]);
-                doc.text('Digenerate otomatis oleh RC berdasarkan data transaksi dari KlikBCA Bisnis', kiri, y(H - 2.1));
+                // 20261163790000: dari Mass Upload tidak ada data bank, jadi tidak boleh mengaku berasal dari KlikBCA.
+                doc.text(x.sumber === 'template' ? 'Digenerate otomatis oleh RC berdasarkan data klaim' : 'Digenerate otomatis oleh RC berdasarkan data transaksi dari KlikBCA Bisnis', kiri, y(H - 2.1));
                 doc.setFont('helvetica', 'bold'); dgTeksKanan(doc, 'PT Nipsea Paint and Chemicals', kanan, y(H - 2.1));
             }
 

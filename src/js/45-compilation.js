@@ -332,7 +332,7 @@
                 let reason = document.getElementById('compArchiveReason').value.trim();
                 if (!reason) { showNotification("Alasan pengarsipan wajib diisi.", "error"); return; }
                 let confirmed = await showConfirmModal({ title: "Konfirmasi Arsip",
-                    message: ids.length + " baris cashback akan diarsipkan dan hilang dari seluruh layar serta laporan.\n\nBaris tetap tersimpan dan dapat dikembalikan lewat daftar arsip.",
+                    message: ids.length + " baris cashback akan diarsipkan dan hilang dari seluruh layar serta laporan.\n\nBaris tetap tersimpan dan dapat dikembalikan lewat daftar arsip, selama toko dan campaign yang sama belum dicompile ulang.",
                     confirmText: "Ya, Arsipkan", danger: true });
                 if (!confirmed) return;
                 showLoadingOverlay("Mengarsipkan...");
@@ -352,26 +352,39 @@
             async function toggleArchivedList() {
                 let panel = document.getElementById('compArchivedPanel');
                 if (!panel.classList.contains('hidden')) { panel.classList.add('hidden'); return; }
+                await compMuatArsip();
+            }
+
+            // 20261163800000: pencarian cepat di server. Toko + campaign yang sudah dicompile ulang tidak dapat dikembalikan.
+            let rcCompArsipKe = 0;
+            async function compMuatArsip() {
+                const ke = ++rcCompArsipKe, panel = document.getElementById('compArchivedPanel');
                 showLoadingOverlay("Memuat arsip...");
                 try {
-                    let res = await fetchApp({ action: 'archivedList' });
+                    let res = await fetchApp({ action: 'archivedList', cari: (document.getElementById('compArsipCari') || {}).value || '' });
+                    if (ke !== rcCompArsipKe) return;
                     if (res.status !== 'success') { showNotification(res.message || "Gagal memuat arsip.", "error"); return; }
                     let html = '';
                     (res.rows || []).forEach(r => {
+                        const aksi = r.pengganti
+                            ? '<span class="inline-block px-2 py-1 rounded bg-gray-100 text-gray-500 text-[11px] font-bold" title="Toko dan campaign yang sama sudah dicompile ulang">Tidak dapat dikembalikan<br><span class="font-mono font-normal">' + rcEsc(r.pengganti) + '</span></span>'
+                            : '<button onclick="unarchiveCompilationRow(\'' + rcEsc(r.id) + '\')" class="px-3 py-1.5 bg-white border border-gray-300 hover:bg-green-50 text-green-700 font-bold rounded-lg text-xs">Kembalikan</button>';
                         html += '<tr class="border-b border-gray-100">'
                             + '<td class="p-3 font-bold text-gray-700">' + rcEsc(r.noDoc) + '</td>'
-                            + '<td class="p-3 text-xs">' + rcEsc(r.kodeToko) + '</td>'
+                            + '<td class="p-3 text-xs">' + rcEsc(r.kodeToko) + '<br><span class="text-gray-500">' + rcEsc(r.namaToko) + '</span></td>'
                             + '<td class="p-3 text-xs">' + rcEsc(r.codeCampaign) + '</td>'
                             + '<td class="p-3 text-right">' + rcMoney(r.cbNet) + '</td>'
                             + '<td class="p-3 text-xs text-gray-600">' + rcEsc(r.alasan) + '</td>'
                             + '<td class="p-3 text-xs">' + rcEsc(r.olehUser) + '<br><span class="text-gray-400">' + rcEsc(r.waktu) + '</span></td>'
-                            + '<td class="p-3 text-center"><button onclick="unarchiveCompilationRow(\'' + rcEsc(r.id) + '\')" class="px-3 py-1.5 bg-white border border-gray-300 hover:bg-green-50 text-green-700 font-bold rounded-lg text-xs">Kembalikan</button></td></tr>';
+                            + '<td class="p-3 text-center">' + aksi + '</td></tr>';
                     });
                     document.getElementById('compArchivedBody').innerHTML = html
                         || '<tr><td colspan="7" class="p-6 text-center text-gray-500">Tidak ada baris terarsip.</td></tr>';
+                    const tampil = (res.rows || []).length, total = Number(res.total) || 0;
+                    setTextSafely('compArsipJumlah', total > tampil ? '(' + tampil.toLocaleString('id-ID') + ' dari ' + total.toLocaleString('id-ID') + ')' : '(' + total.toLocaleString('id-ID') + ')');
                     panel.classList.remove('hidden');
                 } catch (e) { showNotification("Gagal memuat arsip.", "error"); }
-                finally { hideLoadingOverlay(); }
+                finally { if (ke === rcCompArsipKe) hideLoadingOverlay(); }
             }
 
             async function unarchiveCompilationRow(id) {
@@ -381,7 +394,7 @@
                     if (res.status === 'success') {
                         showNotification("Baris dikembalikan.", "success");
                         logActivity('Kembalikan cashback dari arsip');
-                        toggleArchivedList(); toggleArchivedList();
+                        compMuatArsip();
                         loadCompilation(rcCompState.offset);
                     } else { showNotification(res.message || "Gagal.", "error"); }
                 } catch (e) { showNotification("Gagal terhubung ke server.", "error"); }

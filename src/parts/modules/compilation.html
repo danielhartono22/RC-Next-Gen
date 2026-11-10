@@ -12,7 +12,7 @@
                                 class="px-5 py-2 text-sm font-bold rounded-lg transition text-gray-500 hover:bg-gray-100">
                                 Reprocessing Doc <span id="cmpReproBadge" class="ml-1 px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 text-[10px]">0</span></button>
                             <!-- 20261163140000: tampil hanya bila tab ini dicentang di Access Management. -->
-                            <button data-rc-tab="compilation.amend" id="cmpTabAmend" onclick="switchCompilationTab('amend')"
+                            <button data-rc-tab="compilation.amend|compilation.changedc|compilation.changestatus" id="cmpTabAmend" onclick="switchCompilationTab('amend')"
                                 class="px-5 py-2 text-sm font-bold rounded-lg transition text-gray-500 hover:bg-gray-100">Amend Doc</button>
                             <!-- 20261163170000: tampil hanya bila tab ini dicentang di Access Management. -->
                             <button data-rc-tab="compilation.debtor" id="cmpTabDebtor" onclick="switchCompilationTab('debtor')"
@@ -31,7 +31,7 @@
                         <div data-rc-tab="compilation.archive" id="compArchiveBar" class="hidden mb-4 p-4 bg-red-50 border border-red-200 rounded-xl flex flex-wrap gap-3 items-center"><span class="font-bold text-red-800 text-sm">Arsipkan baris terpilih</span><input id="compArchiveReason" placeholder="Alasan pengarsipan (wajib)" class="flex-1 min-w-[240px] px-4 py-2 border border-red-300 rounded-lg text-sm"><button onclick="archiveCompilationRows()" id="btnArchiveComp" class="px-5 py-2 bg-red-600 hover:bg-red-700 disabled:bg-red-300 text-white font-bold rounded-lg text-sm">Arsipkan (<span id="compArsipCount">0</span>)</button></div>
                         <div class="overflow-auto border border-gray-200 rounded-xl"><table class="w-full text-sm"><thead class="bg-gray-50 text-gray-600"><tr id="compTableHead"></tr></thead><tbody id="compTableBody"></tbody></table></div>
                         <div id="compPager" class="mt-4"></div>
-                        <div id="compArchivedPanel" class="hidden mt-6 border-t border-gray-200 pt-6"><h3 class="font-black text-gray-800 mb-3"><i class="fas fa-box-archive text-gray-500 mr-2"></i>Baris Terarsip</h3><div class="overflow-auto border border-gray-200 rounded-xl"><table class="w-full text-sm"><thead class="bg-gray-50 text-gray-600"><tr><th class="p-3 text-left font-bold">No Doc</th><th class="p-3 text-left font-bold">Toko</th><th class="p-3 text-left font-bold">Campaign</th><th class="p-3 text-right font-bold">Cashback</th><th class="p-3 text-left font-bold">Alasan</th><th class="p-3 text-left font-bold">Oleh</th><th class="p-3 text-center font-bold">Aksi</th></tr></thead><tbody id="compArchivedBody"></tbody></table></div></div>
+                        <div id="compArchivedPanel" class="hidden mt-6 border-t border-gray-200 pt-6"><div class="flex flex-wrap items-center justify-between gap-3 mb-3"><h3 class="font-black text-gray-800"><i class="fas fa-box-archive text-gray-500 mr-2"></i>Baris Terarsip <span id="compArsipJumlah" class="font-normal text-xs text-gray-500"></span></h3><!-- 20261163800000 --><input id="compArsipCari" type="search" oninput="debounceSearch(() => compMuatArsip(), 400)" placeholder="Cari No Doc / toko / campaign / alasan / user" class="w-full md:w-96 px-3 py-2 border border-gray-300 rounded-lg text-sm"></div><div class="overflow-auto border border-gray-200 rounded-xl"><table class="w-full text-sm"><thead class="bg-gray-50 text-gray-600"><tr><th class="p-3 text-left font-bold">No Doc</th><th class="p-3 text-left font-bold">Toko</th><th class="p-3 text-left font-bold">Campaign</th><th class="p-3 text-right font-bold">Cashback</th><th class="p-3 text-left font-bold">Alasan</th><th class="p-3 text-left font-bold">Oleh</th><th class="p-3 text-center font-bold">Aksi</th></tr></thead><tbody id="compArchivedBody"></tbody></table></div></div>
                     </div>
                         </div>
 
@@ -83,6 +83,13 @@
                         <!-- Cukup No Doc dan Net CB baru. Status dokumen tidak berubah; gross up dihitung
                              ulang server. Dokumen yang pernah di-Amend bertanda "Doc Amendment" di Remark. -->
                         <div id="cmpPanelAmend" class="hidden">
+                            <!-- 20261163830000: dua sub bab dengan hak masing-masing (bawaan OSC; peran lain bila dicentang). -->
+                            <div class="flex flex-wrap gap-2 mb-5 border-b border-gray-200 pb-3">
+                                <button type="button" id="amdSubValue" data-rc-tab="compilation.amend" onclick="amdSub('value')" class="px-4 py-1.5 text-sm font-bold rounded-lg transition">Change Value</button>
+                                <button type="button" id="amdSubDc" data-rc-tab="compilation.changedc" onclick="amdSub('dc')" class="px-4 py-1.5 text-sm font-bold rounded-lg transition">Change DC</button>
+                                <button type="button" id="amdSubStatus" data-rc-tab="compilation.changestatus" onclick="amdSub('status')" class="px-4 py-1.5 text-sm font-bold rounded-lg transition">Change Status</button>
+                            </div>
+                            <div id="amdPanelValue">
                             <div class="mb-5 border-b border-gray-100 pb-4"><h2 class="text-2xl font-extrabold text-gray-800"><i class="fas fa-pen-to-square text-amber-600 mr-2"></i>Amend Doc</h2>
                                 <p class="text-gray-500 mt-1 text-sm">Ubah Net CB satu atau beberapa dokumen dari status apa pun. Status dokumen tidak berubah, gross up dihitung ulang otomatis, email peringatan dikirim ke depot, dan dokumen bertanda <b>Doc Amendment - &lt;tahap&gt;</b> di Remark.</p></div>
                             <div class="p-4 bg-amber-50 border border-amber-200 rounded-xl">
@@ -111,6 +118,59 @@
                                     <th class="p-3 text-left font-bold">Status Awal</th><th class="p-3 text-right font-bold">Net CB Lama</th><th class="p-3 text-right font-bold">Net CB Baru</th>
                                     <th class="p-3 text-left font-bold">Alasan</th><th class="p-3 text-left font-bold">Oleh</th></tr></thead>
                                     <tbody id="amendRiwayatBody"></tbody></table>
+                            </div>
+                            </div>
+                            <div id="amdPanelDc" class="hidden">
+                            <div class="mb-5 border-b border-gray-100 pb-4"><h2 class="text-2xl font-extrabold text-gray-800"><i class="fas fa-right-left text-cyan-600 mr-2"></i>Change DC</h2>
+                                <p class="text-gray-500 mt-1 text-sm">Memindahkan toko ke depot lain. Master toko dan dokumen yang belum selesai pindah ke depot baru; No Doc mengikuti abbr depot baru. Dokumen Done dan Expired tetap di depot lama dengan Remark "DC changed". Depot asal dan depot tujuan mendapat email.</p></div>
+                            <!-- 20261163850000: baris, template, dan tempel Excel sama seperti Change Value. -->
+                            <div class="p-4 bg-cyan-50 border border-cyan-200 rounded-xl">
+                                <datalist id="cdcDepotPilihan"></datalist>
+                                <div class="overflow-auto"><table class="w-full text-sm"><thead><tr class="text-[10px] font-black text-cyan-900 uppercase">
+                                    <th class="p-2 text-left w-[16%]">Kode Toko <i class="fas fa-asterisk text-red-500"></i></th><th class="p-2 text-left w-[12%]">Depot Baru <i class="fas fa-asterisk text-red-500"></i></th>
+                                    <th class="p-2 text-left w-[26%]">Reason</th><th class="p-2 text-left">Toko</th><th class="p-2 w-8"></th></tr></thead>
+                                    <tbody id="cdcBaris"></tbody></table></div>
+                                <div class="flex flex-wrap items-center gap-3 mt-3">
+                                    <button type="button" onclick="cdcTambahBaris()" class="px-4 py-2 bg-white border border-cyan-300 hover:bg-cyan-100 text-cyan-900 font-bold rounded-lg text-xs"><i class="fas fa-plus mr-1.5"></i>Tambah Baris</button>
+                                    <button type="button" onclick="cdcUnduhTemplate()" class="px-4 py-2 bg-white border border-cyan-300 hover:bg-cyan-100 text-cyan-900 font-bold rounded-lg text-xs"><i class="fas fa-file-excel mr-1.5 text-green-600"></i>Unduh Template</button>
+                                    <label class="px-4 py-2 bg-white border border-cyan-300 hover:bg-cyan-100 text-cyan-900 font-bold rounded-lg text-xs cursor-pointer"><i class="fas fa-upload mr-1.5 text-blue-600"></i>Unggah Template<input type="file" id="cdcFile" accept=".xlsx,.xls,.csv" class="hidden" onchange="cdcUnggahTemplate(this)"></label>
+                                    <button type="button" onclick="cdcKosongkan()" class="px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-600 font-bold rounded-lg text-xs"><i class="fas fa-eraser mr-1.5"></i>Kosongkan</button>
+                                    <span class="text-[11px] text-cyan-900 basis-full">Copas dari Excel: blok kolom Kode Toko (boleh sekaligus Depot Baru dan Reason) lalu Ctrl+V di kolom tujuan pada baris mana pun; satu kolom saja juga bisa. Maksimal 200 toko sekali proses; satu baris salah, tidak ada yang dipindah.</span>
+                                </div>
+                                <label class="block mt-4"><span class="text-[10px] font-black text-cyan-900 uppercase ml-1">Reason (untuk baris yang kolom Reason-nya kosong)</span>
+                                    <input id="cdcReasonUmum" maxlength="500" placeholder="mis. Toko pindah area layanan" class="w-full mt-1 px-4 py-2.5 border border-cyan-300 rounded-lg text-sm bg-white"></label>
+                                <div class="flex flex-wrap gap-3 mt-4">
+                                    <button type="button" onclick="cdcCekSemua()" class="px-5 py-2.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold rounded-lg text-sm"><i class="fas fa-magnifying-glass mr-2"></i>Cek Toko</button>
+                                    <button type="button" id="btnCdcProses" onclick="cdcProses()" class="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-700 text-white font-bold rounded-lg text-sm"><i class="fas fa-right-left mr-2"></i>Proses Change DC</button>
+                                </div>
+                            </div>
+                            <h3 class="font-black text-gray-800 mt-6 mb-3">Riwayat Change DC</h3>
+                            <div class="overflow-auto border border-gray-200 rounded-xl"><table class="w-full text-sm"><thead class="bg-gray-50 text-gray-600"><tr><th class="p-3 text-left font-bold">Waktu</th><th class="p-3 text-left font-bold">Toko</th><th class="p-3 text-left font-bold">Dari</th><th class="p-3 text-left font-bold">Ke</th><th class="p-3 text-left font-bold">Keterangan</th><th class="p-3 text-left font-bold">Reason</th><th class="p-3 text-left font-bold">Oleh</th></tr></thead><tbody id="cdcRiwayatBody"></tbody></table></div>
+                            </div>
+                            <!-- 20261163880000: Change Status - hanya Expired ke Not Yet, pola sama dengan Change Value. -->
+                            <div id="amdPanelStatus" class="hidden">
+                            <div class="mb-5 border-b border-gray-100 pb-4"><h2 class="text-2xl font-extrabold text-gray-800"><i class="fas fa-rotate-left text-rose-600 mr-2"></i>Change Status</h2>
+                                <p class="text-gray-500 mt-1 text-sm">Mengembalikan dokumen <b>Expired</b> menjadi <b>Not Yet</b> berdasarkan No Doc. Hanya dari Expired; Expired milik campaign Closed sudah final. Perpanjangan SO / Billing dan batch Expired dikosongkan, dan email dikirim ke depot.</p></div>
+                            <div class="p-4 bg-rose-50 border border-rose-200 rounded-xl">
+                                <div class="overflow-auto"><table class="w-full text-sm"><thead><tr class="text-[10px] font-black text-rose-900 uppercase">
+                                    <th class="p-2 text-left w-[28%]">No Doc <i class="fas fa-asterisk text-red-500"></i></th><th class="p-2 text-left w-[28%]">Alasan</th><th class="p-2 text-left">Dokumen</th><th class="p-2 w-8"></th></tr></thead>
+                                    <tbody id="cstBaris"></tbody></table></div>
+                                <div class="flex flex-wrap items-center gap-3 mt-3">
+                                    <button type="button" onclick="cstTambahBaris()" class="px-4 py-2 bg-white border border-rose-300 hover:bg-rose-100 text-rose-900 font-bold rounded-lg text-xs"><i class="fas fa-plus mr-1.5"></i>Tambah Baris</button>
+                                    <button type="button" onclick="cstUnduhTemplate()" class="px-4 py-2 bg-white border border-rose-300 hover:bg-rose-100 text-rose-900 font-bold rounded-lg text-xs"><i class="fas fa-file-excel mr-1.5 text-green-600"></i>Unduh Template</button>
+                                    <label class="px-4 py-2 bg-white border border-rose-300 hover:bg-rose-100 text-rose-900 font-bold rounded-lg text-xs cursor-pointer"><i class="fas fa-upload mr-1.5 text-blue-600"></i>Unggah Template<input type="file" id="cstFile" accept=".xlsx,.xls,.csv" class="hidden" onchange="cstUnggahTemplate(this)"></label>
+                                    <button type="button" onclick="cstKosongkan()" class="px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-600 font-bold rounded-lg text-xs"><i class="fas fa-eraser mr-1.5"></i>Kosongkan</button>
+                                    <span class="text-[11px] text-rose-900 basis-full">Copas dari Excel: blok kolom No Doc (boleh sekaligus Alasan) lalu Ctrl+V di kolom tujuan pada baris mana pun. Maksimal 200 dokumen sekali proses; satu baris salah, tidak ada yang diubah.</span>
+                                </div>
+                                <label class="block mt-4"><span class="text-[10px] font-black text-rose-900 uppercase ml-1">Alasan (untuk baris yang kolom Alasan-nya kosong)</span>
+                                    <input id="cstAlasanUmum" maxlength="300" placeholder="mis. Expired keliru, toko masih berhak" class="w-full mt-1 px-4 py-2.5 border border-rose-300 rounded-lg text-sm bg-white"></label>
+                                <div class="flex flex-wrap gap-3 mt-4">
+                                    <button type="button" onclick="cstCekSemua()" class="px-5 py-2.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold rounded-lg text-sm"><i class="fas fa-magnifying-glass mr-2"></i>Cek Dokumen</button>
+                                    <button type="button" id="btnCstProses" onclick="cstProses()" class="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg text-sm"><i class="fas fa-rotate-left mr-2"></i>Proses Change Status</button>
+                                </div>
+                            </div>
+                            <h3 class="font-black text-gray-800 mt-6 mb-3">Riwayat Change Status</h3>
+                            <div class="overflow-auto border border-gray-200 rounded-xl"><table class="w-full text-sm"><thead class="bg-gray-50 text-gray-600"><tr><th class="p-3 text-left font-bold">Waktu</th><th class="p-3 text-left font-bold">No Doc</th><th class="p-3 text-left font-bold">Depot</th><th class="p-3 text-left font-bold">Toko</th><th class="p-3 text-left font-bold">Campaign</th><th class="p-3 text-right font-bold">Net CB</th><th class="p-3 text-left font-bold">Alasan</th><th class="p-3 text-left font-bold">Oleh</th></tr></thead><tbody id="cstRiwayatBody"></tbody></table></div>
                             </div>
                         </div>
 

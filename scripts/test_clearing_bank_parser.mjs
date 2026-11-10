@@ -139,6 +139,23 @@ test('File contoh: kolom Bukti TF (layanan, pengirim, SWIFT, nama bank, biaya) t
   assert.equal(llg.biaya, 2900);
 });
 
+// 20261163790000: Mass Upload.
+test('Mass Upload: tanggal dinormalkan; garis miring dan tanggal mustahil ditolak', () => {
+  const t = (v) => ctx.rcMassTanggal(v);
+  for (const v of ['05-Nov-26', '05-Nov-2026', '5-Nov-26', '05 Nov 2026', '05-Nop-26', '05.11.2026', '05-11-2026', '05.11.26', '05-11-26', '051126', '05112026', '2026-11-05', 46331]) {
+    assert.equal(t(v), '2026-11-05', String(v));
+  }
+  assert.equal(t('05-Okt-26'), '2026-10-05');
+  for (const v of ['05/11/2026', '31-02-2026', '32-Nov-26', 'besok', '', null]) assert.equal(t(v), null, String(v));
+});
+
+test('Mass Upload: baca template, baris kosong dilewati, No Doc huruf besar, tanggal salah tetap dikirim', () => {
+  const r = plain(ctx.rcMassParse([['No Doc', 'Tanggal Proses Aktual'], ['npc/cmp/mdn/1/2 ', '05-Nov-26'], ['', ''], ['NPC/X/2', 'salah']]));
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.baris.map(b => [b.baris, b.remark1, b.tglTransfer]), [[2, 'NPC/CMP/MDN/1/2', '2026-11-05'], [4, 'NPC/X/2', null]]);
+  assert.equal(plain(ctx.rcMassParse([['Kode', 'Nilai'], ['a', 1]])).ok, false);
+});
+
 test('File tanpa kolom Bukti TF tetap terbaca (kolom tambahan kosong)', () => {
   const r = plain(ctx.rcBankParse(file([baris({})]), { namaFile: 'x_27102026145112.txt' }));
   assert.equal(r.ok, true);

@@ -108,22 +108,20 @@
                             </div>
                             <div id="clrBankHasil" class="hidden mt-4"></div>
                         </div>
-                        <!-- Mass process: tempel daftar No Document, lalu baris yang cocok dicentang
-                             sekaligus. Posting-nya tetap lewat tombol yang sama di bawah, karena
-                             Clearing menuntut Tgl Clearing aktual - satu jalur posting, satu aturan. -->
+                        <!-- 20261163790000: Mass Upload menggantikan Mass Process. Template No Doc + Tanggal Proses Aktual,
+                             dinilai server seperti Upload File Bank. Yang sudah diupload lewat file bank atau sudah
+                             Done tidak berubah; Posting Done per baris di bawah tetap ada. -->
                         <div class="mb-4 p-4 bg-white border border-emerald-200 rounded-xl shadow-sm">
-                            <div class="flex flex-wrap items-center gap-2 mb-2">
-                                <span class="text-xs font-black text-emerald-800 uppercase"><i class="fas fa-paste mr-1"></i>Mass Process</span>
-                                <span class="text-[11px] text-gray-500">Tempel No Document dari Excel - satu per baris, atau dipisah koma.</span>
+                            <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                <span class="text-xs font-black text-emerald-800 uppercase"><i class="fas fa-file-arrow-up mr-1"></i>Mass Upload</span>
+                                <span class="text-[11px] text-gray-500">Isi template: No Doc dan Tanggal Proses Aktual (dd-mmm-yy; format tanggal lain dinormalkan). Dokumen yang sudah diupload lewat file bank atau sudah Done tidak berubah. Transfer: Bukti TF tanpa No. Referensi, isi lainnya dari data klaim.</span>
                             </div>
-                            <div class="flex flex-col md:flex-row gap-3">
-                                <textarea id="clrMassDocs" rows="3" placeholder="NPC/CMP/MDN/2925/21775&#10;NPC/CBCN/MDN/2225/005" class="flex-1 px-3 py-2 border border-emerald-200 rounded-lg text-sm font-mono"></textarea>
-                                <div class="flex md:flex-col gap-2">
-                                    <button type="button" onclick="clearingTandaiDariDaftar()" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-sm shadow-sm whitespace-nowrap"><i class="fas fa-check-double mr-2"></i>Centang</button>
-                                    <button type="button" onclick="clearingBersihkanDaftar()" class="px-5 py-2.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold rounded-lg text-sm whitespace-nowrap">Bersihkan</button>
-                                </div>
+                            <div class="mt-3 flex flex-wrap items-center gap-3">
+                                <button type="button" onclick="clrMassTemplate()" class="px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold rounded-lg text-sm"><i class="fas fa-file-excel mr-1.5 text-green-600"></i>Template</button>
+                                <input type="file" id="clrMassFile" accept=".xlsx,.xls,.csv" onchange="clrMassPilih(this)" class="text-sm file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-emerald-600 file:text-white file:font-bold">
+                                <button type="button" onclick="clrMassBatal()" class="px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold rounded-lg text-sm">Bersihkan</button>
                             </div>
-                            <p id="clrMassRingkas" class="text-[11px] text-gray-500 mt-2"></p>
+                            <div id="clrMassHasil" class="hidden mt-4"></div>
                         </div>
                         <div class="table-container shadow-sm border border-emerald-100 rounded-xl mb-4">
                             <table class="w-full text-left border-collapse bg-white whitespace-nowrap">

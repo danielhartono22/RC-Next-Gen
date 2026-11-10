@@ -3,9 +3,10 @@
             // ============================================================================
             // OSC mengunggah ekspor debtor SAP ZDAGE apa adanya. Berkas dibaca di browser
             // (SheetJS), diperiksa, lalu dikirim per 500 baris; penilaian lunas sepenuhnya di
-            // server (rc_zdage_preview / rc_zdage_apply) supaya pratinjau dan penerapan memakai
+            // server, bertahap per depot (20261163860000), supaya pratinjau dan penerapan memakai
             // satu rumus yang sama. Kolom A berisi kode depot: depot yang tidak ada di file
             // memakai data lama, kecuali dicentang "Tidak ada tagihan" (keputusan pemilik).
+            // 20261163780000: tanpa penjagaan yurisdiksi; siapa pun yang punya tab ini boleh mengunggah depot apa pun.
 
             const ZD_BULAN = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
             const ZD_NAMA_BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -194,6 +195,20 @@
                 return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v) ? v + ':00+07:00' : '';
             }
 
+            // 20261163860000: setiap langkah bertahap dicoba ulang bila server sedang sesak atau jaringan
+            // terputus. Aman: bagian yang sudah tersimpan dikenali server dan tidak dikerjakan dua kali.
+            async function zdCoba(payload) {
+                let res = null;
+                for (let i = 0; i < 3; i++) {
+                    try { res = await fetchApp(payload); }
+                    catch (e) { res = { status: 'error', message: (e && e.message) || 'Gagal terhubung ke server.' }; }
+                    if (res && res.status === 'success') return res;
+                    if (!/timeout|terhubung|fetch|network|upstream|canceling|gateway|schema cache/i.test(String(res && res.message))) return res;
+                    await new Promise(r => setTimeout(r, 3000 * (i + 1)));
+                }
+                return res;
+            }
+
             async function zdKirim() {
                 const p = zdState.parsed;
                 if (!p || p.galat.length) return;
@@ -202,10 +217,12 @@
                 showLoadingOverlay('Mengirim data debtor...');
                 try {
                     let id = null;
-                    for (let i = 0; i < p.baris.length; i += ZD_BAGIAN) {
-                        const res = await fetchApp({ action: 'zdageStage', fileName: zdState.file, extractedAt: tarikan,
+                    const n = p.baris.length, jumlah = Math.ceil(n / ZD_BAGIAN);
+                    for (let i = 0; i < n; i += ZD_BAGIAN) {
+                        showLoadingOverlay('Mengirim data debtor: bagian ' + (i / ZD_BAGIAN + 1) + ' dari ' + jumlah + ' (baris ' + (i + 1).toLocaleString('id-ID') + '-' + Math.min(n, i + ZD_BAGIAN).toLocaleString('id-ID') + ' dari ' + n.toLocaleString('id-ID') + ')...');
+                        const res = await zdCoba({ action: 'zdageStage', fileName: zdState.file, extractedAt: tarikan,
                             rows: p.baris.slice(i, i + ZD_BAGIAN), uploadId: id });
-                        if (res.status !== 'success') throw new Error(res.message || 'Gagal mengirim data debtor.');
+                        if (res.status !== 'success') throw new Error((res.message || 'Gagal mengirim data debtor.') + ' Kirim ulang berkas yang sama; belum ada yang diterapkan.');
                         id = res.uploadId;
                     }
                     zdState.uploadId = id;
@@ -217,11 +234,49 @@
                 } finally { hideLoadingOverlay(); }
             }
 
+            // Ringkasan pratinjau dari baris per depot; hitungannya sama dengan rc_zdage_preview.
+            function zdRingkasDari(rows) {
+                const g = { total: rows.length, lunas: 0, lunasCb: 0, gagal: 0, gagal1: 0, gagal2: 0, gagal3: 0, badDebt: 0, suppressed: 0, sudahDitawarkan: 0,
+                    periodeSalah: 0, campaignBermasalah: 0, kembaliRestricted: 0, tanpaMaster: 0, campaign: [] };
+                const kamp = new Map(), kode = new Set();
+                rows.forEach(function (r) {
+                    const a = r.alasan || {};
+                    if (a.tawaranAktif && r.hasil !== 'SUDAH_DITAWARKAN') g.kembaliRestricted++;
+                    if (r.hasil === 'LUNAS') { g.lunas++; g.lunasCb += Number(r.netCb) || 0; }
+                    else if (r.hasil === 'GAGAL') { g.gagal++; if ([1, 2, 3].includes(Number(a.utama))) g['gagal' + Number(a.utama)]++; }
+                    else if (r.hasil === 'BLOCKED_BAD_DEBT') g.badDebt++;
+                    else if (r.hasil === 'SUPPRESSED') g.suppressed++;
+                    else if (r.hasil === 'SUDAH_DITAWARKAN') g.sudahDitawarkan++;
+                    else if (r.hasil === 'TANPA_MASTER') g.tanpaMaster++;
+                    else if (r.hasil === 'PERIODE_SALAH') {
+                        g.periodeSalah++; kode.add(r.kodeCampaign);
+                        const k = [r.kodeCampaign, r.namaCampaign, a.masalah].join('|');
+                        const c = kamp.get(k) || { kode: r.kodeCampaign, nama: r.namaCampaign, masalah: a.masalah, bulanSo: null, bulanBill: null, klaim: 0, netCb: 0 };
+                        if (r.bulanSo && (!c.bulanSo || r.bulanSo < c.bulanSo)) c.bulanSo = r.bulanSo;
+                        if (r.bulanBill && (!c.bulanBill || r.bulanBill < c.bulanBill)) c.bulanBill = r.bulanBill;
+                        c.klaim++; c.netCb += Number(r.netCb) || 0;
+                        kamp.set(k, c);
+                    }
+                });
+                g.campaignBermasalah = kode.size;
+                g.campaign = Array.from(kamp.values()).sort((x, y) => y.klaim - x.klaim || String(x.kode).localeCompare(String(y.kode)));
+                return g;
+            }
+
             async function zdPratinjau() {
-                showLoadingOverlay('Menilai klaim Not Yet...');
+                showLoadingOverlay('Menyiapkan penilaian...');
                 try {
-                    const res = await fetchApp({ action: 'zdagePreview', uploadId: zdState.uploadId, kosong: zdState.kosong });
+                    const res = await zdCoba({ action: 'zdagePreviewAwal', uploadId: zdState.uploadId, kosong: zdState.kosong });
                     if (res.status !== 'success') throw new Error(res.message || 'Pratinjau gagal.');
+                    const bagian = res.bagian || [], rows = [];
+                    for (let i = 0; i < bagian.length; i++) {
+                        showLoadingOverlay('Menilai klaim Not Yet: depot ' + (i + 1) + ' dari ' + bagian.length + ' (' + bagian[i].kode + ')...');
+                        const b = await zdCoba({ action: 'zdagePreviewBagian', uploadId: zdState.uploadId, kosong: zdState.kosong, depot: bagian[i].kode });
+                        if (b.status !== 'success') throw new Error('Pratinjau depot ' + bagian[i].kode + ' gagal: ' + (b.message || 'tanpa keterangan') + '. Klik Kirim & Pratinjau lagi; belum ada yang diterapkan.');
+                        rows.push(...(b.rows || []));
+                    }
+                    res.rows = rows;
+                    res.ringkasan = zdRingkasDari(rows);
                     zdState.preview = res;
                     zdRenderParse();
                     zdRenderPratinjau();
@@ -234,7 +289,7 @@
 
             function zdTanyaDepot() {
                 const daftar = (zdState.preview && zdState.preview.depotTidakAda) || [];
-                if (!daftar.length) { showNotification('Semua depot dalam jangkauan yang punya klaim Not Yet ada di file.', 'success'); return; }
+                if (!daftar.length) { showNotification('Semua depot yang punya klaim Not Yet ada di file.', 'success'); return; }
                 rcDialog('Depot yang tidak ada di file', '<div class="space-y-3 text-sm" data-rc-dialog-wide="1">'
                     + '<p>Depot di bawah tidak ada di kolom A berkas ini. Depot yang <b>tidak</b> dicentang memakai <b>data debtor lama</b>-nya; '
                     + 'depot tanpa data lama tidak dinilai. Centang <b>Tidak ada tagihan</b> bila depot memang tidak punya debtor - seluruh tokonya dianggap lunas.</p>'
@@ -380,7 +435,6 @@
                 // Kode toko yang tidak ada di Customer Master dibiarkan (keputusan pemilik): tidak diperingatkan.
                 const w = [];
                 if (pv.totalBeda) w.push(pv.totalBeda.toLocaleString('id-ID') + ' toko: Total berbeda dari jumlah kolom G..T.');
-                if ((pv.depotLuarJangkauan || []).length) w.push('Depot di luar jangkauan Anda diabaikan: ' + pv.depotLuarJangkauan.join(', ') + '.');
                 if ((pv.kodeDepotAsing || []).length) w.push('Kode di kolom A yang bukan depot: ' + pv.kodeDepotAsing.map(x => x.kode + ' (' + x.toko + ')').join(', ') + '.');
                 if (zdState.kosong.length) w.push('Tidak ada tagihan: ' + zdState.kosong.join(', ') + '.');
                 if ((pv.ringkasan || {}).kembaliRestricted) w.push(pv.ringkasan.kembaliRestricted.toLocaleString('id-ID') + ' tawaran yang sedang berjalan tidak lunas lagi menurut data ini; saat Terapkan tawarannya dibatalkan dan klaimnya kembali ke Restricted.');
@@ -409,17 +463,44 @@
                         + (g.kembaliRestricted ? Number(g.kembaliRestricted).toLocaleString('id-ID') + ' tawaran yang tidak lunas lagi dibatalkan (kembali ke Restricted). ' : '')
                         + 'Tgl Lunas yang masih kosong diisi tanggal tarikan. Lanjutkan?', confirmText: 'Terapkan', danger: false });
                 if (!ok) return;
-                showLoadingOverlay('Menerapkan...');
+                await zdJalankanTerapkan(zdState.uploadId, zdState.kosong);
+            }
+
+            // 20261163860000: per depot, setiap depot satu transaksi di server. Bila terhenti, depot yang
+            // sudah selesai tetap tersimpan dan penerapan dapat dilanjutkan dari kotak di Riwayat.
+            async function zdJalankanTerapkan(uploadId, kosong) {
+                showLoadingOverlay('Menyiapkan penerapan...');
                 try {
-                    const res = await fetchApp({ action: 'zdageApply', uploadId: zdState.uploadId, kosong: zdState.kosong });
-                    if (res.status !== 'success') throw new Error(res.message || 'Gagal menerapkan.');
+                    const m = await zdCoba({ action: 'zdageApplyMulai', uploadId: uploadId, kosong: kosong });
+                    if (m.status !== 'success') throw new Error(m.message || 'Gagal menerapkan.');
+                    let res = m;
+                    if (!m.sudahDiterapkan) {
+                        const bagian = m.bagian || [], selesai = new Set(m.selesai || []);
+                        for (let i = 0; i < bagian.length; i++) {
+                            if (selesai.has(bagian[i].kode)) continue;
+                            showLoadingOverlay('Menerapkan: depot ' + (i + 1) + ' dari ' + bagian.length + ' (' + bagian[i].kode + ')...');
+                            const b = await zdCoba({ action: 'zdageApplyBagian', uploadId: uploadId, depot: bagian[i].kode });
+                            if (b.status !== 'success') throw new Error('Terhenti di depot ' + bagian[i].kode + ': ' + (b.message || 'tanpa keterangan') + '. ' + selesai.size + ' depot sudah diterapkan; lanjutkan dari kotak di bagian Riwayat.');
+                            selesai.add(bagian[i].kode);
+                        }
+                        showLoadingOverlay('Menyelesaikan penerapan...');
+                        res = await zdCoba({ action: 'zdageApplySelesai', uploadId: uploadId });
+                        if (res.status !== 'success') throw new Error((res.message || 'Gagal menyelesaikan.') + ' Lanjutkan dari kotak di bagian Riwayat.');
+                    }
                     showNotification(res.message || 'Upload Debtor diterapkan.', 'success');
                     zdState = { file: '', parsed: null, uploadId: null, kosong: [], preview: null, filter: 'semua', depot: '', cari: '', depotDitanya: false };
                     zdRenderParse(); zdRenderPratinjau();
-                    zdMuatRiwayat();
                 } catch (e) {
                     showNotification((e && e.message) ? e.message : 'Gagal menerapkan.', 'error');
-                } finally { hideLoadingOverlay(); }
+                } finally {
+                    hideLoadingOverlay();
+                    zdMuatRiwayat();
+                }
+            }
+
+            async function zdLanjutkan(uploadId) {
+                const ok = await showConfirmModal({ title: 'Lanjutkan Penerapan', message: 'Depot yang belum selesai diterapkan akan dikerjakan; yang sudah selesai tidak diulang. Lanjutkan?', confirmText: 'Lanjutkan', danger: false });
+                if (ok) await zdJalankanTerapkan(uploadId, []);
             }
 
             async function zdBatal() {
@@ -435,7 +516,10 @@
                     const res = await fetchApp({ action: 'zdageRiwayat' });
                     if (res.status !== 'success') throw new Error(res.message || '');
                     document.getElementById('zdAturan').innerText = 'Toleransi ' + rcNominalPenuh(res.toleransi) + ', mode ' + (res.mode === 'jumlah' ? 'dijumlah' : 'per kolom') + '.';
-                    box.innerHTML = '<div class="grid md:grid-cols-2 gap-4"><div><h4 class="font-black text-gray-700 text-sm mb-2">Data debtor yang berlaku per depot</h4>'
+                    box.innerHTML = (res.belumSelesai || []).map(b => '<div class="mb-4 p-3 bg-amber-50 border border-amber-300 rounded-xl text-sm text-amber-900 flex flex-wrap items-center gap-3">'
+                            + '<span class="flex-1 min-w-[240px]"><b>Penerapan belum selesai:</b> ' + rcEsc(b.file) + ', ' + Number(b.selesai).toLocaleString('id-ID') + ' dari ' + Number(b.total).toLocaleString('id-ID') + ' depot.</span>'
+                            + '<button type="button" onclick="zdLanjutkan(\'' + rcEsc(b.id) + '\')" class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-xs">Lanjutkan</button></div>').join('')
+                        + '<div class="grid md:grid-cols-2 gap-4"><div><h4 class="font-black text-gray-700 text-sm mb-2">Data debtor yang berlaku per depot</h4>'
                         + '<div class="overflow-auto border border-gray-200 rounded-lg max-h-[260px]"><table class="w-full text-xs"><thead class="bg-gray-50"><tr><th class="p-2 text-left">Depot</th><th class="p-2 text-left">Tarikan</th><th class="p-2 text-left">Bulan</th></tr></thead><tbody>'
                         + ((res.depot || []).map(d => '<tr class="border-t border-gray-100"><td class="p-2"><b>' + rcEsc(d.kode) + '</b> ' + rcEsc(d.nama || '') + '</td><td class="p-2">' + rcEsc(d.tarikan)
                             + '</td><td class="p-2">' + (d.kosong ? 'Tidak ada tagihan' : rcEsc(d.asOf)) + '</td></tr>').join('') || '<tr><td colspan="3" class="p-3 text-center text-gray-400">Belum ada data.</td></tr>')

@@ -42,7 +42,7 @@
                     switchKeyMasterTab(selected);
                 } else if (mod === 'compilation') {
                     document.getElementById('modCompilation').classList.remove('hidden');
-                    initCompilation(); switchCompilationTab(selected==='reprocess'?'repro':selected==='amend'?'amend':selected==='debtor'?'debtor':'compile'); if(selected==='archive')toggleArchivedList();
+                    initCompilation(); switchCompilationTab(selected==='reprocess'?'repro':selected==='amend'||selected==='changedc'?'amend':selected==='debtor'?'debtor':'compile'); if(selected==='archive')toggleArchivedList();
                 } else if (mod === 'approval') {
                     document.getElementById('modApproval').classList.remove('hidden');
                     openApprovalModule();
@@ -209,7 +209,9 @@
             const RC_STATUS_CAMPAIGN = {
                 active:   { label: 'Active',   kelas: 'bg-emerald-100 text-emerald-700' },
                 inactive: { label: 'Inactive', kelas: 'bg-red-100 text-red-700' },
-                cleared:  { label: 'Cleared',  kelas: 'bg-slate-200 text-slate-700' }
+                // 20261163880000: seluruh Not Yet menjadi Expired, final, tidak dapat dibuka kembali.
+                // Cleared tidak lagi dipilih: server mengubahnya otomatis menjadi Closed.
+                closed:   { label: 'Closed',   kelas: 'bg-gray-800 text-white' }
             };
 
             // Variant SAP (20261163200000): tiga baris pendek, Variant Name lalu Description; yang
@@ -543,8 +545,9 @@
                             }).join('')
                             + '</select>'
                             + '<p class="text-[11px] text-gray-500 mt-1">Inactive: dokumen baru ditolak dan dokumen '
-                            + 'yang ada tidak dapat dimajukan. Cleared: campaign sudah selesai, dokumen baru ditolak '
-                            + 'tetapi yang sedang berjalan tetap dapat diselesaikan.</p></div>';
+                            + 'yang ada tidak dapat dimajukan. Closed: seluruh dokumen Not Yet menjadi Expired (final), satu email '
+                            + 'dikirim ke depot terkait, dan campaign tidak dapat dibuka kembali; dokumen yang sudah Submitted ke atas '
+                            + 'tetap dapat diselesaikan. Status Cleared otomatis menjadi Closed.</p></div>';
                         return;
                     }
                     html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">' + label
@@ -593,6 +596,24 @@
             }
             function closeRcRowEditor() { setHiddenSafely('rcRowEditorModal', true); }
 
+            // Konfirmasi Closed dengan jumlah dokumen Not Yet per depot yang akan menjadi Expired.
+            async function rcKonfirmasiClosed(kode) {
+                let cek = null;
+                showLoadingOverlay('Menghitung dokumen Not Yet...');
+                try { cek = await fetchApp({ action: 'campaignTutupCek', kode: kode }); }
+                catch (e) { cek = null; }
+                finally { hideLoadingOverlay(); }
+                const rinci = (cek && cek.status === 'success')
+                    ? Number(cek.jumlah || 0).toLocaleString('id-ID') + ' dokumen Not Yet (Rp ' + Math.trunc(Number(cek.totalCb) || 0).toLocaleString('id-ID') + ') akan menjadi Expired'
+                      + ((cek.depot || []).length ? ':\n' + cek.depot.slice(0, 12).map(d => '- ' + d.kode + ' ' + (d.nama || '') + ': ' + Number(d.qty).toLocaleString('id-ID') + ' dokumen').join('\n')
+                          + (cek.depot.length > 12 ? '\n... dan ' + (cek.depot.length - 12) + ' depot lain' : '') : '.')
+                    : 'Seluruh dokumen Not Yet campaign ini akan menjadi Expired.';
+                return showConfirmModal({ title: 'Closed Campaign ' + kode,
+                    message: rinci + '\n\nExpired ini final: campaign tidak dapat dibuka kembali dan dokumennya tidak dapat dikembalikan ke Not Yet. '
+                        + 'Dokumen yang sudah Submitted ke atas tetap berjalan. Email Campaign Closed dikirim ke depot terkait.',
+                    confirmText: 'Ya, Closed', danger: true });
+            }
+
             async function saveRcRowEditor() {
                 let kind = rcEditorKind, row = {};
                 RC_FIELDS[kind].forEach(f => { row[f[0]] = document.getElementById('rcField_' + f[0]).value.trim(); });
@@ -600,6 +621,10 @@
                 if (missing.length > 0) {
                     document.getElementById('rcRowEditorErrorText').innerText = missing[0][1] + ' wajib diisi.';
                     setHiddenSafely('rcRowEditorError', false); return;
+                }
+                // 20261163880000: mengubah campaign menjadi Closed menghanguskan seluruh Not Yet-nya.
+                if (kind === 'campaign' && row.status === 'closed' && String((rcEditorRow || {}).status || '').toLowerCase() !== 'closed') {
+                    if (!(await rcKonfirmasiClosed(row.codeCampaign))) return;
                 }
                 setDisabledSafely('btnSaveRcRow', true);
                 try {
@@ -932,10 +957,14 @@
                 let rows = rcPendingUpload[kind];
                 if (!rows) return;
                 const bertahap = rows.length > RC_BAGIAN_UNGGAH;
+                // 20261163880000: campaign yang diunggah berstatus Closed menghanguskan seluruh Not Yet-nya.
+                const ditutup = kind === 'Campaign' ? rows.filter(r => ['closed', 'cleared'].includes(String(r.status || '').trim().toLowerCase())).map(r => r.codeCampaign) : [];
                 let confirmed = await showConfirmModal({ title: "Konfirmasi Upload Master",
                     message: rows.length.toLocaleString('id-ID') + " baris akan disimpan ke " + kind + " Master.\n\n"
                         + (kind === 'Customer' ? "Kode yang sudah ada: kolom terisi MENIMPA data lama, kolom kosong memakai data lama, \"-\" mengosongkan."
                             : "Kode yang sudah ada akan DITIMPA oleh data dari file ini.")
+                        + (ditutup.length ? "\n\nPERHATIAN: " + ditutup.length + " campaign berstatus Closed / Cleared (" + ditutup.slice(0, 8).join(', ') + (ditutup.length > 8 ? ', ...' : '')
+                            + "). Seluruh dokumen Not Yet-nya menjadi Expired (final) dan email Campaign Closed dikirim; campaign Closed tidak dapat dibuka kembali." : "")
                         + (bertahap ? "\n\nBerkas besar: diperiksa seluruhnya dulu, lalu disimpan otomatis dalam "
                             + Math.ceil(rows.length / RC_BAGIAN_UNGGAH) + " bagian. Jangan tutup halaman sampai selesai." : ""),
                     confirmText: "Ya, Simpan", danger: false });

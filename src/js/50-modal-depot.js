@@ -23,13 +23,31 @@
             // server yang memutuskan apakah perubahannya langsung berlaku atau masuk antrean
             // Approval Request di Access Management.
 
-            function toggleMultiSelect(id) { document.getElementById(id).classList.toggle("show"); }
+            function toggleMultiSelect(id) {
+                const d = document.getElementById(id); d.classList.toggle("show");
+                // Dropdown bercari (5 November 2026): kotak cari langsung siap diketik saat dibuka.
+                const q = d.classList.contains('show') && d.querySelector('.rc-ms-cari'); if (q) setTimeout(() => { q.focus(); q.select(); }, 0);
+            }
             document.addEventListener('click', function (e) { if (!e.target.closest('.relative') && !e.target.closest('nav') && !e.target.closest('header')) { document.querySelectorAll('.multiselect-dropdown.show').forEach(d => { d.classList.remove('show'); }); } });
             function checkMultiSelect(cId) { let c = document.getElementById(cId); if (!c) return ""; let cb = c.querySelectorAll('input[type="checkbox"]:checked'); let v = []; cb.forEach(b => { if (b.value !== 'ALL') v.push(b.value); }); return v.join(', '); }
             function getMultiSelectLabel(cId) { let c = document.getElementById(cId); if (!c) return ""; let cb = c.querySelectorAll('input[type="checkbox"]:checked'); if (cb.length === 0) return "-- Semua --"; let l = []; cb.forEach(b => { if (b.value !== 'ALL') l.push(b.nextElementSibling.innerText); }); return l.length > 1 ? l.length + " Dipilih" : l.join(', '); }
-            function toggleAllMultiselect(src, cId) { let c = document.getElementById(cId); if (!c) return; c.querySelectorAll('.single-cb').forEach(b => b.checked = src.checked); let s = src.closest('.relative')?.querySelector('button span'); if (s) s.innerText = getMultiSelectLabel(cId); }
+            // Selagi kotak cari terisi, "Pilih Semua" hanya mengenai opsi yang tampil (cocok).
+            function toggleAllMultiselect(src, cId) { let c = document.getElementById(cId); if (!c) return; c.querySelectorAll('.single-cb').forEach(b => { if (b.closest('label').style.display !== 'none') b.checked = src.checked; }); let s = src.closest('.relative')?.querySelector('button span'); if (s) s.innerText = getMultiSelectLabel(cId); }
+            // Kotak cari dropdown centang: semua kata harus ada pada nama opsi (urutan bebas).
+            function rcSaringMultiselect(q) {
+                const c = q.closest('.multiselect-dropdown'); if (!c) return;
+                const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+                const kata = norm(q.value).split(' ').filter(Boolean); let n = 0;
+                c.querySelectorAll('.single-cb').forEach(b => { const l = b.closest('label'), ok = kata.every(k => norm(l.innerText).includes(k)); l.style.display = ok ? '' : 'none'; if (ok) n++; });
+                const semua = c.querySelector('input[value="ALL"]'); if (semua) semua.nextElementSibling.innerText = kata.length ? 'Pilih Semua yang Cocok (' + n + ')' : 'Pilih Semua Opsi';
+                const kosong = c.querySelector('.rc-ms-kosong'); if (kosong) kosong.style.display = n ? 'none' : '';
+            }
             function buildMultiselectHTML(opts, isAll, cId, fn = "") {
-                let h = ''; if (isAll) h += `<label class="flex items-center space-x-3 p-2.5 hover:bg-blue-50 border-b border-gray-100 cursor-pointer transition-colors"><input type="checkbox" value="ALL" onchange="toggleAllMultiselect(this,'${cId}'); ${fn}" class="rounded border-gray-300 w-4 h-4 text-blue-600 focus:ring-blue-500"><span class="font-bold text-gray-800 text-xs">Pilih Semua Opsi</span></label>`;
+                let h = '';
+                // Dropdown bercari (5 November 2026): Campaign / Depot, dan daftar lain yang panjang.
+                if ((/camp|depot/i.test(cId) && opts.length > 5) || opts.length > 10)
+                    h += `<div class="rc-ms-cari-wrap"><input type="search" class="rc-ms-cari" placeholder="Ketik untuk mencari..." autocomplete="off" oninput="rcSaringMultiselect(this)" onkeydown="if(event.key==='Enter')event.preventDefault()"></div><div class="rc-ms-kosong" style="display:none">Tidak ada yang cocok</div>`;
+                if (isAll) h += `<label class="flex items-center space-x-3 p-2.5 hover:bg-blue-50 border-b border-gray-100 cursor-pointer transition-colors"><input type="checkbox" value="ALL" onchange="toggleAllMultiselect(this,'${cId}'); ${fn}" class="rounded border-gray-300 w-4 h-4 text-blue-600 focus:ring-blue-500"><span class="font-bold text-gray-800 text-xs">Pilih Semua Opsi</span></label>`;
                 opts.forEach(o => { h += `<label class="flex items-center space-x-3 p-2.5 hover:bg-gray-50 cursor-pointer transition-colors"><input type="checkbox" value="${rcEsc(o.value)}" class="single-cb rounded border-gray-300 w-4 h-4 text-blue-600 focus:ring-blue-500" onchange="let s=this.closest('.relative').querySelector('button span'); if(s) s.innerText=getMultiSelectLabel('${cId}'); ${fn}"><span class="text-gray-600 font-medium text-xs whitespace-normal break-words">${rcEsc(o.label)}</span></label>`; }); return h;
             }
 

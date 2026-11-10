@@ -217,89 +217,6 @@
                     + 'Dibuat: ' + (dibuat ? rcEsc(dibuat) : '-') + '</span>';
             }
 
-            // Mass process pada tab Clearing.
-            //
-            // Yang dilakukannya hanyalah MENCENTANG baris yang cocok, bukan memposting sendiri.
-            // Itu disengaja: Clearing menuntut Tgl Clearing aktual dan memiliki pemeriksaan
-            // tersendiri, dan menambah jalur posting kedua berarti aturan itu harus dipelihara
-            // di dua tempat - cepat atau lambat keduanya akan berbeda. Dengan cara ini tombol
-            // Posting Done tetap satu-satunya pintu.
-            //
-            // Dokumen yang tidak ditemukan tidak didiamkan. Sebuah No Document dapat salah
-            // ketik, sudah diproses orang lain, atau berada di depot lain - ketiganya terlihat
-            // sama bila daftarnya hanya dicentang sebagian tanpa keterangan.
-            function clearingTandaiDariDaftar() {
-                const teks = (document.getElementById('clrMassDocs') || {}).value || '';
-                // Tempelan dari Excel kerap membawa karakter tak terlihat (spasi tak-putus, zero-width)
-                // dan kolom lain yang ikut tersalin. No Document tidak pernah berspasi dan selalu
-                // memuat "/", jadi potongan lain (nama toko, nominal) diabaikan, bukan dilaporkan
-                // sebagai No Document yang tidak ditemukan.
-                const diminta = teks.replace(/[ ​-‍﻿]/g, ' ').split(/[\s,;]+/)
-                    .map(x => x.trim().toUpperCase()).filter(x => x !== '' && x.indexOf('/') > -1);
-                const ringkas = document.getElementById('clrMassRingkas');
-                if (diminta.length === 0) {
-                    if (ringkas) ringkas.innerText = 'Belum ada No Document yang ditempel.';
-                    return;
-                }
-
-                // Baris yang sedang tampil saja. Bila hasil filter menyembunyikan sebuah dokumen,
-                // mencentangnya diam-diam akan memposting sesuatu yang tidak terlihat di layar.
-                const kotak = Array.from(document.querySelectorAll('.cb-clr'));
-                const adaDiLayar = new Set(kotak.map(c => String(c.value).trim().toUpperCase()));
-                // Dokumen tanpa Customer Master tampil di daftar tetapi tidak dapat diproses;
-                // mencentangnya akan menggagalkan seluruh posting (20261162260000).
-                const terkunci = new Set(kotak.filter(c => c.disabled).map(c => String(c.value).trim().toUpperCase()));
-                const unik = Array.from(new Set(diminta));
-                const ketemu = unik.filter(d => adaDiLayar.has(d) && !terkunci.has(d));
-                const tanpaMaster = unik.filter(d => terkunci.has(d));
-                const tidak = unik.filter(d => !adaDiLayar.has(d));
-
-                kotak.forEach(c => { c.checked = !c.disabled && ketemu.indexOf(String(c.value).trim().toUpperCase()) > -1; });
-                updateWorkflowCount('cb-clr', 'btnSubmitClearing', 'clearingSelectedCount');
-                validateClearingBtn();
-
-                if (tidak.length > 0 && !rcWorkflowLengkap) {
-                    if (ringkas) ringkas.innerHTML = '<b class="text-emerald-700">' + ketemu.length + '</b> dari ' + unik.length
-                        + ' No Document tercentang. <b class="text-orange-600">Data Clearing masih dimuat</b> - '
-                        + tidak.length + ' No Document belum terlihat. Tunggu sampai indikator pemuatan selesai, lalu klik Centang lagi.';
-                    return;
-                }
-                if (ringkas) {
-                    ringkas.innerHTML = '<b class="text-emerald-700">' + ketemu.length + '</b> dari '
-                        + unik.length + ' No Document tercentang.'
-                        + (tanpaMaster.length > 0
-                            ? ' <b class="text-red-600">' + tanpaMaster.length + ' belum punya Customer Master</b> '
-                              + '(tidak dicentang; lengkapi di Key Master &gt; Customer Master lebih dulu).'
-                            : '')
-                        + (tidak.length > 0
-                            ? ' <b class="text-red-600">' + tidak.length + ' tidak ada di daftar Clearing</b> '
-                              + '(salah ketik, sudah diproses, di luar yurisdiksi Anda, '
-                              + 'atau tersembunyi oleh filter yang sedang aktif).'
-                            : '');
-                }
-                if (tidak.length > 0 || tanpaMaster.length > 0) {
-                    const baris = (daftar, sebab) => daftar.map(d => '<tr class="border-b border-gray-100"><td class="p-2 font-mono text-red-700">'
-                        + rcEsc(d) + '</td><td class="p-2 text-gray-600">' + sebab + '</td></tr>').join('');
-                    rcDialog('No Document yang tidak dapat dicentang',
-                        '<p class="text-sm text-gray-600 mb-3">Dokumen berikut tidak ikut dicentang. Dokumen lain tetap dapat '
-                        + 'diposting.</p>'
-                        + '<div class="max-h-72 overflow-auto border border-gray-200 rounded-lg">'
-                        + '<table class="w-full text-sm"><tbody>'
-                        + baris(tanpaMaster, 'Customer Master belum ada - lengkapi di Key Master lebih dulu')
-                        + baris(tidak, 'Tidak ada di daftar Clearing yang tampil (salah ketik, sudah diproses, di luar yurisdiksi, atau tersembunyi filter)')
-                        + '</tbody></table></div>');
-                }
-            }
-
-            function clearingBersihkanDaftar() {
-                const t = document.getElementById('clrMassDocs'); if (t) t.value = '';
-                const r = document.getElementById('clrMassRingkas'); if (r) r.innerText = '';
-                document.querySelectorAll('.cb-clr').forEach(c => { c.checked = false; });
-                const semua = document.getElementById('cbClearingAll'); if (semua) semua.checked = false;
-                updateWorkflowCount('cb-clr', 'btnSubmitClearing', 'clearingSelectedCount');
-                validateClearingBtn();
-            }
-
             function renderWorkflowTable(type) {
                 let data = [], searchId = '', depotDrop = '', campDrop = '', bodyId = '', cbCls = '', countId = '', btnId = '', tglCol = '';
                 if (type === 'release') { data = globalReleaseData; searchId = 'relSearch'; depotDrop = 'relDepotDropdown'; campDrop = 'relCampDropdown'; bodyId = 'releaseTableBody'; cbCls = 'cb-rel'; countId = 'releaseSelectedCount'; btnId = 'btnSubmitRelease'; tglCol = 'tglUpload'; }
@@ -362,12 +279,11 @@
                     else if (type === 'clearing') pBatch = r.batchClaim || '-';
 
                     let idn = rcIdentitasDokumen(r);
-                    let doc = rcCariDokumen(r.noDoc) || {};
-                    
-                    let valKtp = idn.ktp || '-'; let valNpwp = idn.npwp || '-'; let valTop = doc.top || r.top || '-'; let valLunas = doc.tglLunas || r.tglLunas || '-';
+
+                    let valKtp = idn.ktp || '-'; let valNpwp = idn.npwp || '-'; let valTop = r.top || '-'; let valLunas = r.tglLunas || '-';
                     let valRek = idn.noRek || '-'; let valNamaRek = idn.namaRek || '-'; let valBank = idn.bank || '-';
-                    
-                    let valVolume = doc.volume || 0; let valNetValue = doc.netValue || 0;
+
+                    let valVolume = r.volume || 0; let valNetValue = r.netValue || 0;
                     // Label seragam; penulisan berbeda di master tidak lagi tampil sebagai dua
                     // status yang seolah berlainan.
                     let valStatusPajak = rcLabelPajak(r.statusPajakCamp);

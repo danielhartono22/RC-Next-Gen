@@ -72,10 +72,34 @@
                     c => String(c.codeCampaign || '').trim().toUpperCase()).get(target);
             }
 
+            // 20261163870000: panggilan yang datang hampir bersamaan (mis. setiap baris grid yang
+            // ditempel) digabung menjadi satu permintaan dan dijalankan berurutan. Kode yang sudah
+            // pernah dicari langsung dijawab tanpa menunggu.
+            let rcMasterAntre = null, rcMasterRantai = Promise.resolve(true);
+
+            function pastikanMaster(custCodes, docNos) {
+                const sudah = (daftar, diminta) => (daftar || []).every(function (k) { const n = rcNormKode(k); return !n || diminta.has(n); });
+                if (sudah(custCodes, rcMasterDiminta.cust) && sudah(docNos, rcMasterDiminta.doc)) return Promise.resolve(true);
+                if (!rcMasterAntre) {
+                    const a = { cust: [], doc: [] };
+                    a.janji = new Promise(function (selesai) {
+                        setTimeout(function () {
+                            rcMasterAntre = null;
+                            rcMasterRantai = rcMasterRantai.catch(() => false).then(() => rcMasterKirim(a.cust, a.doc));
+                            selesai(rcMasterRantai);
+                        }, 40);
+                    });
+                    rcMasterAntre = a;
+                }
+                rcMasterAntre.cust = rcMasterAntre.cust.concat(custCodes || []);
+                rcMasterAntre.doc = rcMasterAntre.doc.concat(docNos || []);
+                return rcMasterAntre.janji;
+            }
+
             // Mengambil pelanggan dan dokumen yang BELUM ada di cache, lalu menaruhnya di
             // globalCustomers / globalDocuments. Aman dipanggil berulang: yang sudah ada
             // tidak diminta lagi.
-            async function pastikanMaster(custCodes, docNos) {
+            async function rcMasterKirim(custCodes, docNos) {
                 const perluCust = [];
                 const perluDoc = [];
                 const custAda = rcIndeks('customerNorm', globalCustomers, c => rcNormKode(c.custCode));
@@ -148,17 +172,15 @@
                 return true;
             }
 
-            // Bentuk yang lebih mudah dipakai: menerima larik baris apa pun, lalu memungut
-            // kode pelanggan dan nomor dokumen dari nama kolom yang biasa dipakai di layar.
+            // Bentuk yang lebih mudah dipakai: menerima larik baris apa pun, lalu memungut kode
+            // pelanggan dari nama kolom yang biasa dipakai di layar. 20261163870000: master dokumen
+            // tidak ikut diambil; baris antrean sudah membawa volume dan net value-nya.
             function pastikanMasterDariBaris(rows) {
                 const cust = [];
-                const doc = [];
                 (rows || []).forEach(function (r) {
                     if (!r) return;
                     const k = r.custCode || r.kodeToko || r.customerCode;
-                    const n = r.noDoc || r.no_doc;
                     if (k) cust.push(k);
-                    if (n) doc.push(n);
                 });
-                return pastikanMaster(cust, doc);
+                return pastikanMaster(cust, []);
             }

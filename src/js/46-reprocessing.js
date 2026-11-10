@@ -13,7 +13,7 @@
             let reproPending = null;
 
             function switchCompilationTab(tab) {
-                const selected=tab==='repro'?'reprocess':tab==='amend'?'amend':tab==='debtor'?'debtor':['list','compile','archive'].find(t=>rcCanTab('compilation.'+t));
+                const selected=tab==='repro'?'reprocess':tab==='amend'?(rcCanTab('compilation.amend')?'amend':'changedc'):tab==='debtor'?'debtor':['list','compile','archive'].find(t=>rcCanTab('compilation.'+t));
                 if(!rcEnterTab('compilation',selected))return;
                 setHiddenSafely('cmpPanelCompile', tab !== 'compile');
                 setHiddenSafely('cmpPanelRepro', tab !== 'repro');
@@ -30,7 +30,7 @@
                 const bd = document.getElementById('cmpTabDebtor');
                 if (bd) bd.className = tab === 'debtor' ? aktif : diam;
                 if (tab === 'repro') loadReprocessing();
-                if (tab === 'amend') bukaAmendDoc();
+                if (tab === 'amend') amdBuka(); // 20261163830000: sub bab Change Value / Change DC
                 if (tab === 'debtor') { bukaUploadDebtor(); rcZdSpanduk('rcZdMatiDebtor'); /* 20261163620000 */ }
             }
 

@@ -150,8 +150,8 @@
   // maka versi lama dipanggil tanpa argumen - seluruh data dalam satu jawaban, tanpa
   // "berikutnya" - sehingga layar memuat satu kali seperti dulu. Dengan begitu frontend ini
   // aman diterbitkan lebih dulu daripada migrasinya.
-  function rpcHalaman(nama, body, bawaan) {
-    return rpc(nama, argHalaman(body, bawaan)).catch(function (e) {
+  function rpcHalaman(nama, body, bawaan, tambahan) {
+    return rpc(nama, Object.assign(argHalaman(body, bawaan), tambahan || {})).catch(function (e) {
       var pesan = String((e && e.message) || '');
       if (!/Could not find the function/i.test(pesan) || (body && body.setelah)) throw e;
       return rpc(nama);
@@ -596,7 +596,7 @@
     clearingBankPreview: function (body) {
       return rpc('rc_clearing_bank_preview', { p_nama_file: String(body.namaFile || ''), p_sidik: String(body.sidik || ''),
         p_tahun: Number(body.tahun) || null, p_tahun_sumber: String(body.tahunSumber || ''), p_baris: body.baris || [],
-        p_mode: ['arsip', 'otomatis'].includes(body.mode) ? body.mode : 'clearing' /* 20261163730000, otomatis 20261163750000 */ });
+        p_mode: ['arsip', 'otomatis', 'template'].includes(body.mode) ? body.mode : 'clearing' /* 20261163730000, otomatis 20261163750000, template 20261163790000 */ });
     },
     clearingBankProses: function (body) { return rpc('rc_clearing_bank_proses', { p_upload: body.uploadId }); },
 
@@ -627,7 +627,8 @@
     // dengan enam kolom yang juga ada di history. Kini disusun di sini dari history,
     // sehingga yang melintas jaringan hanya satu salinan.
     getDashboardData: function (body) {
-      return rpcHalaman('rc_legacy_dashboard', body, 1000).then(function (data) {
+      // 20261163870000: Tahun Campaign disaring di server; null = seluruh tahun.
+      return rpcHalaman('rc_legacy_dashboard', body, 1000, body && Array.isArray(body.tahun) ? { p_tahun: body.tahun } : null).then(function (data) {
         // Server lama masih mengirim compileData sendiri; dipakai apa adanya.
         if (Array.isArray(data.compileData)) return data;
         data.compileData = (data.history || []).map(function (h) {
@@ -1123,6 +1124,30 @@
                  versionNo: x.versionNo == null ? null : Number(x.versionNo), alasan: String(x.alasan || '') };
       }), p_alasan: String(body.alasan || '') });
     },
+    // Change DC (20261163810000); 20261163850000: banyak toko, masing-masing { kodeToko, depotBaru, reason };
+    // reason umum dipakai untuk baris yang reason-nya kosong.
+    changeDcCek: function (body) {
+      return rpc('rc_change_dc_cek', { p_items: (body.items || []).map(function (x) {
+        return { kodeToko: String(x.kodeToko || ''), depotBaru: String(x.depotBaru || '') };
+      }) });
+    },
+    changeDc: function (body) {
+      return rpc('rc_change_dc', { p_items: (body.items || []).map(function (x) {
+        return { kodeToko: String(x.kodeToko || ''), depotBaru: String(x.depotBaru || ''), reason: String(x.reason || '') };
+      }), p_reason: String(body.reason || '') });
+    },
+    changeDcRiwayat: function () { return rpc('rc_change_dc_riwayat'); },
+    // 20261163880000: Change Status (Expired -> Not Yet) dan pratinjau campaign Closed.
+    changeStatusCek: function (body) {
+      return rpc('rc_change_status_cek', { p_items: (body.items || []).map(function (x) { return { noDoc: String(x.noDoc || '') }; }) });
+    },
+    changeStatus: function (body) {
+      return rpc('rc_change_status', { p_items: (body.items || []).map(function (x) {
+        return { noDoc: String(x.noDoc || ''), alasan: String(x.alasan || '') };
+      }), p_alasan: String(body.alasan || '') });
+    },
+    changeStatusRiwayat: function () { return rpc('rc_change_status_riwayat'); },
+    campaignTutupCek: function (body) { return rpc('rc_campaign_tutup_cek', { p_kode: String(body.kode || '') }); },
     amendRiwayat: function (body) { return rpc('rc_amend_riwayat', { p_limit: Number(body.limit) || 50 }); },
     // 20261163170000: Upload Debtor (ZDAGE), tawaran toko lunas, dan Bad Debt.
     zdageStage: function (body) {
@@ -1131,6 +1156,12 @@
     },
     zdagePreview: function (body) { return rpc('rc_zdage_preview', { p_upload_id: body.uploadId, p_kosong: body.kosong || [] }); },
     zdageApply: function (body) { return rpc('rc_zdage_apply', { p_upload_id: body.uploadId, p_kosong: body.kosong || [] }); },
+    // 20261163860000: pratinjau dan penerapan per depot.
+    zdagePreviewAwal: function (body) { return rpc('rc_zdage_preview_awal', { p_upload_id: body.uploadId, p_kosong: body.kosong || [] }); },
+    zdagePreviewBagian: function (body) { return rpc('rc_zdage_preview_bagian', { p_upload_id: body.uploadId, p_kosong: body.kosong || [], p_depot: String(body.depot || '') }); },
+    zdageApplyMulai: function (body) { return rpc('rc_zdage_apply_mulai', { p_upload_id: body.uploadId, p_kosong: body.kosong || [] }); },
+    zdageApplyBagian: function (body) { return rpc('rc_zdage_apply_bagian', { p_upload_id: body.uploadId, p_depot: String(body.depot || '') }); },
+    zdageApplySelesai: function (body) { return rpc('rc_zdage_apply_selesai', { p_upload_id: body.uploadId }); },
     zdageDiscard: function (body) { return rpc('rc_zdage_discard', { p_upload_id: body.uploadId }); },
     zdageRiwayat: function () { return rpc('rc_zdage_riwayat'); },
     clearingReturn: function (body) { return rpc('rc_clearing_return', { p_no_docs: body.docs || [], p_reason: String(body.alasan || '') }); },
@@ -1244,7 +1275,7 @@
       return rpc('rc_unarchive_compilation', { p_ids: body.ids || [] });
     },
     archivedList: function (body) {
-      return rpc('rc_archived_list', { p_offset: Number(body.offset) || 0, p_limit: 200 });
+      return rpc('rc_archived_list', { p_offset: Number(body.offset) || 0, p_limit: 200, p_cari: String(body.cari || '') });
     },
 
     uploadAccount: function (body) { return handlers.addAccount(body); },

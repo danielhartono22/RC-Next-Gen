@@ -116,7 +116,7 @@ const RC_TAB_BUTTONS = {
 };
 function rcApplyTabUI() {
     Object.entries(RC_TAB_BUTTONS).forEach(([code,id])=>{const el=document.getElementById(id);if(el){el.dataset.rcTab=code;el.hidden=!rcCanTab(code);}});
-    document.querySelectorAll('[data-rc-tab]').forEach(el=>{el.hidden=!rcCanTab(el.dataset.rcTab);});
+    document.querySelectorAll('[data-rc-tab]').forEach(el=>{el.hidden=!el.dataset.rcTab.split('|').some(c=>rcCanTab(c));}); // a|b: salah satu cukup (20261163830000)
     const compileTab=document.getElementById('cmpTabCompile');if(compileTab)compileTab.hidden=!['list','compile','archive'].some(t=>rcCanTab('compilation.'+t));
     Object.entries({upload:'menuUpload',release:'menuRelease',process:'menuProcess',adhoc:'menuAdhoc',analytics:'menuAnalytics',access:'menuKelolaAkses',logs:'menuLogActivity',bulk:'menuBulkProcess',keyMaster:'menuKeyMaster',compilation:'menuCompilation',approval:'menuApproval',report:'menuReport',timetable:'menuTimetable',people:'menuPeople',links:'menuPortalLink',docgen:'menuDocGen',discount:'menuDiscountCenter',rental:'menuRental'}).forEach(([module,id])=>{
         const any=(currentUserData?.sysRole==='system manager') || Object.keys(currentUserData?.tabs||{}).some(k=>k.startsWith(module+'.')&&rcCanTab(k));setHiddenSafely(id,!any);
@@ -135,13 +135,13 @@ logActivity=function(detail){
 
 // Tab yang bawaannya MATI (tab_rights): hanya tercentang bila memang sudah diberi, termasuk saat
 // mendaftarkan akun baru. Tab lain bawaannya tercentang mengikuti modulnya (20261163140000).
-const RC_TAB_OPTIN=['access.approval','compilation.amend','compilation.debtor','approval.baddebt','upload.restrictedEdit','upload.baddebt', // 20261163170000
+const RC_TAB_OPTIN=['access.approval','compilation.amend','compilation.changedc','compilation.debtor','approval.baddebt','upload.restrictedEdit','upload.baddebt', // 20261163170000
     'discount.monitor','discount.kebijakan','discount.generate','discount.terbit', // 20261163310000: Sales Distribution hanya bila dicentang
     'rental.omset']; // 20261163530000: Upload Omset (Admin SASD) hanya bila dicentang
 // Document Generator bawaannya tercentang hanya untuk Admin Depot (peran admin); peran lain bila
 // dicentang - sama dengan tab_rights (20261163190000, tab Done / Not Yet sejak 20261163540000).
 // Warehouse Rental: Fill Form dan Draft bawaannya tercentang hanya untuk Depot Head (20261163530000).
-function rcTabBawaanMati(code,role){return RC_TAB_OPTIN.includes(code)||(['docgen.done','docgen.notyet'].includes(code)&&String(role||'').toLowerCase()!=='admin')||(['rental.form','rental.draft'].includes(code)&&String(role||'').toLowerCase()!=='depot head');}
+function rcTabBawaanMati(code,role){return (RC_TAB_OPTIN.includes(code)&&!(['compilation.amend','compilation.changedc'].includes(code)&&String(role||'').toLowerCase()==='osc') /* 20261163830000: bawaan OSC */)||(['docgen.done','docgen.notyet'].includes(code)&&String(role||'').toLowerCase()!=='admin')||(['rental.form','rental.draft'].includes(code)&&String(role||'').toLowerCase()!=='depot head');}
 // Izin modul akun saat dialog dibuka - acuan ketika peran diganti bolak-balik di dialog.
 let rcMatriksIzinAwal=new Set();
 // Tab dengan aturan sendiri (pemilik, 19 Oktober 2026), sama dengan tab_rights:

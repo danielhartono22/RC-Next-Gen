@@ -4,6 +4,10 @@
                         <button onclick="switchSubTab('analytics', 'history')" id="subnav_history" class="px-5 py-2 text-sm font-bold rounded-lg bg-teal-100 text-teal-800 transition">Cashback List</button>
                         <button onclick="switchSubTab('analytics', 'summary')" id="subnav_summary" class="px-5 py-2 text-sm font-bold rounded-lg text-gray-500 hover:bg-gray-100 transition">Summary Chart</button>
                     </div>
+                    <div class="inline-flex items-center gap-2 mb-4 ml-2 bg-white p-2 rounded-xl shadow-sm border border-gray-200" title="Dokumen tanpa periode campaign selalu ikut tampil.">
+                        <label for="dashTahun" class="text-xs font-bold text-gray-700 ml-2">Tahun Campaign</label>
+                        <select id="dashTahun" onchange="fetchDashboardData()" class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white"></select>
+                    </div>
 
                     <!-- SUB TAB: HISTORY -->
                     <div id="tab_history" class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 md:p-8">

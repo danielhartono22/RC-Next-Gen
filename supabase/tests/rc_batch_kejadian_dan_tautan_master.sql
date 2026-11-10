@@ -72,12 +72,12 @@ begin
       execute 'reset role';
       select * into c1 from public.claims where id = a.id;
       select * into c2 from public.claims where id = b.id;
-      hasil := hasil || jsonb_build_array(jsonb_build_array('Amend memberi kode 1; Release berikutnya 12..., dokumen biasa 02..., urutan sama',
-        c1.batch_event_code = '1' and c1.batch_release ~ '^12' and c2.batch_release ~ '^02'
+      hasil := hasil || jsonb_build_array(jsonb_build_array('Amend memberi kode 7 (20261163840000); Release berikutnya 72..., dokumen biasa 02..., urutan sama',
+        c1.batch_event_code = '7' and c1.batch_release ~ '^72' and c2.batch_release ~ '^02'
           and substr(c1.batch_release, 2) = substr(c2.batch_release, 2) and length(c1.batch_release) = 15,
         format('%s: %s / %s: %s', c1.no_doc, c1.batch_release, c2.no_doc, c2.batch_release)));
-      hasil := hasil || jsonb_build_array(jsonb_build_array('Batch sebelumnya tidak berubah (batch Submit dokumen yang di-Amend)',
-        c1.batch_upload is not distinct from a.batch_upload, format('Submit %s -> %s', a.batch_upload, c1.batch_upload)));
+      hasil := hasil || jsonb_build_array(jsonb_build_array('Batch stage saat di-Amend (Submit) ikut berkepala 7, sisa nomornya tetap (20261163840000)',
+        c1.batch_upload = '7' || substr(a.batch_upload, 2), format('Submit %s -> %s', a.batch_upload, c1.batch_upload)));
       hasil := hasil || jsonb_build_array(jsonb_build_array('Hasil proses menyebut kedua batch; riwayat per dokumen memakai batch dokumennya',
         r->>'batch' = c2.batch_release || ', ' || c1.batch_release
           and exists(select 1 from public.claim_status_history h where h.claim_id = a.id and h.action = 'release' and h.batch = c1.batch_release)
@@ -291,10 +291,10 @@ begin
      and exists(select 1 from public.customers cu where upper(btrim(cu.customer_code)) = upper(btrim(c.source_customer_code)) and cu.archived_at is null);
   hasil := hasil || jsonb_build_array(jsonb_build_array('Seluruh data: tidak ada dokumen "Customer Master belum ada" yang masternya ada',
     n = 0, n || ' dokumen; ' || (select count(*) from public.claims where customer_id is null) || ' dokumen memang belum punya master'));
-  select count(*) into n from public.claims where status = 'expired' and batch_event_code not in ('3', '1');
+  select count(*) into n from public.claims where status = 'expired' and batch_event_code not in ('3', '1', '7');
   hasil := hasil || jsonb_build_array(jsonb_build_array('Seluruh data: setiap dokumen Expired berkode 3 (atau 1 bila di-Amend sesudahnya)', n = 0,
     n || ' dokumen menyimpang; ' || (select count(*) from public.claims where status = 'expired' and batch_event_code = '3') || ' berkode 3, '
-      || (select count(*) from public.claims where status = 'expired' and batch_event_code = '1') || ' berkode 1, dari '
+      || (select count(*) from public.claims where status = 'expired' and batch_event_code in ('1', '7')) || ' berkode 1, dari '
       || (select count(*) from public.claims where status = 'expired') || ' Expired'));
 
   perform set_config('request.jwt.claims', '', true);

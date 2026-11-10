@@ -22,6 +22,24 @@
             .excel-input:focus { background-color: #e0f2fe; border-radius: 4px; }
             .multiselect-dropdown { display: none; position: absolute; z-index: 60; width: 100%; max-height: 250px; overflow-y: auto; background: white; border: 1px solid #d1d5db; border-radius: 0.5rem; margin-top: 4px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
             .multiselect-dropdown.show { display: block; }
+            /* Dropdown bercari (5 November 2026, view/js/05-pilih-cari.js): <select> Campaign / Depot
+               disembunyikan dan diganti tombol + panel bercari; kotak cari di dropdown centang. */
+            .rc-pc-asli { display: none !important; }
+            .rc-pc-tombol { display: inline-flex; align-items: center; justify-content: space-between; gap: 0.5rem; text-align: left; cursor: pointer; max-width: 100%; background-color: #fff; }
+            .rc-pc-tombol:disabled { opacity: 0.6; cursor: not-allowed; }
+            .rc-pc-teks { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+            .rc-pc-panah { flex: none; color: #6b7280; font-size: 0.75em; }
+            .rc-pc-panel { position: fixed; z-index: 10050; display: flex; flex-direction: column; overflow: hidden; background: #fff; border: 1px solid #d1d5db; border-radius: 0.5rem; box-shadow: 0 12px 28px -6px rgba(0, 0, 0, 0.2); font-size: 0.875rem; }
+            .rc-pc-cari, .rc-ms-cari { width: 100%; padding: 0.4rem 0.65rem; border: 1px solid #d1d5db; border-radius: 0.375rem; font-size: 0.8125rem; outline: none; }
+            .rc-pc-cari { width: auto; margin: 0.5rem; }
+            .rc-pc-cari:focus, .rc-ms-cari:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2); }
+            .rc-pc-daftar { overflow-y: auto; padding-bottom: 0.25rem; }
+            .rc-pc-opsi { padding: 0.45rem 0.75rem; cursor: pointer; color: #374151; white-space: normal; word-break: break-word; }
+            .rc-pc-opsi.rc-pc-sorot { background: #eff6ff; }
+            .rc-pc-opsi.rc-pc-aktif { font-weight: 700; color: #1d4ed8; }
+            .rc-pc-opsi.rc-pc-mati { color: #9ca3af; cursor: not-allowed; }
+            .rc-pc-kosong, .rc-ms-kosong { padding: 0.6rem 0.75rem; color: #9ca3af; font-style: italic; font-size: 0.75rem; }
+            .rc-ms-cari-wrap { position: sticky; top: 0; z-index: 1; padding: 0.5rem; background: #fff; border-bottom: 1px solid #f3f4f6; }
             /* Bilah filter sebelumnya memakai z-10. Nilai itu membentuk stacking context
                tersendiri, sehingga z-index milik dropdown terkurung di dalamnya dan kalah oleh
                kartu yang datang sesudahnya - itulah sebabnya daftar Campaign dan Tahun Campaign

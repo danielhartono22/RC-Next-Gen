@@ -141,6 +141,7 @@
 
             // ---------- Layar ----------
             const CLR_BANK_LABEL = {
+                sudah_diupload: ['Sudah diupload dan tidak berubah', 'bg-blue-100 text-blue-800'], // 20261163790000
                 ok: ['Siap Clearing', 'bg-emerald-100 text-emerald-800'], ok_bukti: ['Sudah Done - simpan Bukti TF', 'bg-sky-100 text-sky-800'], // ok_bukti: 20261163750000
                 nominal_beda: ['Nominal beda', 'bg-amber-100 text-amber-800'],
                 tidak_ditemukan: ['Tidak ditemukan', 'bg-gray-200 text-gray-700'], terpotong: ['No Doc terpotong', 'bg-orange-100 text-orange-800'],
@@ -158,7 +159,7 @@
             async function clrBankPilih(input) {
                 const f = input.files && input.files[0];
                 rcClrBank = { file: null, teks: '', sidik: '', baca: null, hasil: null, saring: '' };
-                setHiddenSafely('clrBankHasil', true);
+                setHiddenSafely('clrBankHasil', true); setHiddenSafely('clrMassHasil', true);
                 setDisabledSafely('btnClrBankPratinjau', true);
                 if (!f) return;
                 if (f.size > 5 * 1024 * 1024) { showNotification('File maksimal 5 MB.', 'error'); input.value = ''; return; }
@@ -213,7 +214,7 @@
             function clrBankSaring(h) { rcClrBank.saring = rcClrBank.saring === h ? '' : h; clrBankGambar(); }
 
             function clrBankGambar() {
-                const res = rcClrBank.hasil, box = document.getElementById('clrBankHasil');
+                const res = rcClrBank.hasil, kotak = rcClrBank.kotak || 'clrBankHasil', box = document.getElementById(kotak);
                 if (!res || !box) return;
                 const rk = res.ringkasan || {}, per = rk.perHasil || {}, up = res.upload || {}, sudah = up.status === 'diproses', arsip = up.mode === 'arsip';
                 const nClr = arsip ? 0 : Number(per.ok || 0), nBtf = arsip ? Number(per.ok || 0) : Number(per.ok_bukti || 0);
@@ -231,7 +232,7 @@
                         + '<p class="text-[10px] text-gray-500">Clearing ' + nClr.toLocaleString('id-ID') + ' &middot; Bukti TF saja ' + nBtf.toLocaleString('id-ID') + '</p></div>'
                     + '<div class="bg-white border border-emerald-100 rounded-xl p-3"><p class="text-[10px] font-black uppercase text-gray-500">Nominal OK</p><p class="text-lg font-black text-emerald-700">' + rcEsc(rcNominalPenuh(rk.totalOk)) + '</p></div>'
                     + '</div>'
-                    + '<p class="text-xs text-gray-600 mb-2">' + (up.mode === 'otomatis' ? '' : '<b>' + (arsip ? 'Mode Arsip Bukti TF' : 'Mode Clearing') + '</b> &middot; ') + rcEsc(up.namaFile || '') + ' &middot; tahun ' + rcEsc(String(up.tahun || '')) + ' (' + (up.tahunSumber === 'form' ? 'isian form' : 'dari nama file') + ')'
+                    + '<p class="text-xs text-gray-600 mb-2">' + (['otomatis', 'template'].includes(up.mode) ? '' : '<b>' + (arsip ? 'Mode Arsip Bukti TF' : 'Mode Clearing') + '</b> &middot; ') + rcEsc(up.namaFile || '') + (up.mode === 'template' ? '' : ' &middot; tahun ' + rcEsc(String(up.tahun || '')) + ' (' + (up.tahunSumber === 'form' ? 'isian form' : 'dari nama file') + ')')
                         + (sudah ? ' &middot; <b class="text-emerald-700">Sudah diproses ' + rcEsc(up.diproses || '') + (arsip ? '' : ', batch ' + rcEsc(up.batch || '-')) + '</b>' : '') + '</p>'
                     + (peringatan.length ? '<p class="text-xs text-amber-700 mb-2">' + peringatan.slice(0, 5).map(rcEsc).join('; ') + (peringatan.length > 5 ? ' ...' : '') + '</p>' : '')
                     + '<div class="flex flex-wrap gap-2 mb-3">' + chip + (rcClrBank.saring ? '<button type="button" onclick="clrBankSaring(\'\')" class="px-2.5 py-1 rounded-lg text-xs font-bold bg-white border">Semua</button>' : '') + '</div>'
@@ -247,7 +248,7 @@
                             + '<td class="p-2 font-mono whitespace-nowrap">' + rcEsc(r.remark1) + '</td><td class="p-2 font-mono whitespace-nowrap">' + rcEsc(r.noDocRc || '-') + '</td>'
                             + '<td class="p-2">' + (r.kodeToko ? '<b>' + rcEsc(r.kodeToko) + '</b> ' + rcEsc(r.namaToko) : '-') + '</td>'
                             + '<td class="p-2 whitespace-nowrap">' + rcEsc(r.bank) + '</td>'
-                            + '<td class="p-2 text-right whitespace-nowrap font-bold">' + rcEsc(rcNominalPenuh(r.nominal)) + '</td>'
+                            + '<td class="p-2 text-right whitespace-nowrap font-bold">' + (r.nominal === null || r.nominal === undefined ? '-' : rcEsc(rcNominalPenuh(r.nominal))) + '</td>'
                             + '<td class="p-2 text-right whitespace-nowrap">' + (r.nominalKlaim === null || r.nominalKlaim === undefined ? '-' : rcEsc(rcNominalPenuh(r.nominalKlaim))) + '</td>'
                             + '<td class="p-2 whitespace-nowrap"><span class="px-2 py-0.5 rounded font-bold ' + lb[1] + '">' + lb[0] + '</span>' + (r.diproses ? ' <i class="fas fa-check text-emerald-600" title="Sudah diproses"></i>' : '') + '</td>'
                             + '<td class="p-2">' + rcEsc(r.keterangan) + '</td></tr>';
@@ -259,7 +260,7 @@
                         + '<i class="fas fa-check-double mr-1.5"></i>' + (arsip ? 'Simpan Bukti TF (' + nOk + ' baris OK)'
                             : 'Proses (' + nClr + ' Clearing' + (nBtf ? ' + ' + nBtf + ' Bukti TF' : '') + ')') + '</button>'
                     + '</div>';
-                setHiddenSafely('clrBankHasil', false);
+                setHiddenSafely(kotak, false);
             }
 
             async function clrBankProses() {
@@ -267,10 +268,10 @@
                 const per = (res.ringkasan && res.ringkasan.perHasil) || {}, arsip = res.upload.mode === 'arsip';
                 const nClr = arsip ? 0 : Number(per.ok || 0), nBtf = arsip ? Number(per.ok || 0) : Number(per.ok_bukti || 0), n = nClr + nBtf;
                 if (!n) return;
-                const setuju = await showConfirmModal({ title: arsip ? 'Simpan Bukti TF dari File Bank' : 'Proses File Bank',
+                const setuju = await showConfirmModal({ title: arsip ? 'Simpan Bukti TF dari File Bank' : (res.upload.mode === 'template' ? 'Proses Mass Upload' : 'Proses File Bank'),
                     message: arsip
                         ? n + ' dokumen yang sudah Done akan disimpan data transfernya sebagai Bukti TF (ikut di Tanda Terima PDA). Status dan batch klaim tidak diubah.'
-                        : (nClr ? nClr + ' dokumen Pending Finance akan di-Clearing (Done) dengan Tgl Transfer = Eff Date masing-masing' : 'Tidak ada dokumen Pending Finance untuk di-Clearing')
+                        : (nClr ? nClr + ' dokumen Pending Finance akan di-Clearing (Done) dengan ' + (res.upload.mode === 'template' ? 'Tanggal Proses Aktual dari file' : 'Tgl Transfer = Eff Date masing-masing') : 'Tidak ada dokumen Pending Finance untuk di-Clearing')
                           + (nBtf ? '; ' + nBtf + ' dokumen yang sudah Done hanya disimpan Bukti TF-nya (status tidak berubah)' : '')
                           + '. Baris lain tidak disentuh. File yang sama tidak bisa diproses lagi.',
                     confirmText: 'Ya, Proses', danger: false });
@@ -299,7 +300,8 @@
                 const bukti = rows.filter(r => r.diproses && (r.hasil === 'ok_bukti' || arsip)).map(butir);
                 const gagal = rows.filter(r => !r.diproses).map(r => ({ noDoc: rcEsc(r.noDocRc || r.remark1 || '-'),
                     toko: r.kodeToko ? rcEsc(r.kodeToko + ' - ' + r.namaToko) : '-', reason: rcEsc((CLR_BANK_LABEL[r.hasil] || [r.hasil])[0]) }));
-                showActionResult(sukses.length ? 'Laporan Workflow CLEARING (File Bank)' : 'Laporan Bukti TF (File Bank)', sukses, gagal, 'approve', sukses.length ? hasil.batch : null);
+                const sumber = (hasil.upload || {}).mode === 'template' ? 'Mass Upload' : 'File Bank';
+                showActionResult(sukses.length ? 'Laporan Workflow CLEARING (' + sumber + ')' : 'Laporan Bukti TF (' + sumber + ')', sukses, gagal, 'approve', sukses.length ? hasil.batch : null);
                 if (!bukti.length) return;
                 const stat = document.getElementById('actionResultStats'), body = document.getElementById('actionResultBody');
                 if (stat) stat.insertAdjacentHTML('beforeend', '<div class="flex-1 bg-sky-50 border border-sky-200 p-3 rounded-xl"><span class="block text-[10px] uppercase font-bold text-sky-700 mb-1">Bukti TF saja (sudah Done)</span><span class="text-2xl font-black text-sky-800">' + bukti.length + '</span></div>');
@@ -310,16 +312,86 @@
                     + '<td class="p-3 text-center"><span class="bg-sky-100 text-sky-800 px-2 py-1 rounded text-[10px] font-bold" title="Dokumen sudah Done sebelumnya; status dan batch tidak berubah">Bukti TF disimpan</span></td></tr>').join(''));
             }
 
+            // ---------- Mass Upload (20261163790000) ----------
+            // Tanggal Proses Aktual dinormalkan: dd-mmm-yy / dd-mmm-yyyy (bulan Inggris atau Indonesia), enam
+            // bentuk ketik baku RC (dd.mm.yyyy, dd-mm-yyyy, dd.mm.yy, dd-mm-yy, ddmmyy, ddmmyyyy), yyyy-mm-dd,
+            // dan sel tanggal Excel. Garis miring tetap ditolak (ambigu hari / bulan), bukan ditebak.
+            function rcMassTanggal(v) {
+                if (typeof v === 'number' && isFinite(v) && v > 20000 && v < 80000) {
+                    const d = new Date(Date.UTC(1899, 11, 30) + Math.floor(v) * 86400000);
+                    return rcBankIso(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate());
+                }
+                const t = String(v == null ? '' : v).trim(); let m;
+                const thn = y => (String(y).length === 2 ? 2000 + Number(y) : Number(y));
+                if ((m = t.match(/^(\d{1,2})[-. ]([A-Za-z]{3,9})[-. ](\d{2}|\d{4})$/))) { const b = rcBankBulan(m[2]); return b ? rcBankIso(thn(m[3]), b, Number(m[1])) : null; }
+                if ((m = t.match(/^(\d{4})-(\d{2})-(\d{2})$/))) return rcBankIso(Number(m[1]), Number(m[2]), Number(m[3]));
+                if ((m = t.match(/^(\d{2})[-.](\d{2})[-.](\d{2}|\d{4})$/)) || (m = t.match(/^(\d{2})(\d{2})(\d{2}|\d{4})$/))) return rcBankIso(thn(m[3]), Number(m[2]), Number(m[1]));
+                return null;
+            }
+            // Baris Excel (larik larik) -> baris untuk server. Tanggal yang tidak terbaca tetap dikirim supaya
+            // tampil sebagai "Tanggal salah" di pratinjau.
+            function rcMassParse(aoa) {
+                const norm = x => String(x == null ? '' : x).toLowerCase().replace(/\s+/g, ' ').trim();
+                let h = -1, kDoc = -1, kTgl = -1;
+                for (let i = 0; i < Math.min(5, aoa.length) && h < 0; i++) {
+                    const kol = (aoa[i] || []).map(norm);
+                    kDoc = kol.findIndex(x => /^no\.? ?doc/.test(x)); kTgl = kol.findIndex(x => /tanggal|tgl/.test(x));
+                    if (kDoc >= 0 && kTgl >= 0) h = i;
+                }
+                if (h < 0) return { ok: false, galat: 'Kolom No Doc dan Tanggal Proses Aktual tidak ditemukan. Gunakan template.' };
+                const baris = [];
+                for (let i = h + 1; i < aoa.length; i++) {
+                    const b = aoa[i] || [], doc = String(b[kDoc] == null ? '' : b[kDoc]).trim().toUpperCase();
+                    if (!doc) continue;
+                    baris.push({ baris: i + 1, transId: '', effDate: String(b[kTgl] == null ? '' : b[kTgl]).trim(), tglTransfer: rcMassTanggal(b[kTgl]), remark1: doc, status: 'Berhasil', nominal: '' });
+                }
+                if (!baris.length) return { ok: false, galat: 'File tidak berisi baris No Doc.' };
+                return { ok: true, baris: baris };
+            }
+            function clrMassTemplate() {
+                const ws = XLSX.utils.aoa_to_sheet([['No Doc', 'Tanggal Proses Aktual'], ['NPC/CMP/XXX/000000/0001', '05-Nov-26']]);
+                ws['!cols'] = [{ wch: 32 }, { wch: 24 }];
+                for (let r = 2; r <= 1001; r++) ['A', 'B'].forEach(c => { const ref = c + r; if (!ws[ref]) ws[ref] = { t: 's', v: '' }; ws[ref].z = '@'; });
+                ws['!ref'] = 'A1:B1001';
+                const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Mass Upload');
+                XLSX.writeFile(wb, 'Template_Mass_Upload_Clearing.xlsx');
+            }
+            function clrMassBatal() {
+                const el = document.getElementById('clrMassFile'); if (el) el.value = '';
+                rcClrBank = { file: null, teks: '', sidik: '', baca: null, hasil: null, saring: '' };
+                setHiddenSafely('clrMassHasil', true);
+            }
+            async function clrMassPilih(input) {
+                const f = input.files && input.files[0];
+                setHiddenSafely('clrBankHasil', true); setHiddenSafely('clrMassHasil', true);
+                if (!f) return;
+                showLoadingOverlay('Membaca dan mencocokkan dokumen...');
+                try {
+                    const buf = await f.arrayBuffer();
+                    const wb = XLSX.read(new Uint8Array(buf), { type: 'array' });
+                    const baca = rcMassParse(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '', raw: true }));
+                    if (!baca.ok) throw new Error(baca.galat);
+                    if (baca.baris.length > 1000) throw new Error('File berisi ' + baca.baris.length.toLocaleString('id-ID') + ' baris; maksimal 1.000 baris per file.');
+                    // Sidik diberi waktu: file yang sama boleh diunggah lagi; yang sudah diproses dinilai per baris.
+                    const sidik = await rcBankSidik(new TextEncoder().encode(f.name + '|' + Date.now() + '|' + f.size));
+                    const res = await fetchApp({ action: 'clearingBankPreview', namaFile: f.name, sidik: sidik, tahun: new Date().getFullYear(), tahunSumber: 'form', mode: 'template', baris: baca.baris });
+                    if (res.status !== 'success') throw new Error(res.message || 'Pratinjau gagal.');
+                    rcClrBank = { file: f, teks: '', sidik: sidik, baca: { peringatan: [] }, hasil: res, saring: '', kotak: 'clrMassHasil' };
+                    clrBankGambar();
+                } catch (e) { showNotification((e && e.message) || 'Mass Upload gagal dibaca.', 'error'); input.value = ''; }
+                finally { hideLoadingOverlay(); }
+            }
+
             // Excel sama dengan layar: seluruh baris (bukan hanya saringan), ID sebagai teks, nominal tanpa desimal.
             function clrBankExcel() {
                 const res = rcClrBank.hasil; if (!res) return;
                 const aoa = [['No', 'Trans ID', 'Eff Date', 'Tgl Transfer', 'No Doc (file)', 'No Doc RC', 'Depot', 'Kode Toko', 'Nama Toko', 'Campaign',
                               'Bank', 'To Acc', 'Nominal Transfer', 'Nominal Klaim', 'Selisih', 'Status Bank', 'Hasil', 'Keterangan', 'Sudah diproses']];
                 (res.rows || []).forEach(r => {
-                    const nt = Math.trunc(Number(r.nominal) || 0), nk = r.nominalKlaim === null || r.nominalKlaim === undefined ? '' : Math.trunc(Number(r.nominalKlaim));
+                    const nt = r.nominal === null || r.nominal === undefined ? '' : Math.trunc(Number(r.nominal) || 0), nk = r.nominalKlaim === null || r.nominalKlaim === undefined ? '' : Math.trunc(Number(r.nominalKlaim));
                     aoa.push([r.baris, String(r.transId || ''), String(r.effDate || ''), String(r.tglTransfer || ''), String(r.remark1 || ''), String(r.noDocRc || ''),
                               String(r.depot || ''), String(r.kodeToko || ''), String(r.namaToko || ''), String(r.campaign || ''), String(r.bank || ''), String(r.toAcc || ''),
-                              nt, nk, nk === '' ? '' : nt - nk, String(r.statusBank || ''), (CLR_BANK_LABEL[r.hasil] || [r.hasil])[0], String(r.keterangan || ''), r.diproses ? 'Ya' : '']);
+                              nt, nk, nk === '' || nt === '' ? '' : nt - nk, String(r.statusBank || ''), (CLR_BANK_LABEL[r.hasil] || [r.hasil])[0], String(r.keterangan || ''), r.diproses ? 'Ya' : '']);
                 });
                 const ws = XLSX.utils.aoa_to_sheet(aoa);
                 ws['!cols'] = aoa[0].map((h, i) => ({ wch: [5, 22, 12, 13, 22, 26, 7, 10, 28, 16, 10, 14, 15, 15, 12, 11, 22, 60, 9][i] || 14 }));

@@ -2,19 +2,39 @@
             const RC_DASH_DROPDOWN = ['histOscDropdown', 'histDepotDropdown', 'histCampDropdown',
                                       'sumOscDropdown', 'sumDepotDropdown', 'sumCampDropdown', 'sumYearDropdown'];
 
+            // 20261163870000: Tahun Campaign disaring di server supaya Analytics tidak memuat seluruh
+            // klaim. Bawaan tahun berjalan; dokumen tanpa periode campaign selalu ikut (kode 0).
+            function rcDashTahunDipilih() {
+                const el = document.getElementById('dashTahun');
+                if (el && el.value === 'semua') return null;
+                return [(el && Number(el.value)) || new Date().getFullYear(), 0];
+            }
+            function rcDashTahunIsi(daftar) {
+                const el = document.getElementById('dashTahun');
+                if (!el) return;
+                const kini = el.value || String(new Date().getFullYear());
+                const opsi = new Set((daftar || []).map(String));
+                if (kini !== 'semua') opsi.add(kini);
+                el.innerHTML = Array.from(opsi).sort((a, b) => Number(b) - Number(a)).map(t => '<option value="' + rcEsc(t) + '">' + rcEsc(t) + '</option>').join('')
+                    + '<option value="semua">Semua Tahun</option>';
+                el.value = kini;
+            }
+
             async function fetchDashboardData() {
                 showLoadingOverlay("Mengkalkulasi Analitik & Historikal...");
                 let overlay = true;
                 const role = currentUserData.sysRole || currentUserData.role || '';
                 const hist = [], comp = [];
+                const tahun = rcDashTahunDipilih();
                 try {
-                    // Seluruh klaim dimuat per halaman (lihat 27-muat-bertahap.js). Tabel dan
+                    // Klaim tahun terpilih dimuat per halaman (lihat 27-muat-bertahap.js). Tabel dan
                     // ringkasan diperbarui saat halaman berdatangan; angka ringkasan baru final
                     // setelah indikator di pojok kanan bawah hilang.
                     await rcMuatBertahap({
                         kunci: 'analytics', label: 'Data analitik',
-                        ambil: (setelah, pertama) => fetchApp({ action: 'getDashboardData', requesterId: currentUserData.userId, requesterRole: role, managedDepots: currentUserData.managedDepots, setelah: setelah, limit: pertama ? 300 : 1000 }),
-                        terima: (res) => {
+                        ambil: (setelah, pertama) => fetchApp({ action: 'getDashboardData', requesterId: currentUserData.userId, requesterRole: role, managedDepots: currentUserData.managedDepots, setelah: setelah, limit: pertama ? 300 : 1000, tahun: tahun }),
+                        terima: (res, pertama) => {
+                            if (pertama) rcDashTahunIsi(res.tahunTersedia);
                             const h = res.history || [];
                             h.forEach(d => d.status = normalizeClaimStatus(d.status));
                             hist.push(...h); comp.push(...(res.compileData || []));

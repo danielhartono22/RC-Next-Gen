@@ -63,7 +63,7 @@
       ]
     },
     {
-      "source": "/(upload|release|process|analytics|access|log-activity|bulk-process|ad-hoc-process|key-master|document-center|approval|report|timetable|profile|people-performance|portal-link|document-generator|discount-center|warehouse-rental)",
+      "source": "/(upload|release|process|analytics|access|log-activity|bulk-process|ad-hoc-process|key-master|document-center|approval|report|timetable|profile|people-performance|portal-link|knowledge-base|document-generator|discount-center|warehouse-rental)",
       "headers": [
         {
           "key": "Cache-Control",
@@ -157,6 +157,10 @@
     },
     {
       "source": "/portal-link",
+      "destination": "/"
+    },
+    {
+      "source": "/knowledge-base",
       "destination": "/"
     },
     {

@@ -1,0 +1,77 @@
+                <!-- MODULE: KNOWLEDGE BASE (20261163920000) -->
+                <!-- SOP, surat, pricelist, pengumuman, dll. dalam bentuk link. Knowledge Resources: dokumen
+                     yang ditujukan untuk akun ini (peran + wilayah), per tab jenis, dengan Buka Dokumen lalu
+                     Acknowledge. Knowledge Management (hanya bila dicentang): tambah / ubah / arsip dokumen,
+                     progres acknowledge, dan Details (diagram per status, region, depot, daftar akun). -->
+                <div id="modKnowledgeBase" class="module-section hidden">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 md:p-8">
+                        <div class="flex flex-wrap justify-between items-center gap-3 border-b border-gray-100 pb-4 mb-5">
+                            <div>
+                                <h2 class="text-2xl font-extrabold text-gray-800"><i class="fas fa-book-open text-teal-600 mr-2"></i>Knowledge Base</h2>
+                                <p class="text-sm text-gray-500 mt-1">SOP, surat, pricelist, pengumuman, dan informasi lain dalam satu tempat.</p>
+                            </div>
+                            <button onclick="kbMuatUlang()" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-bold bg-white hover:bg-gray-50"><i class="fas fa-sync-alt text-blue-500 mr-2"></i>Segarkan</button>
+                        </div>
+                        <div class="flex flex-wrap gap-2 p-1 bg-gray-50 rounded-xl mb-6">
+                            <button id="kbTabResources" onclick="switchKbTab('resources')" class="px-5 py-2 text-sm font-bold rounded-lg inline-flex items-center gap-2"><i class="fas fa-book-open-reader"></i>Knowledge Resources<span id="kbTabResourcesBadge" class="hidden bg-red-600 text-white text-[10px] font-black rounded-full px-2 py-0.5">0</span></button>
+                            <button id="kbTabManage" onclick="switchKbTab('manage')" class="px-5 py-2 text-sm font-bold rounded-lg inline-flex items-center gap-2"><i class="fas fa-sliders"></i>Knowledge Management</button>
+                        </div>
+
+                        <!-- Knowledge Resources -->
+                        <div id="kbPanelResources">
+                            <div id="kbBanner" class="hidden mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-800 font-semibold flex items-center gap-2"><i class="fas fa-bell"></i><span id="kbBannerTeks"></span></div>
+                            <div id="kbJenisBar" class="flex flex-wrap gap-2 mb-4"></div>
+                            <div class="flex flex-wrap items-center gap-3 mb-5">
+                                <div class="relative flex-1 min-w-[220px] max-w-md">
+                                    <i class="fas fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                                    <input type="search" id="kbCari" oninput="kbRenderResources()" autocomplete="off" placeholder="Cari judul atau description..."
+                                        class="block w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-xl bg-white text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
+                                </div>
+                                <label class="flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer"><input type="checkbox" id="kbHanyaBelum" onchange="kbRenderResources()" class="rounded text-teal-600"> Belum acknowledge saja</label>
+                            </div>
+                            <div id="kbDaftar" class="space-y-3"></div>
+                            <p class="text-xs text-gray-400 mt-6">Klik <b>Buka Dokumen</b> untuk membaca; setelah itu tombol <b>Acknowledge</b> dapat ditekan. Dokumen yang tampil mengikuti peran dan wilayah akun Anda.</p>
+                        </div>
+
+                        <!-- Knowledge Management -->
+                        <div id="kbPanelManage" class="hidden">
+                            <div id="kbKelolaUtama">
+                                <div id="kbKartu" class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5"></div>
+                                <div class="flex flex-wrap items-center gap-3 mb-4">
+                                    <button onclick="kbBukaForm(null)" class="bg-teal-600 hover:bg-teal-700 text-white text-sm font-bold py-2 px-4 rounded-lg shadow-sm"><i class="fas fa-plus mr-1.5"></i>Tambah Dokumen</button>
+                                    <div class="flex gap-1 p-1 bg-gray-100 rounded-lg">
+                                        <button id="kbModeAktif" onclick="kbGantiMode(false)" class="px-3 py-1.5 text-xs font-bold rounded-md">Aktif</button>
+                                        <button id="kbModeArsip" onclick="kbGantiMode(true)" class="px-3 py-1.5 text-xs font-bold rounded-md">Arsip</button>
+                                    </div>
+                                    <div class="relative flex-1 min-w-[200px] max-w-sm">
+                                        <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                                        <input type="search" id="kbKelolaCari" oninput="kbRenderKelola()" autocomplete="off" placeholder="Cari jenis, judul, peserta, wilayah..."
+                                            class="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm">
+                                    </div>
+                                    <button onclick="kbBukaDetail(null)" class="bg-white border border-teal-300 text-teal-700 text-sm font-bold py-2 px-4 rounded-lg hover:bg-teal-50"><i class="fas fa-chart-pie mr-1.5"></i>Details Semua Dokumen</button>
+                                    <button id="kbBtnArsip" onclick="kbArsipTerpilih()" disabled class="ml-auto bg-white border border-gray-300 text-gray-700 text-sm font-bold py-2 px-4 rounded-lg disabled:opacity-40"><i class="fas fa-box-archive mr-1.5"></i><span id="kbBtnArsipTeks">Arsipkan terpilih</span></button>
+                                </div>
+                                <div class="table-container border border-gray-200 rounded-xl overflow-x-auto">
+                                    <table class="w-full text-left text-xs">
+                                        <thead class="bg-gray-50 text-gray-600 uppercase text-[11px]">
+                                            <tr>
+                                                <th class="p-3 w-8"><input type="checkbox" id="kbPilihSemua" onchange="kbPilihSemua(this.checked)" class="rounded"></th>
+                                                <th class="p-3 whitespace-nowrap">Jenis</th>
+                                                <th class="p-3">Judul</th>
+                                                <th class="p-3">Peserta</th>
+                                                <th class="p-3">Wilayah</th>
+                                                <th class="p-3 whitespace-nowrap">Pin</th>
+                                                <th class="p-3 whitespace-nowrap">Acknowledge</th>
+                                                <th class="p-3 whitespace-nowrap">Diubah</th>
+                                                <th class="p-3 text-center whitespace-nowrap">Aksi</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="kbKelolaBody"></tbody>
+                                    </table>
+                                </div>
+                                <p class="text-xs text-gray-400 mt-3">Peserta = peran akun; Wilayah kosong = semua wilayah, bila diisi dokumen tampil untuk akun peserta yang jangkauan depotnya mencakup salah satu Region <b>atau</b> Depot terpilih. Progres hanya menghitung akun aktif. Dokumen diarsip, tidak dihapus, dan dapat dipulihkan.</p>
+                            </div>
+                            <div id="kbDetail" class="hidden"></div>
+                        </div>
+                    </div>
+                </div>

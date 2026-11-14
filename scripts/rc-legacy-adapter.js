@@ -964,6 +964,15 @@
     linkSimpan: function (b) { return rpc('rc_link_simpan', { p: b.link || {} }); },
     linkPin: function (b) { return rpc('rc_link_pin', { p_tab: String(b.tab || ''), p_pinned: !!b.pinned }); },
     linkArsip: function (b) { return rpc('rc_link_arsip', { p_ids: b.ids || [], p_arsip: !!b.arsip, p_reason: String(b.alasan || '') }); },
+    // Knowledge Base (20261163920000).
+    kbList: function () { return rpc('rc_kb_list'); },
+    kbBelum: function () { return rpc('rc_kb_belum'); },
+    kbBuka: function (b) { return rpc('rc_kb_buka', { p_id: String(b.id || '') }); },
+    kbAck: function (b) { return rpc('rc_kb_ack', { p_id: String(b.id || ''), p_versi: b.versi == null ? null : Number(b.versi) }); },
+    kbKelolaList: function (b) { return rpc('rc_kb_kelola_list', { p_arsip: !!(b && b.arsip) }); },
+    kbSimpan: function (b) { return rpc('rc_kb_simpan', { p: b.item || {} }); },
+    kbArsip: function (b) { return rpc('rc_kb_arsip', { p_ids: b.ids || [], p_arsip: !!b.arsip, p_reason: String(b.alasan || '') }); },
+    kbDetail: function (b) { return rpc('rc_kb_detail', { p_id: (b && b.id) || null }); },
     // Document Generator (20261163550000): satu halaman daftar toko (saringan dijalankan server) dan
     // pembentukan Tanda Terima. sumber: 'done' atau 'notyet'; saring: {dari, sampai, batch} (isi form,
     // hanya Done) dan {depot, campaign, unduh, master, cari} (daftar saja). kunciSaja: kunci toko siap

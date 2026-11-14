@@ -15,7 +15,8 @@
                 if (typeof initInputGrid === 'function') initInputGrid();
                 // Field klaim (Tgl Lunas, TOP) tidak wajib di Manual Input saat mode Posting Exception.
                 let reqTgl = document.getElementById('singleTglLunas'), reqTop = document.getElementById('singleTop');
-                if (reqTgl) reqTgl.required = (mode === 'claim');
+                if (typeof rcSingleTglLunasWajib === 'function') rcSingleTglLunasWajib(mode === 'claim'); // 20261163930000
+                else if (reqTgl) reqTgl.required = (mode === 'claim');
                 if (reqTop) reqTop.required = (mode === 'claim');
                 cancelPreview();
                 // Ganti mode Posting = mulai proses Posting baru - No Doc & input lain dari mode sebelumnya

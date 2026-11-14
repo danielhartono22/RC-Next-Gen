@@ -77,21 +77,25 @@ begin
     select cu.customer_code, d.depot_code into a1.customer_code, a1.depot_code from public.claims c join public.customers cu on cu.id = c.customer_id join public.depots d on d.id = c.depot_id where c.id = v_arsip;
     r := public.rc_compile_upload(jsonb_build_array(jsonb_build_object('kodeDepot', a1.depot_code, 'codeCampaign', ca.kode, 'custCode', a1.customer_code, 'cbNet', '1000', 'netValue', '1000', 'volume', '1')), gen_random_uuid());
     hasil := hasil || jsonb_build_object('uji', 'Compile ke campaign Closed ditolak', 'lulus', coalesce((r->>'dibuat')::int, 0) = 0 and r::text ~ '(?i)closed', 'rinci', left(r::text, 200));
+    -- 20261163900000: Expired campaign Closed boleh dikembalikan lewat Change Status dan diproses kembali.
     r := public.rc_change_status_cek(jsonb_build_array(jsonb_build_object('noDoc', a1.no_doc)));
-    hasil := hasil || jsonb_build_object('uji', 'Change Status menolak Expired campaign Closed', 'lulus', r->'rows'->0->>'galat' ~ 'Closed', 'rinci', r->'rows'->0->>'galat');
+    hasil := hasil || jsonb_build_object('uji', 'Change Status menerima Expired campaign Closed (20261163900000)', 'lulus', r->'rows'->0->>'galat' is null and r->'rows'->0->>'statusDok' = 'Expired', 'rinci', coalesce(r->'rows'->0->>'galat', 'tanpa galat'));
     begin
       update public.claims set status = 'not_yet' where id = a1.id; v_galat := 'lolos';
     exception when others then v_galat := sqlerrm; end;
-    hasil := hasil || jsonb_build_object('uji', 'Jalur lain pun tidak dapat mengembalikan Expired campaign Closed', 'lulus', v_galat ~ 'final', 'rinci', v_galat);
+    hasil := hasil || jsonb_build_object('uji', 'Expired campaign Closed tidak lagi dikunci final (20261163900000)', 'lulus', v_galat = 'lolos', 'rinci', v_galat);
 
-    -- ---- Cleared otomatis menjadi Closed -------------------------------------------------------------
+    -- ---- Cleared tidak dipakai lagi (20261163900000) -------------------------------------------------
     select c.campaign_id id, ca2.campaign_code kode into ca from public.claims c join public.campaigns ca2 on ca2.id = c.campaign_id
      where ca2.status = 'active' and c.archived_at is null and c.status = 'not_yet' group by 1, 2 order by count(*) limit 1;
-    perform public.rc_campaign_upsert(jsonb_build_array(jsonb_build_object('codeCampaign', ca.kode, 'campaignName', (select campaign_name from public.campaigns where id = ca.id), 'status', 'cleared')));
-    hasil := hasil || jsonb_build_object('uji', 'Status Cleared otomatis menjadi Closed, Not Yet-nya Expired',
-      'lulus', (select status from public.campaigns where id = ca.id) = 'closed'
-           and not exists (select 1 from public.claims where campaign_id = ca.id and status = 'not_yet' and archived_at is null)
-           and not exists (select 1 from public.campaigns where status = 'cleared'), 'rinci', ca.kode);
+    begin
+      perform public.rc_campaign_upsert(jsonb_build_array(jsonb_build_object('codeCampaign', ca.kode, 'campaignName', (select campaign_name from public.campaigns where id = ca.id), 'status', 'cleared')));
+      v_galat := 'lolos';
+    exception when others then v_galat := sqlerrm; end;
+    hasil := hasil || jsonb_build_object('uji', 'Status Cleared ditolak; campaign dan Not Yet-nya tidak berubah',
+      'lulus', v_galat ~ 'Cleared tidak dipakai' and (select status from public.campaigns where id = ca.id) = 'active'
+           and exists (select 1 from public.claims where campaign_id = ca.id and status = 'not_yet' and archived_at is null)
+           and not exists (select 1 from public.campaigns where status = 'cleared'), 'rinci', v_galat);
 
     -- ---- Change Status -------------------------------------------------------------------------------
     select c.id, c.no_doc, c.depot_id into a1 from public.claims c join public.campaigns ca2 on ca2.id = c.campaign_id

@@ -114,6 +114,13 @@
                     if (!alasan.trim()) {
                         showNotification('On Hold memerlukan alasan.', 'warning'); return;
                     }
+                } else {
+                    // 20261163930000: alasan Expired wajib - satu alasan untuk satu proses (satu No
+                    // Batch). Alasannya tampil di email Expired, di atas tabel.
+                    const a = await rcMintaAlasan('Alasan Expired', rows.length + ' dokumen akan di-Expired dalam satu batch. '
+                        + 'Alasan wajib diisi dan akan tampil di email pemberitahuan Expired.', 'Lanjut');
+                    if (a === null) return;
+                    alasan = a;
                 }
 
                 // Saat approval dimatikan server langsung mengubah statusnya (20261163050000);
@@ -126,9 +133,9 @@
                 const label = actionType === 'expired' ? 'Expired' : 'On Hold';
                 const pesan = approvalMati
                     ? rows.length + ' dokumen langsung menjadi ' + label + ' (approval dimatikan).'
-                        + (actionType === 'expired' ? '' : ' Alasan: ' + alasan.trim())
+                        + ' Alasan: ' + alasan.trim()
                     : actionType === 'expired'
-                    ? rows.length + ' dokumen diajukan untuk Expired. Status tetap sampai disetujui.'
+                    ? rows.length + ' dokumen diajukan untuk Expired. Status tetap sampai disetujui. Alasan: ' + alasan.trim()
                     : rows.length + ' dokumen diajukan untuk On Hold. Status tetap sampai disetujui. Alasan: ' + alasan.trim();
                 const setuju = await showConfirmModal({
                     title: actionType === 'expired' ? 'Konfirmasi Expired' : 'Konfirmasi On Hold',

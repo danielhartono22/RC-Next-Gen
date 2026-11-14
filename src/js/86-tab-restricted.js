@@ -138,6 +138,14 @@
                     const res = await fetchApp({ action: 'restrictedPindah', docs: docs, alasan: alasan });
                     if (res.status !== 'success') throw new Error(res.message || 'Gagal memindahkan.');
                     showNotification(res.message, 'success');
+                    // 20261163930000: dokumen yang sudah ada di cache layar ikut diperbarui, supaya
+                    // Mass Upload / Manual Input langsung mengenalnya sebagai pindahan Restricted
+                    // (boleh diajukan, Tgl Lunas tidak wajib) tanpa perlu login ulang.
+                    const gagalPindah = new Set((res.gagal || []).map(x => String(x).trim().toUpperCase()));
+                    const pindah = new Set(docs.map(x => String(x).trim().toUpperCase()).filter(x => !gagalPindah.has(x)));
+                    (globalDocuments || []).forEach(function (d) {
+                        if (pindah.has(String(d.noDoc).trim().toUpperCase())) { d.bolehAjukan = true; d.restrictedOpen = true; }
+                    });
                     rcPilihanKosongkan('cb-restricted', 'restrictedSelectAll');
                     loadRestrictedClaims(rcRestrictedState.offset || 0);
                 } catch (e) { showNotification((e && e.message) ? e.message : 'Gagal memindahkan ke Open.', 'error'); }

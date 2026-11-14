@@ -148,7 +148,7 @@ begin
     update public.email_settings set aktif = false where jenis = 'pengajuan';
     insert into public.pengaturan_sistem(kunci, nilai) values ('approval_aktif', 'false'::jsonb)
     on conflict (kunci) do update set nilai = 'false'::jsonb;
-    r := public.rc_posting_exception('expired', jsonb_build_array(jsonb_build_object('noDoc', d2.no_doc, 'versionNo', d2.version_no)), '');
+    r := public.rc_posting_exception('expired', jsonb_build_array(jsonb_build_object('noDoc', d2.no_doc, 'versionNo', d2.version_no)), 'Uji transport'); -- 20261163930000: alasan Expired wajib
     select * into c from public.claims where no_doc = d2.no_doc;
     hasil := hasil || jsonb_build_array(jsonb_build_array('Approval mati: Expired langsung berlaku',
       (r->>'langsung')::boolean and c.status = 'expired' and c.pending_approval is null and coalesce(c.batch_clearing,'') <> '',

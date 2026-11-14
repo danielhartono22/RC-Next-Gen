@@ -336,10 +336,18 @@
                     // Melengkapi sisanya dari database: KTP/NPWP bagi mode Claim, dan keempat
                     // tanggal periode campaign bagi mode Posting Exception.
                     if (typeof autoFillGridRowFromDoc === 'function') autoFillGridRowFromDoc(tr);
+                    // 20261163930000: dokumen pindahan Restricted belum lunas - Tgl Lunas tidak diminta.
+                    if (r.restricted && currentPostingMode !== 'exception') {
+                        const tl = tr.querySelector('[name="tglLunas"]');
+                        if (tl) tl.placeholder = 'tidak wajib (Restricted)';
+                    }
                 });
+                const nRestricted = picked.filter(r => r.restricted).length;
                 showNotification(picked.length + " dokumen dipindahkan"
                     + (currentPostingMode === 'exception'
                         ? ". SO dan Billing terisi dari periode campaign; perpanjang salah satunya untuk On Hold."
+                        : nRestricted === picked.length ? ". Dokumen Restricted tidak perlu Tgl Lunas; lengkapi kolom lain yang kosong."
+                        : nRestricted > 0 ? ". Lengkapi Tgl Lunas (kecuali " + nRestricted + " dokumen berlabel Restricted) dan kolom lain yang kosong."
                         : ". Lengkapi Tgl Lunas dan kolom lain yang kosong."), "success");
                 // Pilihannya sudah dipakai: dokumennya kini ada di grid Mass Upload.
                 rcPilihanKosongkan('cb-open', 'openSelectAll');

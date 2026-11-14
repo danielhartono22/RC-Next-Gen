@@ -11,7 +11,7 @@
             let rcEditorKind = null, rcEditorRow = null;
 
             function openRcModule(mod) {
-                const selected=rcFirstTab(mod,{keyMaster:'customer',adhoc:'list',compilation:'list',approval:'wpt',report:'dashboard',timetable:'matrix',people:'osc',links:'view',docgen:'done',discount:'dashboard',rental:'form'}[mod]);
+                const selected=rcFirstTab(mod,{keyMaster:'customer',adhoc:'list',compilation:'list',approval:'wpt',report:'dashboard',timetable:'matrix',people:'osc',links:'view',kb:'resources',docgen:'done',discount:'dashboard',rental:'form'}[mod]);
                 if(!rcEnterTab(mod,selected))return;
                 setHiddenSafely('dashboardSection', true); setHiddenSafely('navBackBtn', false);
                 setHiddenSafely('workspaceSection', false); setHiddenSafely('profileSection', true);
@@ -22,6 +22,10 @@
                 } else if (mod === 'links') {
                     document.getElementById('modPortalLink').classList.remove('hidden');
                     switchPortalLinkTab(selected);
+                } else if (mod === 'kb') {
+                    // Knowledge Base (20261163920000).
+                    document.getElementById('modKnowledgeBase').classList.remove('hidden');
+                    switchKbTab(selected);
                 } else if (mod === 'docgen') {
                     document.getElementById('modDocGen').classList.remove('hidden');
                     switchDocGenTab(selected);
@@ -155,7 +159,9 @@
                                 + ' onchange="updateCampaignHapusCount()"></td>'
                             + '<td class="p-3 font-black text-gray-800">' + rcEsc(r.codeCampaign) + '</td>'
                             + '<td class="p-3 text-gray-700">' + rcEsc(r.campaignName) + '</td>'
-                            + '<td class="p-3 text-center"><span class="' + stCls + ' px-2 py-1 rounded text-[10px] font-black uppercase">' + rcEsc(stLbl) + '</span></td>'
+                            + '<td class="p-3 text-center"><span class="' + stCls + ' px-2 py-1 rounded text-[10px] font-black uppercase">' + rcEsc(stLbl) + '</span>'
+                                + (r.batasCompile && st !== 'closed' ? '<div class="text-[10px] text-gray-500 mt-1 whitespace-nowrap" title="Batas Compile: sesudah tanggal ini campaign Active menjadi Running">'
+                                    + (st === 'running' ? 'Compile ditutup' : 'Compile s.d. ' + rcEsc(r.batasCompile)) + '</div>' : '') + '</td>'
                             + '<td class="p-3 text-center text-gray-600">' + rcEsc(r.periodStart || '-') + '</td>'
                             + '<td class="p-3 text-center text-gray-600">' + rcEsc(r.periodEnd || '-') + '</td>'
                             // Periode SO dan Billing ditampilkan sebagai satu sel "a s/d b":
@@ -206,11 +212,15 @@
             // Status campaign menentukan apakah dokumen baru boleh masuk. Aturannya ditegakkan
             // server lewat trigger pada tabel claims, bukan di sini; yang ada di layar hanyalah
             // cara mengubahnya dan cara membacanya.
+            // 20261163900000: urutan Inactive, Active, Running, Closed; Cleared tidak dipakai lagi.
+            //   Inactive compile dan Claim Upload ditutup; yang sudah Submitted tetap berjalan.
+            //   Active   compile dan klaim; otomatis Running sesudah Batas Compile.
+            //   Running  masa klaim; compile ditutup.
+            //   Closed   selesai; Not Yet menjadi Expired saat ditutup, tidak dapat dibuka kembali.
             const RC_STATUS_CAMPAIGN = {
-                active:   { label: 'Active',   kelas: 'bg-emerald-100 text-emerald-700' },
                 inactive: { label: 'Inactive', kelas: 'bg-red-100 text-red-700' },
-                // 20261163880000: seluruh Not Yet menjadi Expired, final, tidak dapat dibuka kembali.
-                // Cleared tidak lagi dipilih: server mengubahnya otomatis menjadi Closed.
+                active:   { label: 'Active',   kelas: 'bg-emerald-100 text-emerald-700' },
+                running:  { label: 'Running',  kelas: 'bg-sky-100 text-sky-700' },
                 closed:   { label: 'Closed',   kelas: 'bg-gray-800 text-white' }
             };
 
@@ -506,6 +516,8 @@
                 // diturunkan dari satu periode saja.
                 campaign: [['codeCampaign','Code Campaign',true],['campaignName','Nama Campaign',true],
                            ['status','Status Campaign',false,'select'],
+                           // 20261163900000: kosong = dihitung otomatis dari Billing End.
+                           ['batasCompile','Batas Compile (kosongkan = otomatis: Billing End + 1 bulan)',false],
                            ['periodStart','Periode Campaign Start',false],['periodEnd','Periode Campaign End',false],
                            ['soStart','Periode SO Start',false],['soEnd','Periode SO End',false],
                            ['billingStart','Periode Billing Start',false],['billingEnd','Periode Billing End',false],
@@ -544,10 +556,13 @@
                                     + RC_STATUS_CAMPAIGN[k].label + '</option>';
                             }).join('')
                             + '</select>'
-                            + '<p class="text-[11px] text-gray-500 mt-1">Inactive: dokumen baru ditolak dan dokumen '
-                            + 'yang ada tidak dapat dimajukan. Closed: seluruh dokumen Not Yet menjadi Expired (final), satu email '
-                            + 'dikirim ke depot terkait, dan campaign tidak dapat dibuka kembali; dokumen yang sudah Submitted ke atas '
-                            + 'tetap dapat diselesaikan. Status Cleared otomatis menjadi Closed.</p></div>';
+                            + '<p class="text-[11px] text-gray-500 mt-1"><b>Inactive</b>: compile dan Claim Upload ditutup; dokumen yang sudah '
+                            + 'Submitted tetap berjalan sampai Done. <b>Active</b>: compile dan klaim; otomatis menjadi Running sesudah Batas Compile '
+                            + '(Billing End + 1 bulan; master yang dibuat lebih dari 1 minggu sesudah Billing End: 1 bulan dari tanggal dibuat). '
+                            + '<b>Running</b>: masa klaim, compile ditutup; dibuka kembali menjadi Active = compile 1 bulan lagi. '
+                            + '<b>Closed</b>: campaign selesai; seluruh Not Yet menjadi Expired, satu email dikirim ke depot terkait, compile ditutup '
+                            + 'dan campaign tidak dapat dibuka kembali. Dokumen yang ditolak saat Release atau dikembalikan lewat Amend Doc &gt; Change Status '
+                            + 'tetap dapat diproses. Campaign Active tanpa satu dokumen pun saat Batas Compile lewat otomatis menjadi Closed.</p></div>';
                         return;
                     }
                     html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">' + label
@@ -609,8 +624,8 @@
                           + (cek.depot.length > 12 ? '\n... dan ' + (cek.depot.length - 12) + ' depot lain' : '') : '.')
                     : 'Seluruh dokumen Not Yet campaign ini akan menjadi Expired.';
                 return showConfirmModal({ title: 'Closed Campaign ' + kode,
-                    message: rinci + '\n\nExpired ini final: campaign tidak dapat dibuka kembali dan dokumennya tidak dapat dikembalikan ke Not Yet. '
-                        + 'Dokumen yang sudah Submitted ke atas tetap berjalan. Email Campaign Closed dikirim ke depot terkait.',
+                    message: rinci + '\n\nCampaign Closed tidak dapat dibuka kembali dan compile-nya ditutup. Dokumen yang sudah Submitted ke atas tetap berjalan; '
+                        + 'Expired dapat dikembalikan per dokumen lewat Amend Doc > Change Status. Email Campaign Closed dikirim ke depot terkait.',
                     confirmText: 'Ya, Closed', danger: true });
             }
 
@@ -958,13 +973,13 @@
                 if (!rows) return;
                 const bertahap = rows.length > RC_BAGIAN_UNGGAH;
                 // 20261163880000: campaign yang diunggah berstatus Closed menghanguskan seluruh Not Yet-nya.
-                const ditutup = kind === 'Campaign' ? rows.filter(r => ['closed', 'cleared'].includes(String(r.status || '').trim().toLowerCase())).map(r => r.codeCampaign) : [];
+                const ditutup = kind === 'Campaign' ? rows.filter(r => String(r.status || '').trim().toLowerCase() === 'closed').map(r => r.codeCampaign) : [];
                 let confirmed = await showConfirmModal({ title: "Konfirmasi Upload Master",
                     message: rows.length.toLocaleString('id-ID') + " baris akan disimpan ke " + kind + " Master.\n\n"
                         + (kind === 'Customer' ? "Kode yang sudah ada: kolom terisi MENIMPA data lama, kolom kosong memakai data lama, \"-\" mengosongkan."
                             : "Kode yang sudah ada akan DITIMPA oleh data dari file ini.")
-                        + (ditutup.length ? "\n\nPERHATIAN: " + ditutup.length + " campaign berstatus Closed / Cleared (" + ditutup.slice(0, 8).join(', ') + (ditutup.length > 8 ? ', ...' : '')
-                            + "). Seluruh dokumen Not Yet-nya menjadi Expired (final) dan email Campaign Closed dikirim; campaign Closed tidak dapat dibuka kembali." : "")
+                        + (ditutup.length ? "\n\nPERHATIAN: " + ditutup.length + " campaign berstatus Closed (" + ditutup.slice(0, 8).join(', ') + (ditutup.length > 8 ? ', ...' : '')
+                            + "). Seluruh dokumen Not Yet-nya menjadi Expired dan email Campaign Closed dikirim; campaign Closed tidak dapat dibuka kembali." : "")
                         + (bertahap ? "\n\nBerkas besar: diperiksa seluruhnya dulu, lalu disimpan otomatis dalam "
                             + Math.ceil(rows.length / RC_BAGIAN_UNGGAH) + " bagian. Jangan tutup halaman sampai selesai." : ""),
                     confirmText: "Ya, Simpan", danger: false });

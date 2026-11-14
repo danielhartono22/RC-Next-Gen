@@ -77,7 +77,8 @@ function uploadContext(response) {
    EXC_STATUS_BOLEH:{expired:['not yet']},fetchApp:async()=>response,
    showConfirmModal:async()=>true,showNotification:noop,logActivity:noop,showActionResult:noop,
    resetInputGrid:noop,cancelPreview:noop,setDisabledSafely:noop,setHiddenSafely:noop,
-   showLoadingOverlay:noop,hideLoadingOverlay:noop,rcDialog:noop,rcEsc:String};
+   showLoadingOverlay:noop,hideLoadingOverlay:noop,rcDialog:noop,rcEsc:String,
+   rcMintaAlasan:async()=>'Alasan uji'}; // 20261163930000: alasan Expired wajib
  vm.createContext(ctx);vm.runInContext(helpers+'\n'+upload,ctx);
  return ctx;
 }
@@ -88,6 +89,21 @@ test('Submit handler uses server Submitted state while preserving approval flag'
  assert.equal(ctx.globalDocuments[0].status,'Submitted');
  assert.equal(ctx.globalDocuments[0].pendingApproval,true);
  assert.equal(ctx.globalDocuments[1].pendingApproval,undefined);
+});
+// 20261163930000: Expired meminta alasan; batal = tidak ada yang dikirim, isi = ikut ke server.
+test('Expired asks for a reason: cancel sends nothing, a reason is sent to the server',async()=>{
+ const kirim=[];
+ const ctx=uploadContext({status:'success',berhasil:2,jumlahGagal:0,processed:[]});
+ ctx.fetchApp=async(b)=>{kirim.push(b);return b.action==='approvalStatus'?{status:'success',aktif:false}:{status:'success',berhasil:2,jumlahGagal:0,processed:[]};};
+ ctx.rcMintaAlasan=async()=>null;
+ await ctx.submitPostingException('expired');
+ assert.equal(kirim.filter(b=>b.action==='postingException').length,0);
+ ctx.rcMintaAlasan=async()=>'Toko tutup';
+ await ctx.submitPostingException('expired');
+ const p=kirim.filter(b=>b.action==='postingException');
+ assert.equal(p.length,1);
+ assert.equal(p[0].alasan,'Toko tutup');
+ assert.equal(p[0].tindakan,'expired');
 });
 test('Exception handler never applies Expired optimistically or changes failed rows',async()=>{
  const ctx=uploadContext({status:'success',berhasil:1,jumlahGagal:1,

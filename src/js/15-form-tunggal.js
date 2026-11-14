@@ -20,6 +20,8 @@
                 ['singleToko','singleCamp','singleJenisCb','singleRewardHighlight','singleStatusPajak','singleSubyekPajak'].forEach(id => setTextSafely(id, "-"));
                 document.getElementById('singleJenisCb').className = "font-black text-gray-800"; document.getElementById('singleStatusPajak').className = "font-bold text-gray-800"; document.getElementById('singleSubyekPajak').className = "font-bold text-gray-800";
                 btnPreview.disabled = true;
+                // 20261163930000: Tgl Lunas wajib di mode klaim, kecuali dokumen pindahan Restricted (di bawah).
+                rcSingleTglLunasWajib(currentPostingMode === 'claim');
 
                 if (!docVal) { statusEl.innerText = ""; return; }
                 if (await pastikanMaster([], [docVal]) === false) {
@@ -65,6 +67,11 @@
 
                 statusEl.innerHTML = `<span class="bg-green-100 text-green-700 px-2 py-0.5 rounded shadow-sm font-bold"><i class="fas fa-check-circle"></i> Ditemukan & Valid</span>`;
                 btnPreview.disabled = false;
+                // 20261163930000: dokumen yang dipindah dari Restricted ke Open belum lunas - Tgl Lunas tidak diminta.
+                if (db.restrictedOpen === true) {
+                    rcSingleTglLunasWajib(false);
+                    statusEl.innerHTML += ` <span class="bg-slate-200 text-slate-800 px-2 py-0.5 rounded shadow-sm font-bold" title="Dipindah dari Restricted ke Open">Restricted - Tgl Lunas tidak wajib</span>`;
+                }
 
                 await pastikanMaster([db.custCode], []);
                 let cmp = globalCampaigns.find(c => c.codeCampaign === db.codeCampaign) || {}; let cst = globalCustomers.find(c => c.custCode === db.custCode) || {};
@@ -90,6 +97,13 @@
                 setValueSafely('singleKtp', db_ktp); setValueSafely('singleNpwp', db_npwp);
                 setValueSafely('singleRek', cst.noRek || ''); setValueSafely('singleNamaRek', cst.namaRek || ''); setValueSafely('singleBank', cst.bank || ''); 
                 setValueSafely('singleTop', ''); 
+            }
+
+            // 20261163930000: wajib-tidaknya Tgl Lunas di Manual Input (atribut required + tanda bintang).
+            function rcSingleTglLunasWajib(wajib) {
+                const el = document.getElementById('singleTglLunas'), bintang = document.getElementById('singleTglLunasBintang');
+                if (el) el.required = !!wajib;
+                if (bintang) bintang.classList.toggle('hidden', !wajib);
             }
 
             function resetSingleForm() {

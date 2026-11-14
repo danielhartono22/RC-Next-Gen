@@ -41,6 +41,7 @@
                 // sendiri, jadi tidak ada yang perlu dijaga di sini.
                 { path: '/people-performance', jenis: 'rcModul', modul: 'people', menu: 'menuPeople' },
                 { path: '/portal-link',  jenis: 'rcModul', modul: 'links',       menu: 'menuPortalLink' },
+                { path: '/knowledge-base', jenis: 'rcModul', modul: 'kb',        menu: 'menuKnowledgeBase' },
                 { path: '/document-generator', jenis: 'rcModul', modul: 'docgen', menu: 'menuDocGen' },
                 { path: '/discount-center', jenis: 'rcModul', modul: 'discount', menu: 'menuDiscountCenter' },
                 { path: '/warehouse-rental', jenis: 'rcModul', modul: 'rental', menu: 'menuRental' },

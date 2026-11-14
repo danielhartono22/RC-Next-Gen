@@ -6,7 +6,8 @@
             // yet jika dimasukan no doc nya akan berubah jadi not yet."
             // Baris, template, dan tempel Excel mengikuti Change Value (49-amend-doc.js). Server
             // (rc_change_status) memeriksa seluruh baris dulu: satu salah = tidak ada yang diubah.
-            // Expired milik campaign Closed sudah final dan ditolak.
+            // 20261163900000: Expired milik campaign Closed pun boleh kembali ke Not Yet dan diproses
+            // kembali; compile campaign Closed tetap ditutup.
 
             const CST_MAKS = 200;
             const CST_KOLOM = ['.cst-doc', '.cst-alasan'];
@@ -71,7 +72,7 @@
                     ['No Doc', 'Ya', 'Nomor dokumen berstatus Expired.'],
                     ['Alasan', 'Ya*', '*Boleh kosong bila Alasan umum diisi di layar.'], [''],
                     ['Contoh', '', ''], ['NPC/CMP/MDN/CA10/30113', 'Expired keliru, toko masih berhak', ''], [''],
-                    ['Hanya Expired yang dapat dikembalikan ke Not Yet. Expired milik campaign Closed sudah final.'],
+                    ['Hanya Expired yang dapat dikembalikan ke Not Yet, termasuk Expired milik campaign Closed (compile-nya tetap ditutup).'],
                     ['Maksimal ' + CST_MAKS + ' dokumen sekali proses. Seluruh baris diperiksa dulu; satu baris salah, tidak ada yang diubah.']]);
                 p['!cols'] = [{ wch: 30 }, { wch: 10 }, { wch: 70 }];
                 XLSX.utils.book_append_sheet(wb, p, 'Petunjuk');

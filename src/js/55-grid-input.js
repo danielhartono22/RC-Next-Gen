@@ -291,7 +291,10 @@
                         // Dibedakan: kosong dan salah format bukan kesalahan yang sama, dan pesan
                         // "wajib diisi" pada kolom yang JELAS terisi hanya membuat bingung.
                         const tglLunasDiketik = String(inputData.tglLunas || '').trim();
-                        if (isValid && !tglLunasDiketik) { isValid = false; trInfo = `<span class="bg-red-100 text-red-700 px-2 py-0.5 rounded shadow-sm font-bold">Tgl Lunas Wajib</span>`; }
+                        // 20261163930000: dokumen yang dipindah dari Restricted ke Open belum lunas, jadi
+                        // Tgl Lunas tidak diminta. Bila tetap diketik, formatnya masih diperiksa.
+                        if (isValid && !tglLunasDiketik && db.restrictedOpen === true) { /* boleh kosong */ }
+                        else if (isValid && !tglLunasDiketik) { isValid = false; trInfo = `<span class="bg-red-100 text-red-700 px-2 py-0.5 rounded shadow-sm font-bold">Tgl Lunas Wajib</span>`; }
                         else if (isValid && !in_tglLunas) { isValid = false; trInfo = `<span class="bg-red-100 text-red-700 px-2 py-0.5 rounded shadow-sm font-bold">Format Tgl Lunas salah: ${rcEsc(tglLunasDiketik)} - pakai dd-mm-yyyy, dd.mm.yy, ddmmyyyy atau ddmmyy</span>`; }
                         // TOP boleh dibiarkan kosong atas instruksi pemilik. Kosong berarti tidak
                         // ada permintaan kelonggaran: dokumen memakai TOP pada Customer Master apa

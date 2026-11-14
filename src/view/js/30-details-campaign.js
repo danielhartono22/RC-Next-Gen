@@ -58,7 +58,9 @@
 
             function ttcLencanaStatus(st) {
                 st = String(st || 'active').toLowerCase();
-                const kelas = st === 'active' ? 'bg-emerald-100 text-emerald-700' : st === 'inactive' ? 'bg-red-100 text-red-700' : 'bg-slate-200 text-slate-700';
+                // 20261163900000: Inactive, Active, Running, Closed - warna sama dengan Campaign Master.
+                const kelas = st === 'active' ? 'bg-emerald-100 text-emerald-700' : st === 'inactive' ? 'bg-red-100 text-red-700'
+                    : st === 'running' ? 'bg-sky-100 text-sky-700' : st === 'closed' ? 'bg-gray-800 text-white' : 'bg-slate-200 text-slate-700';
                 return '<span class="px-2 py-1 rounded text-[10px] font-black uppercase ' + kelas + '">' + rcEsc(st) + '</span>';
             }
 

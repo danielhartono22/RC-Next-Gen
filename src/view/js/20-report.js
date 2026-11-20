@@ -210,9 +210,8 @@
                         + '<td class="p-3 text-right text-green-700 font-bold" data-sort="' + Number(c.netClaimed || 0) + '" title="' + rcEsc(rcNominalPenuh(c.netClaimed)) + '">' + rcEsc(rcNominal(c.netClaimed)) + '</td>'
                         + '<td class="p-3 text-right">' + Number(c.outstandingQty || 0).toLocaleString('id-ID') + '</td>'
                         + '<td class="p-3 text-right text-orange-700 font-bold" data-sort="' + Number(c.outstandingValue || 0) + '" title="' + rcEsc(rcNominalPenuh(c.outstandingValue)) + '">' + rcEsc(rcNominal(c.outstandingValue)) + '</td>'
-                        + '<td class="p-3 text-right" data-sort="' + Number(c.outstandingRate || 0) + '">' + rtPersen(c.outstandingRate) + '</td>'
                         + rtSelCr(c.clearingRate) + rtSelOc(c) + '</tr>';
-                }).join('') || '<tr><td colspan="9" class="p-6 text-center text-gray-400">Tidak ada data.</td></tr>';
+                }).join('') || '<tr><td colspan="8" class="p-6 text-center text-gray-400">Tidak ada data.</td></tr>';
 
                 // ---- Performa per region ---------------------------------------------------
                 document.getElementById('rtRegionBody').innerHTML = rtUrutOc(res.region).map(function (r) {
@@ -222,12 +221,13 @@
                         '<td class="p-3 text-right">' + Number(r.qty || 0).toLocaleString('id-ID') + '</td>',
                         rtSelUang(r.netCb, ''),
                         rtSelUang(r.netClaimed, 'text-green-700 font-bold'),
+                        '<td class="p-3 text-right">' + Number(r.outstandingQty || 0).toLocaleString('id-ID') + '</td>', // 20261164080000
                         rtSelUang(r.outstandingValue, 'text-orange-700 font-bold'),
                         rtSelCr(r.clearingRate),
                         rtSelOc(r),
                         '</tr>'
                     ].join('');
-                }).join('') || '<tr><td colspan="7" class="p-6 text-center text-gray-400">Belum ada region terisi. Isi lewat Key Master &rarr; Depot Master.</td></tr>';
+                }).join('') || '<tr><td colspan="8" class="p-6 text-center text-gray-400">Belum ada region terisi. Isi lewat Key Master &rarr; Depot Master.</td></tr>';
 
                 // ---- Performa per depot ----------------------------------------------------
                 document.getElementById('rtDepotTblBody').innerHTML = rtUrutOc(res.depot).map(function (d) {
@@ -240,8 +240,8 @@
                         '<td class="p-3 text-right">' + Number(d.qty || 0).toLocaleString('id-ID') + '</td>',
                         rtSelUang(d.netCb, ''),
                         rtSelUang(d.netClaimed, 'text-green-700 font-bold'),
+                        '<td class="p-3 text-right">' + Number(d.outstandingQty || 0).toLocaleString('id-ID') + '</td>', // 20261164080000
                         rtSelUang(d.outstandingValue, 'text-orange-700 font-bold'),
-                        rtSelPersen(d.outstandingRate, ''),
                         rtSelCr(d.clearingRate),
                         rtSelOc(d),
                         '</tr>'
@@ -655,7 +655,9 @@
                     campaign: document.getElementById('rtCampaign').value,
                     tahunCampaign: rtNilai('rtTahunCampaign'),
                     billingStart: rtNilai('rtBillingStart'),
-                    billingEnd: rtNilai('rtBillingEnd')
+                    billingEnd: rtNilai('rtBillingEnd'),
+                    // 20261164080000: kosong = hanya campaign yang Billing End-nya sudah lewat.
+                    semuaCampaign: (document.getElementById('rtSemuaCampaign') || {}).checked ? 'true' : ''
                 };
             }
 
@@ -673,6 +675,7 @@
                     const el = document.getElementById(id);
                     if (el) el.value = '';
                 });
+                const semua = document.getElementById('rtSemuaCampaign'); if (semua) semua.checked = false; // 20261164080000
                 loadReport();
             }
 
@@ -774,7 +777,7 @@
                     if (!rows.length) return;
                     // Urutan kolom mengikuti tabel di layar (pengenal dulu, lalu angka), bukan
                     // urutan kunci di data; kunci yang tidak dikenal menyusul di belakang.
-                    const kolom = Object.keys(rows[0]).sort((a, b) => rtUrutKolom(a) - rtUrutKolom(b));
+                    const kolom = Object.keys(rows[0]).filter(k => k !== 'outstandingRate' /* 20261164080000 */).sort((a, b) => rtUrutKolom(a) - rtUrutKolom(b));
                     const aoa = [kolom.map(k => (s[2] && s[2][k]) || RT_JUDUL_KOLOM[k] || k)].concat(rows.map(function (r) {
                         return kolom.map(function (k) {
                             return /^kode/i.test(k) ? rcSelTeks(r[k]) : rcExportAmount(k, r[k], r);

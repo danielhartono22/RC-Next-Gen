@@ -64,7 +64,7 @@
                     const n = Number(d.depotTanpaEmail || 0);
                     if (n > 0) {
                         per.innerHTML = '<i class="fas fa-triangle-exclamation mr-1.5"></i><strong>'
-                            + n + ' depot</strong> belum punya alamat email di Depot Master. '
+                            + n + ' depot</strong> belum punya email tim depot (Kepala Depot, Kepala Admin, NPC, RSM, ASM) di Depot Master. '
                             + 'Depot tersebut tidak akan menerima surat apa pun sampai alamatnya diisi.';
                         setHiddenSafely('epPeringatan', false);
                     } else {
@@ -132,7 +132,7 @@
                 const cc = d.contohCc || [];
 
                 if (!to.length && !cc.length) {
-                    kotak.innerHTML = '<span class="text-amber-700">Belum ada depot dengan alamat email pada Depot Master.</span>';
+                    kotak.innerHTML = '<span class="text-amber-700">Belum ada depot dengan Email Kepala Depot pada Depot Master.</span>';
                     return;
                 }
 

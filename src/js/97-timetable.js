@@ -60,7 +60,9 @@
                             // Saat select belum diisi pada pemuatan pertama, properti ini
                             // dihilangkan agar server memakai tahun default. Sesudahnya ALL
                             // dikirim eksplisit ketika pengguna memilih Semua Tahun.
-                            tahunCampaign: pilihanTahun || undefined
+                            tahunCampaign: pilihanTahun || undefined,
+                            // 20261164090000: kosong = hanya campaign yang Billing End-nya >= hari ini.
+                            semuaCampaign: (document.getElementById('ttSemuaCampaign') || {}).checked ? 'true' : ''
                         }
                     });
                     if (res.status !== 'success') throw new Error(res.message || 'Gagal memuat Timetable.');
@@ -80,6 +82,8 @@
                         catatan.push(`${res.campaignTanpaPeriode} campaign tanpa tahun (tidak dihitung)`);
                     }
                     if (res.campaignDikecualikan) catatan.push(`${res.campaignDikecualikan} dikecualikan`);
+                    // 20261164090000
+                    if (res.campaignBerakhir) catatan.push(`${res.campaignBerakhir} campaign sudah berakhir disembunyikan (centang Show All Campaign)`);
                     document.getElementById('ttRingkas').innerText = catatan.join(' · ');
 
                     ttIsiFilterDariData(res);

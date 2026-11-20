@@ -525,10 +525,11 @@ begin
     perform set_config('request.jwt.claims', json_build_object('sub', v_admin::text, 'role', 'authenticated')::text, true);
     begin perform public.rc_bad_debt_set(array[(select no_doc from public.claims where id = k[2])], 'Uji tanpa izin'); v_galat := 'diterima';
     exception when others then v_galat := sqlerrm; end;
-    begin perform public.rc_restricted_pindah(array[(select no_doc from public.claims where id = k[2])], 'Uji tanpa izin'); v_txt := 'diterima';
+    -- 20261163980000: bukan Editor boleh memanggil, tetapi hanya dokumen yang sedang ditahan yang berpindah.
+    begin v_txt := 'pindah ' || (public.rc_restricted_pindah(array[(select no_doc from public.claims where id = k[2])], 'Uji tanpa izin')->>'berhasil');
     exception when others then v_txt := sqlerrm; end;
-    hasil := hasil || jsonb_build_array(jsonb_build_array('Tanpa centang: Tandai Bad Debt dan Pindah ke Open ditolak',
-      v_galat ~ 'upload.baddebt' and v_txt ~ 'upload.restrictedEdit', v_galat || ' | ' || v_txt));
+    hasil := hasil || jsonb_build_array(jsonb_build_array('Tanpa centang: Tandai Bad Debt ditolak; Pindahkan ke Open tidak memindah dokumen yang tidak ditahan',
+      v_galat ~ 'upload.baddebt' and (v_txt ~ 'upload.restrictedEdit' or v_txt = 'pindah 0'), v_galat || ' | ' || v_txt));
     perform set_config('request.jwt.claims', json_build_object('sub', v_sm::text, 'role', 'authenticated')::text, true);
     hasil := hasil || jsonb_build_array(jsonb_build_array('System Manager selalu memegang tab Upload Debtor dan Bad Debt',
       (rc_private.tab_rights(v_sm)->>'compilation.debtor')::boolean and (rc_private.tab_rights(v_sm)->>'approval.baddebt')::boolean, 'ok'));

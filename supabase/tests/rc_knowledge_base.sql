@@ -30,6 +30,10 @@ begin
     if v_sm is null or v_adm is null or v_lain is null then raise exception 'Fixture: SM / admin berdepot / depot lain tidak ada'; end if;
     -- Akun admin dev umumnya masih wajib ganti PIN; dilepas di dalam uji (dibatalkan di akhir).
     update public.profiles set must_change_password = false where id = v_adm;
+    -- 20261164040000: setiap jenis wajib punya Kode 3 huruf untuk No Surat otomatis.
+    if to_regclass('public.rc_kb_jenis') is not null then
+      execute $s$insert into public.rc_kb_jenis(jenis, kode) values ('SOP', 'UJS'), ('Pricelist', 'UJP') on conflict do nothing$s$;
+    end if;
     perform set_config('request.jwt.claims', json_build_object('sub', v_sm::text, 'role', 'authenticated')::text, true);
 
     -- 1. Hak tab: Resources terbuka untuk admin, Management hanya bila dicentang; SM keduanya.

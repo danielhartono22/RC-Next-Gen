@@ -577,6 +577,12 @@
       } else {
         action = reject[stage];
         reason = 'Reject pada tahap ' + stage;
+        // 20261163980000: tolak langsung ke Not Yet dari Claim Process (Claim to Finance / Clearing).
+        if (body.tolakKe === 'not_yet') {
+          if (stage !== 'claim' && stage !== 'clearing') return Promise.resolve(fail('Tolak langsung ke Not Yet hanya tersedia pada Claim Process.'));
+          action = stage === 'claim' ? 'reject_claim_not_yet' : 'reject_clearing_not_yet';
+          reason = 'Reject langsung ke Not Yet pada tahap ' + stage;
+        }
       }
       if (!action) return Promise.resolve(fail('Tahap workflow tidak dikenali.'));
       var items = docItems(body.docsToProcess);
@@ -967,12 +973,43 @@
     // Knowledge Base (20261163920000).
     kbList: function () { return rpc('rc_kb_list'); },
     kbBelum: function () { return rpc('rc_kb_belum'); },
+    // Indikator online (20261164000000): sinyal tiap 2 menit; keluar = true saat Logout.
+    hadir: function (b) { return rpc('rc_hadir', { p_keluar: !!(b && b.keluar) }); },
     kbBuka: function (b) { return rpc('rc_kb_buka', { p_id: String(b.id || '') }); },
     kbAck: function (b) { return rpc('rc_kb_ack', { p_id: String(b.id || ''), p_versi: b.versi == null ? null : Number(b.versi) }); },
     kbKelolaList: function (b) { return rpc('rc_kb_kelola_list', { p_arsip: !!(b && b.arsip) }); },
     kbSimpan: function (b) { return rpc('rc_kb_simpan', { p: b.item || {} }); },
     kbArsip: function (b) { return rpc('rc_kb_arsip', { p_ids: b.ids || [], p_arsip: !!b.arsip, p_reason: String(b.alasan || '') }); },
     kbDetail: function (b) { return rpc('rc_kb_detail', { p_id: (b && b.id) || null }); },
+    // 20261164040000: No Surat otomatis, Upload Excel, Kode Jenis, dokumen PDF.
+    kbUnggah: function (b) { return rpc('rc_kb_unggah', { p_rows: b.rows || [], p_simpan: !!b.simpan, p_nama: String(b.nama || '') }); },
+    kbJenisList: function () { return rpc('rc_kb_jenis_list'); },
+    kbJenisSimpan: function (b) { return rpc('rc_kb_jenis_simpan', { p: b.item || {} }); },
+    // PDF di bucket privat kb-pdf/<uuid acak>/<nama>.pdf; kebijakan Storage hanya menerima unggahan
+    // dari pemegang Knowledge Management. Jalurnya baru berlaku setelah dokumen disimpan.
+    kbPdfUnggah: function (b) {
+      if (!b.file) return Promise.resolve(fail('Pilih berkas PDF lebih dulu.'));
+      var nama = String(b.file.name || 'dokumen.pdf').replace(/\.pdf$/i, '').replace(/[^A-Za-z0-9._-]+/g, '_').slice(0, 120) + '.pdf';
+      var acak = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx'.replace(/x/g, function () { return (Math.random() * 16 | 0).toString(16); });
+      var jalur = acak + '/' + nama;
+      return client()
+        .then(function (sb) { return sb.storage.from('kb-pdf').upload(jalur, b.file, { contentType: 'application/pdf', upsert: false }); })
+        .then(function (res) {
+          if (res.error) throw new Error(res.error.message || 'Gagal mengunggah PDF.');
+          return ok({ path: jalur, nama: String(b.file.name || nama) });
+        });
+    },
+    // Tautan bertanda tangan 5 menit; kebijakan Storage memeriksa pesertanya.
+    kbPdfTautan: function (b) {
+      var jalur = String(b.path || '');
+      if (!jalur) return Promise.resolve(fail('Dokumen ini tidak memiliki PDF.'));
+      return client()
+        .then(function (sb) { return sb.storage.from('kb-pdf').createSignedUrl(jalur, 300); })
+        .then(function (res) {
+          if (res.error) throw new Error(res.error.message || 'Gagal membuka PDF.');
+          return ok({ url: res.data.signedUrl });
+        });
+    },
     // Document Generator (20261163550000): satu halaman daftar toko (saringan dijalankan server) dan
     // pembentukan Tanda Terima. sumber: 'done' atau 'notyet'; saring: {dari, sampai, batch} (isi form,
     // hanya Done) dan {depot, campaign, unduh, master, cari} (daftar saja). kunciSaja: kunci toko siap

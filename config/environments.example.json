@@ -1,0 +1,8 @@
+{
+  "_catatan": "Salin menjadi config/environments.json lalu isi secara lokal; berkas aslinya tidak masuk git.",
+  "default_supabase_environment": "prod",
+  "supabase_projects": {
+    "prod": { "project_ref": "<prod-project-ref>", "project_url": "https://<prod-project-ref>.supabase.co", "token_env": "SUPABASE_ACCESS_TOKEN", "vercel_project": "<vercel-project>", "app_url": "https://<app-url>" },
+    "dev":  { "project_ref": "<dev-project-ref>",  "project_url": "https://<dev-project-ref>.supabase.co",  "token_env": "SUPABASE_ACCESS_TOKEN_DEV", "vercel_project": "<vercel-project-dev>", "app_url": "https://<app-url-dev>" }
+  }
+}

@@ -136,7 +136,7 @@
                 GAGAL: ['Belum Lunas', 'bg-red-100 text-red-700'],
                 BLOCKED_BAD_DEBT: ['Bad Debt', 'bg-red-700 text-white'],
                 PERIODE_SALAH: ['Periode Salah', 'bg-amber-100 text-amber-800'],
-                SUPPRESSED: ['Dikembalikan depot', 'bg-gray-200 text-gray-700'],
+                SUPPRESSED: ['Ditahan sementara', 'bg-gray-200 text-gray-700'],
                 SUDAH_DITAWARKAN: ['Sudah ditawarkan', 'bg-blue-100 text-blue-700'],
                 TANPA_MASTER: ['Tanpa Customer Master', 'bg-orange-100 text-orange-800']
             };
@@ -315,7 +315,7 @@
                 const a = r.alasan || {};
                 if (r.hasil === 'LUNAS') return [a.tidakDiFile ? 'Tidak ada di data debtor' + (a.sumber === 'kosong' || a.sumber === 'lama_kosong' ? ' (depot tanpa tagihan)' : '') : 'Tidak ada tagihan s/d Bulan Bill'];
                 if (r.hasil === 'BLOCKED_BAD_DEBT') return ['Bad Debt: ' + (a.badDebt || '')];
-                if (r.hasil === 'SUPPRESSED') return ['Dikembalikan depot: ' + (a.alasanKembali || '')];
+                if (r.hasil === 'SUPPRESSED') return ['Ditahan sementara (dipindahkan depot ke Restricted, 7 hari): ' + (a.alasanKembali || '')];
                 if (r.hasil === 'SUDAH_DITAWARKAN') return ['Tawaran aktif, batas ' + (a.deadlineAktif || '')];
                 if (r.hasil === 'PERIODE_SALAH') return [a.masalah === 'tanggal_salah'
                     ? 'SO start (' + zdLabelBulan(a.bulanSo) + ') sesudah Billing end (' + zdLabelBulan(a.bulanBill) + ')'
@@ -381,7 +381,7 @@
                     ['PERIODE_SALAH', 'Periode Salah', g.periodeSalah, 'border-amber-400', null, 'tanpa tanggal SO / Billing, atau tanggal salah'],
                     ['campaign', 'Campaign Bermasalah', g.campaignBermasalah, 'border-purple-400', null, 'ringkasan per campaign (klik)']];
                 const lain = [['semua', 'Semua dinilai', g.total], ['SUDAH_DITAWARKAN', 'Sudah ditawarkan', g.sudahDitawarkan],
-                    ['SUPPRESSED', 'Dikembalikan depot', g.suppressed], ['TANPA_MASTER', 'Tanpa Customer Master', g.tanpaMaster]]
+                    ['SUPPRESSED', 'Ditahan sementara', g.suppressed], ['TANPA_MASTER', 'Tanpa Customer Master', g.tanpaMaster]]
                     .filter(k => k[0] === 'semua' || Number(k[2] || 0) > 0);
                 const aktif = (k) => zdState.filter === k ? ' ring-2 ring-cyan-500' : '';
                 const up = pv.upload || {};
@@ -544,7 +544,7 @@
                         + '<td class="p-2"><b>' + rcEsc(r.namaToko) + '</b><br><span class="text-gray-500">' + rcEsc(r.kodeToko) + '</span></td>'
                         + '<td class="p-2">' + rcEsc(r.kodeCampaign) + '</td><td class="p-2 text-right whitespace-nowrap">' + rcNominalPenuh(r.netCb) + '</td>'
                         + '<td class="p-2 text-xs">' + rcEsc(r.alasan) + '</td><td class="p-2 text-xs whitespace-nowrap">' + rcEsc(r.oleh) + '<br>' + rcEsc(r.waktu) + '</td></tr>').join('')
-                        || '<tr><td colspan="8" class="p-4 text-center text-gray-400">Tidak ada tawaran yang dikembalikan depot.</td></tr>';
+                        || '<tr><td colspan="8" class="p-4 text-center text-gray-400">Tidak ada dokumen yang sedang ditahan depot.</td></tr>';
                     zdHitungKembali();
                 } catch (e) { body.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-red-600">Daftar tidak dapat dimuat.</td></tr>'; }
             }

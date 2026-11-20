@@ -87,7 +87,7 @@
             const RT_HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
             // Nama tampilan jenis email; jenis lain tampil apa adanya (20261163360000).
             const RT_EMAIL_LABEL = { notachieved: 'Not Achieved', kesehatan: 'Kesehatan RC', compile: 'Closing Campaign' /* 20261163610000 */,
-                debtor: 'Peringatan Toko Lunas' /* 20261163670000 */ };
+                debtor: 'Peringatan Toko Lunas' /* 20261163670000 */, kb: 'Reminder Acknowledge KB' /* 20261164070000 */ };
             function rtLabelEmail(j) { return RT_EMAIL_LABEL[j] || j; }
 
             async function loadEmailPanel() {
@@ -139,16 +139,25 @@
                             // (sejak toko lunas di RC) dan CC-nya. TO tetap Email TO depot.
                             + (Array.isArray(p.jenjang)
                                 ? '<div class="pl-1 space-y-2">'
-                                  + '<p class="text-[11px] text-gray-500">TO = Email TO depot (Depot Master). CC = Email CC depot + CC jenjang. Setiap toko diperingatkan sekali per jenjang; hanya saat ZDAGE Integration hidup.</p>'
+                                  // 20261164060000: email depot setiap hari 02:00-04:00 kecuali Minggu dan tanggal merah; centang hari = hari laporan region.
+                                  + '<p class="text-[11px] text-gray-500"><b>Email depot</b> (TO Kepala Admin, NPC, Kepala Depot; CC = kolom CC email depot di bawah; kolom Auto-Expiring): setiap hari kecuali Minggu dan tanggal merah, kelompok A pukul 02:00 dan B pukul 03:00 WIB; tidak mengikuti jam dan centang hari. '
+                                  + '<b>Laporan region</b> (TO RSM + ASM; CC OSC, Kepala Depot, Kepala Admin + CC jenjang): hanya pada hari yang dicentang (kosong = tiap hari): toko jenjang 1-2 satu laporan per region (CC jenjang 1 / 2 menurut toko terlama region itu); toko jenjang 3 satu laporan nasional untuk semua region (CC jenjang 3). Hanya saat ZDAGE Integration hidup.</p>'
                                   + p.jenjang.map(function (j, i) {
                                       return '<div class="flex flex-wrap items-center gap-2 rt-email-jj" data-i="' + i + '">'
                                           + '<span class="text-xs text-gray-500 w-20">Jenjang ' + (i + 1) + '</span>'
-                                          + '<span class="text-xs text-gray-500">hari ke-</span>'
+                                          + '<span class="text-xs text-gray-500">' + (p.jenis === 'debtor' ? 'lewat &ge;' : 'hari ke-') + '</span>'
                                           + '<input type="number" min="1" max="365" value="' + Number(j.hari || 0) + '" class="rt-email-jj-hari w-16 px-2 py-1.5 border border-gray-300 rounded-lg text-sm text-center">'
                                           + '<span class="text-xs text-gray-500">CC</span>'
                                           + '<input type="text" value="' + rcEsc((j.cc || []).join(', ')) + '" placeholder="CC jenjang ' + (i + 1) + ', pisahkan dengan koma" '
                                           + 'class="rt-email-jj-cc flex-1 min-w-[220px] px-3 py-1.5 border border-gray-300 rounded-lg text-sm"></div>';
                                     }).join('')
+                                  // 20261164060000: tanggal merah (email depot tidak dikirim), satu baris per tanggal.
+                                  + (typeof p.hariLibur === 'string'
+                                      ? '<div class="flex flex-wrap items-start gap-2"><span class="text-xs text-gray-500 w-20 pt-1.5">Tanggal merah</span>'
+                                        + '<textarea rows="4" class="rt-email-libur flex-1 min-w-[220px] px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-mono" '
+                                        + 'placeholder="dd-mm-yyyy nama, satu per baris (mis. 25-12-2026 Natal)">' + rcEsc(p.hariLibur) + '</textarea>'
+                                        + '<span class="text-[11px] text-gray-400 w-full pl-[88px]">Email depot tidak dikirim pada tanggal ini dan hari Minggu. Yang tampil hanya hari ini ke depan.</span></div>'
+                                      : '')
                                   + '</div>'
                                 : '')
                             // 20261163230000: jenis berpenerima tetap (Laporan Kesehatan RC) tidak
@@ -164,9 +173,9 @@
                                 : '')
                             + (Array.isArray(p.cc)
                                 ? '<div class="flex flex-wrap items-center gap-2 pl-1">'
-                                  + '<span class="text-xs text-gray-500 w-14">CC</span>'
+                                  + '<span class="text-xs text-gray-500 ' + (p.jenis === 'debtor' ? 'w-24' : 'w-14') + '">' + (p.jenis === 'debtor' ? 'CC email depot' : 'CC') + '</span>'
                                   + '<input type="text" value="' + rcEsc(p.cc.join(', ')) + '" placeholder="'
-                                  + (p.jenis === 'kesehatan' ? 'opsional, pisahkan dengan koma' : 'CC tambahan (opsional) di luar Email CC Depot Master, pisahkan dengan koma') + '" '
+                                  + (p.jenis === 'kesehatan' ? 'opsional, pisahkan dengan koma' : p.jenis === 'debtor' ? 'CC email depot (mis. osc_jkt@...), pisahkan dengan koma' /* 20261164050000 */ : 'CC tambahan (opsional) di luar Email CC Depot Master, pisahkan dengan koma') + '" '
                                   + 'class="rt-email-cc flex-1 min-w-[220px] px-3 py-1.5 border border-gray-300 rounded-lg text-sm"></div>'
                                 : '')
                             + '</div>';
@@ -245,6 +254,8 @@
                     // 20261163670000: jenjang Peringatan Toko Lunas.
                     const jj = [...el.querySelectorAll('.rt-email-jj')];
                     if (jj.length) baris.jenjang = jj.map(d => ({ hari: Number(d.querySelector('.rt-email-jj-hari').value), cc: d.querySelector('.rt-email-jj-cc').value }));
+                    const elLibur = el.querySelector('.rt-email-libur'); // 20261164060000
+                    if (elLibur) baris.hariLibur = elLibur.value;
                     if (elTo) baris.tujuan = elTo.value;
                     if (elCc) baris.cc = elCc.value;
                     return baris;

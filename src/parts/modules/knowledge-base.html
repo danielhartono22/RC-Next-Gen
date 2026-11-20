@@ -24,7 +24,7 @@
                             <div class="flex flex-wrap items-center gap-3 mb-5">
                                 <div class="relative flex-1 min-w-[220px] max-w-md">
                                     <i class="fas fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
-                                    <input type="search" id="kbCari" oninput="kbRenderResources()" autocomplete="off" placeholder="Cari judul atau description..."
+                                    <input type="search" id="kbCari" oninput="kbRenderResources()" autocomplete="off" placeholder="Cari judul, No Surat, keyword..."
                                         class="block w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-xl bg-white text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
                                 </div>
                                 <label class="flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer"><input type="checkbox" id="kbHanyaBelum" onchange="kbRenderResources()" class="rounded text-teal-600"> Belum acknowledge saja</label>
@@ -39,13 +39,16 @@
                                 <div id="kbKartu" class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5"></div>
                                 <div class="flex flex-wrap items-center gap-3 mb-4">
                                     <button onclick="kbBukaForm(null)" class="bg-teal-600 hover:bg-teal-700 text-white text-sm font-bold py-2 px-4 rounded-lg shadow-sm"><i class="fas fa-plus mr-1.5"></i>Tambah Dokumen</button>
+                                    <!-- 20261164040000: Upload Excel dengan No Surat otomatis, Kode Jenis -->
+                                    <button onclick="kbBukaUnggah()" class="bg-white border border-emerald-300 text-emerald-700 text-sm font-bold py-2 px-4 rounded-lg hover:bg-emerald-50"><i class="fas fa-file-arrow-up mr-1.5"></i>Upload Excel</button>
+                                    <button onclick="kbBukaKodeJenis()" class="bg-white border border-indigo-300 text-indigo-700 text-sm font-bold py-2 px-4 rounded-lg hover:bg-indigo-50"><i class="fas fa-hashtag mr-1.5"></i>Kode Jenis</button>
                                     <div class="flex gap-1 p-1 bg-gray-100 rounded-lg">
                                         <button id="kbModeAktif" onclick="kbGantiMode(false)" class="px-3 py-1.5 text-xs font-bold rounded-md">Aktif</button>
                                         <button id="kbModeArsip" onclick="kbGantiMode(true)" class="px-3 py-1.5 text-xs font-bold rounded-md">Arsip</button>
                                     </div>
                                     <div class="relative flex-1 min-w-[200px] max-w-sm">
                                         <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
-                                        <input type="search" id="kbKelolaCari" oninput="kbRenderKelola()" autocomplete="off" placeholder="Cari jenis, judul, peserta, wilayah..."
+                                        <input type="search" id="kbKelolaCari" oninput="kbRenderKelola()" autocomplete="off" placeholder="Cari jenis, No Surat, judul, keyword, peserta..."
                                             class="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm">
                                     </div>
                                     <button onclick="kbBukaDetail(null)" class="bg-white border border-teal-300 text-teal-700 text-sm font-bold py-2 px-4 rounded-lg hover:bg-teal-50"><i class="fas fa-chart-pie mr-1.5"></i>Details Semua Dokumen</button>
@@ -57,7 +60,7 @@
                                             <tr>
                                                 <th class="p-3 w-8"><input type="checkbox" id="kbPilihSemua" onchange="kbPilihSemua(this.checked)" class="rounded"></th>
                                                 <th class="p-3 whitespace-nowrap">Jenis</th>
-                                                <th class="p-3">Judul</th>
+                                                <th class="p-3">No Surat / Judul</th>
                                                 <th class="p-3">Peserta</th>
                                                 <th class="p-3">Wilayah</th>
                                                 <th class="p-3 whitespace-nowrap">Pin</th>

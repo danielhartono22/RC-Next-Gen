@@ -67,7 +67,7 @@ begin
     hasil := hasil || jsonb_build_object('uji', 'Isi Bukti TF: layanan LLG, pengirim nama lengkap, bank tujuan, nominal, biaya ditanggung pengirim, berita No Doc',
       'lulus', b->>'layanan' = 'Transfer Antarbank (LLG) - KlikBCA Bisnis' and b->>'dariNama' = 'PT NIPSEA PAINT AND CHEMICALS' and b->>'dariRek' = '9990001112'
            and b->>'keRek' = '0123456789' and b->>'bankTujuan' = 'PT. BANK RAKYAT INDONESIA (PERSERO)' and (b->>'nominal')::numeric = trunc(d1.cb_net)
-           and (b->>'biaya')::numeric = 2900 and b->>'biayaOleh' = 'ditanggung pengirim' and b->>'berita' = substr(d1.no_doc, 5)
+           and (b->>'biaya')::numeric = 2900 and b->>'biayaOleh' = 'ditanggung pengirim' and b->>'berita' = d1.no_doc /* 20261163990000: No Doc lengkap */
            and b->>'status' = 'BERHASIL' and b->>'tglEfektif' = to_char(v_tgl, 'DD-Mon-YYYY') and b->>'noDoc' = d1.no_doc,
       'rinci', b::text);
     hasil := hasil || jsonb_build_object('uji', 'Nama Penerima dicocokkan lewat No Doc (rekening dokumen, lalu Customer Master)',

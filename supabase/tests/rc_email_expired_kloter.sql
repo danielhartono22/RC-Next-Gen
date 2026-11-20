@@ -67,7 +67,7 @@ begin
            and v_row.isi_html like '%BUJI-1%' and v_row.isi_html like '%BUJI-2%' and v_row.isi_html not like '%BUJI-3%'
            and v_row.isi_html like '%alasan satu%'
            and v_row.subjek like 'Expired - Pengajuan Claim Cashback % - Rekap %'
-           and v_row.tujuan @> rc_private.pecah_email((select email_to from public.depots where id = d1))
+           and v_row.tujuan @> array(select jsonb_array_elements_text(rc_private.email_pengajuan_penerima(d1, 'hold_expired')->'to')) /* 20261164010000: TO Kepala Depot */
            and (v_row.konteks->>'qty')::int = 3,
       'rinci', v_row.subjek);
     r := rc_private.email_expired_kloter(now());

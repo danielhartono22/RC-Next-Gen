@@ -42,7 +42,7 @@ begin
 
     -- ---- Report --------------------------------------------------------------------
     perform set_config('request.jwt.claims', json_build_object('sub', v_sm::text, 'role', 'authenticated')::text, true);
-    r := rc_private.report_dashboard('{}');
+    r := rc_private.report_dashboard('{"semuaCampaign":"true"}'); -- 20261164080000: bawaan kini hanya campaign berakhir
     select coalesce(sum(cb_net), 0), coalesce(sum(cb_net) filter (where outstanding_claim), 0) into v_tot, v_oc from public.rc_report_rows;
     hasil := hasil || jsonb_build_object('uji', 'KPI Report: Outstanding Claim Qty / Value / Rate = nilai outstanding claim / seluruh Net CB; Clearing Rate tetap ada',
       'lulus', (r->'kpi'->>'outstandingClaimValue')::numeric = v_oc and abs((r->'kpi'->>'outstandingClaimRate')::numeric - v_oc / nullif(v_tot, 0)) < 0.000001
@@ -57,10 +57,10 @@ begin
     hasil := hasil || jsonb_build_object('uji', 'Campaign dan Region juga mengirim Outstanding Claim',
       'lulus', not exists(select 1 from jsonb_array_elements(r->'campaign') x where not (x ? 'outstandingClaimRate'))
         and not exists(select 1 from jsonb_array_elements(r->'region') x where not (x ? 'outstandingClaimRate' and x ? 'outstandingClaimValue')), 'rinci', '-');
-    r := rc_private.report_dashboard(jsonb_build_object('depot', v_dep));
+    r := rc_private.report_dashboard(jsonb_build_object('depot', v_dep, 'semuaCampaign', 'true'));
     hasil := hasil || jsonb_build_object('uji', 'Saringan depot: KPI Outstanding Claim mengikuti saringan',
       'lulus', (r->'kpi'->>'outstandingClaimValue')::numeric = v_oc, 'rinci', r->'kpi'->>'outstandingClaimValue');
-    r := rc_private.cost_center('{}');
+    r := rc_private.cost_center('{"semuaCampaign":"true"}');
     hasil := hasil || jsonb_build_object('uji', 'Cost Center 1 mengirim Outstanding Claim Rate / Value',
       'lulus', jsonb_array_length(r->'rows') > 0 and not exists(select 1 from jsonb_array_elements(r->'rows') x where not (x ? 'outstandingClaimRate' and x ? 'outstandingClaimValue')), 'rinci', '-');
 

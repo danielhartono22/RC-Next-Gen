@@ -18,6 +18,14 @@
 
             // Dipanggil saat daftar dimuat ulang, supaya angka mengikuti unggahan debtor terbaru.
             function rcTagihanKosongkan() { rcTagihanCache.clear(); }
+            // 20261163960000: baris daftar (tab Open, Document Center) sudah membawa 'tagihan' dari server,
+            // jadi tidak perlu permintaan tersendiri. Baris tanpa kunci itu (server lama, saklar mati)
+            // tetap diambil rcTagihanMuat seperti sebelumnya.
+            function rcTagihanIsi(rows) {
+                (rows || []).forEach(function (r) {
+                    if (r && r.noDoc && r.tagihan && typeof r.tagihan === 'object') rcTagihanCache.set(rcTagihanKunci(r.noDoc), r.tagihan);
+                });
+            }
 
             // Mengambil tagihan No Doc yang belum ada di cache. false = gagal dimuat (baris tetap
             // tampil dengan "-"; tidak dicatat di cache, sehingga dicoba lagi pada pemuatan berikut).

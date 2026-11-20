@@ -423,8 +423,28 @@
                 XLSX.writeFile(wb, `Bulk_Process_${dd}${mm}${yyyy}_${hh}${mi}.xlsx`);
             }
 
+            // 20261163980000: tolak dari Claim Process boleh langsung ke Not Yet. Mengembalikan 'release',
+            // 'not_yet', atau null bila dibatalkan.
+            function rcPilihTolak(type, jumlah) {
+                return new Promise(function (selesai) {
+                    window.__rcTolakSelesai = function (ke) { window.__rcTolakSelesai = null; rcTutupDialog(); selesai(ke); };
+                    const biasa = type === 'clearing'
+                        ? 'Kembali satu tahap ke Claim to Finance (status Released), seperti biasa.'
+                        : 'Kembali satu tahap ke Release List (status Approved), seperti biasa.';
+                    rcDialog('Tolak ' + jumlah + ' dokumen ke mana?', '<div class="space-y-3 text-sm">'
+                        + '<button type="button" id="rcTolakRelease" onclick="window.__rcTolakSelesai && window.__rcTolakSelesai(\'release\')" class="w-full text-left px-4 py-3 border border-gray-300 hover:bg-gray-50 rounded-lg"><span class="font-black text-gray-900">Release</span><span class="block text-xs text-gray-600 mt-1">' + biasa + '</span></button>'
+                        + '<button type="button" id="rcTolakNotYet" onclick="window.__rcTolakSelesai && window.__rcTolakSelesai(\'not_yet\')" class="w-full text-left px-4 py-3 border border-red-300 hover:bg-red-50 rounded-lg"><span class="font-black text-red-700">Not Yet</span><span class="block text-xs text-gray-600 mt-1">Langsung kembali ke depot sebagai Not Yet, tanpa melewati Release. Seluruh tahap diulang dari Claim Upload.</span></button>'
+                        + '<div class="flex justify-end"><button type="button" onclick="window.__rcTolakSelesai && window.__rcTolakSelesai(null)" class="px-4 py-2 border border-gray-300 rounded-lg font-bold">Batal</button></div></div>');
+                });
+            }
+
             async function submitWorkflow(type, cbCls, btnId, actionType = 'approve') {
                 let docs = []; document.querySelectorAll('.' + cbCls + ':checked').forEach(c => docs.push(c.value)); if (docs.length === 0) return;
+                let tolakKe = '';
+                if (actionType === 'reject' && (type === 'claim' || type === 'clearing')) {
+                    tolakKe = await rcPilihTolak(type, docs.length);
+                    if (!tolakKe) return;
+                }
                 if (actionType === 'expired') {
                     let confirmedExpire = await showConfirmModal({ title: "Konfirmasi Expired", message: `Yakin ingin menandai ${docs.length} dokumen sebagai EXPIRED? Aksi ini bersifat permanen dan tidak bisa dibatalkan/dikembalikan.`, confirmText: "Ya, Expired-kan", danger: true });
                     if (!confirmedExpire) return;
@@ -437,7 +457,7 @@
                 // Hapus batchMapping lokal dan langsung eksekusi try
                 try {
                     // Kirim request tanpa menyertakan batchMapping
-                    let res = await fetchApp({ action: 'processWorkflow', docsToProcess: docs, workflowType: type, actionType: actionType, tglProses: tglProses, userData: currentUserData });
+                    let res = await fetchApp({ action: 'processWorkflow', docsToProcess: docs, workflowType: type, actionType: actionType, tolakKe: tolakKe, tglProses: tglProses, userData: currentUserData });
                     
                     if (res.status === 'success') { 
                         // Ambil batchNum langsung dari summary backend
@@ -448,7 +468,7 @@
                             let pBatch = '-'; if (type === 'release') pBatch = d.batchUpload; else if (type === 'claim') pBatch = d.batchRelease; else if (type === 'clearing') pBatch = d.batchClaim;
                             return { noDoc: d.noDoc, kodeCamp: d.codeCampaign, namaCamp: d.campaignName, kodeToko: d.kodeToko, namaToko: d.namaToko, reward: d.cbNet, grossUp: d.grossUpCb || 0, prevBatch: pBatch || '-' };
                         });
-                        logActivity(`Workflow ${type.toUpperCase()} [${actionType}]: ${docs.length} dokumen diproses${batchMsg}`); showActionResult(`Laporan Workflow ${type.toUpperCase()}`, successDetails, [], actionType, batchNum); 
+                        logActivity(`Workflow ${type.toUpperCase()} [${actionType}${tolakKe === 'not_yet' ? ' langsung ke Not Yet' : ''}]: ${docs.length} dokumen diproses${batchMsg}`); showActionResult(`Laporan Workflow ${type.toUpperCase()}`, successDetails, [], actionType, batchNum); 
                         if (type === 'claim' && actionType === 'approve' && succDocs.length > 0) {
                             let fullRowsForExcel = dataSource.filter(d => succDocs.includes(d.noDoc));
                             downloadClaimToFinanceExcel(fullRowsForExcel);

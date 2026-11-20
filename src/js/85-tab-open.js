@@ -92,8 +92,9 @@
                 if (!r.deadline) return '<span class="text-gray-400">-</span>';
                 const sisa = Number(r.sisaHari);
                 const label = sisa < 0 ? 'Lewat ' + Math.abs(sisa) + ' hari' : sisa === 0 ? 'Hari ini' : sisa + ' hari lagi';
-                return '<span class="inline-block px-2 py-1 rounded font-bold ' + openWarnaDeadline(sisa) + '" data-sort="' + sisa + '">'
-                    + rcEsc(r.deadline) + '<span class="block text-[10px] font-black">' + rcEsc(label) + '</span></span>';
+                return '<span class="inline-block px-2 py-1 rounded font-bold ' + openWarnaDeadline(sisa) + '" data-sort="' + sisa + '"' + (r.expiredOtomatis ? ' title="Bila tidak diproses, dokumen ini otomatis Expired pada ' + rcEsc(r.expiredOtomatis) + ' (1 bulan sesudah batas proses)"' : '') + '>' // 20261163970000
+                    + rcEsc(r.deadline) + '<span class="block text-[10px] font-black">' + rcEsc(label) + '</span>'
+                    + (r.expiredOtomatis && sisa < 0 ? '<span class="block text-[10px] font-bold">Expired otomatis ' + rcEsc(r.expiredOtomatis) + '</span>' : '') + '</span>';
             }
             function openLabelBadDebt(r) {
                 return r.badDebt ? ' <span class="px-1.5 py-0.5 rounded text-[10px] font-black bg-red-700 text-white" title="'
@@ -173,7 +174,7 @@
                     rcOpenState = { offset: offset, rows: res.rows || [], total: res.total || 0 };
                     // 20261163270000: tagihan Upload Debtor untuk baris halaman ini.
                     if (offset === 0) rcTagihanKosongkan();
-                    await rcTagihanMuat(rcOpenState.rows.map(r => r.noDoc));
+                    rcTagihanIsi(rcOpenState.rows); await rcTagihanMuat(rcOpenState.rows.map(r => r.noDoc)); // 20261163960000: tagihan sudah ikut di baris
                     if (ke !== rcOpenMuatKe) return;
                     opsiOpenFilter(res.opsi);
                     renderOpenClaims();
@@ -209,7 +210,7 @@
             // No Rekening, kode) ditulis sebagai sel teks supaya Excel tidak membuang nol di depan.
             function openKolomUntukUnduh(c) {
                 if (c.k === 'toko') return [['Kode Toko', r => rcSelTeks(r.kodeToko)], ['Nama Toko', r => r.namaToko || ''], ['Bad Debt', r => r.badDebt ? 'Bad Debt' : '']];
-                if (c.k === 'deadline') return [['Deadline', r => r.deadline || ''], ['Sisa Hari', r => r.deadline ? Number(r.sisaHari) : '']];
+                if (c.k === 'deadline') return [['Deadline', r => r.deadline || ''], ['Sisa Hari', r => r.deadline ? Number(r.sisaHari) : ''], ['Expired Otomatis', r => r.expiredOtomatis || '']]; // 20261163970000
                 if (c.k === 'campaign') return [['Kode Campaign', r => rcSelTeks(r.codeCampaign)], ['Nama Campaign', r => r.campaignName || '']];
                 if (c.k === 'kelengkapan') return [['Kelengkapan', r => (r.ktp || r.npwp) ? 'Lengkap' : 'Perlu Dilengkapi']];
                 if (c.k === 'cbNet') return [['Cashback', r => Math.trunc(Number(r.cbNet) || 0)]];
@@ -227,7 +228,7 @@
             async function openUnduhDipilih() {
                 const dipilih = rcSelectedOpenRows();
                 if (dipilih.length === 0) { showNotification('Centang dokumen yang akan diunduh lebih dulu.', 'warning'); return; }
-                await rcTagihanMuat(dipilih.map(r => r.noDoc)); // 20261163270000: baris dari halaman lain
+                rcTagihanIsi(dipilih); await rcTagihanMuat(dipilih.map(r => r.noDoc)); // 20261163270000: baris dari halaman lain
                 const aktif = openKolomMuat();
                 const kolom = openKolomDaftar().filter(c => aktif[c.k]).flatMap(openKolomUntukUnduh);
                 if (kolom.length === 0) { showNotification('Pilih minimal satu kolom lewat Pilih Kolom.', 'warning'); return; }
@@ -399,16 +400,16 @@
             async function openKembalikanNotYet() {
                 const docs = rcSelectedOpenRows().filter(r => r.offerStatus === 'offered' || r.offerStatus === 'overdue').map(r => r.noDoc);
                 if (!docs.length) return;
-                const alasan = await rcMintaAlasan('Kembalikan ke Not Yet', docs.length + ' dokumen toko lunas tidak diproses sekarang. '
-                    + 'Dokumen tetap Not Yet tetapi tidak akan ditawarkan otomatis lagi; OSC dapat menawarkannya ulang.', 'Kembalikan');
+                const alasan = await rcMintaAlasan('Pindahkan ke Restricted', 'Tindakan menahan ini hanya sementara. Dokumen terpilih tersebut akan dipindahkan ke tab restricted tanpa mengikuti aturan Debtor selama 7 hari, dan di hari ke-8 akan kembali mengikuti aturan debtor'
+                    + '', 'Pindahkan'); // 20261163980000: teks pop-up dari pemilik, apa adanya
                 if (alasan === null) return;
                 try {
                     const res = await fetchApp({ action: 'clearingReturn', docs: docs, alasan: alasan });
-                    if (res.status !== 'success') throw new Error(res.message || 'Gagal mengembalikan.');
+                    if (res.status !== 'success') throw new Error(res.message || 'Gagal memindahkan ke Restricted.');
                     showNotification(res.message, 'success');
                     rcPilihanKosongkan('cb-open', 'openSelectAll');
                     loadOpenClaims(rcOpenState.offset || 0);
-                } catch (e) { showNotification((e && e.message) ? e.message : 'Gagal mengembalikan.', 'error'); }
+                } catch (e) { showNotification((e && e.message) ? e.message : 'Gagal memindahkan ke Restricted.', 'error'); }
             }
 
             async function openTandaiBadDebt(tandai) {

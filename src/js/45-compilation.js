@@ -98,7 +98,7 @@
                         total: Number(res.total) || 0, filter: filter });
                     // 20261163270000: tagihan Upload Debtor untuk baris halaman ini.
                     if (offset === 0) rcTagihanKosongkan();
-                    await rcTagihanMuat(rcCompState.rows.map(r => r.noDoc));
+                    rcTagihanIsi(rcCompState.rows); await rcTagihanMuat(rcCompState.rows.map(r => r.noDoc)); // 20261163960000: tagihan sudah ikut di baris
                     if (ke !== rcCompMuatKe) return;
                     setHiddenSafely('btnArchivedList', !res.canArchive);
                     setHiddenSafely('compArchiveBar', !res.canArchive);
@@ -308,7 +308,7 @@
             async function compUnduhDipilih() {
                 const dipilih = rcPilihanData('cb-comp').filter(r => r && typeof r === 'object');
                 if (dipilih.length === 0) { showNotification('Centang baris yang akan diunduh lebih dulu.', 'warning'); return; }
-                await rcTagihanMuat(dipilih.map(r => r.noDoc)); // 20261163270000: baris dari halaman lain
+                rcTagihanIsi(dipilih); await rcTagihanMuat(dipilih.map(r => r.noDoc)); // 20261163270000: baris dari halaman lain
                 const aktif = compKolomMuat();
                 const kolom = compKolomDaftar().filter(c => aktif[c.k]).flatMap(c => c.unduh);
                 if (kolom.length === 0) { showNotification('Pilih minimal satu kolom lewat Pilih Kolom.', 'warning'); return; }

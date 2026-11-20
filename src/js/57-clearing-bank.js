@@ -144,7 +144,7 @@
                 sudah_diupload: ['Sudah diupload dan tidak berubah', 'bg-blue-100 text-blue-800'], // 20261163790000
                 ok: ['Siap Clearing', 'bg-emerald-100 text-emerald-800'], ok_bukti: ['Sudah Done - simpan Bukti TF', 'bg-sky-100 text-sky-800'], // ok_bukti: 20261163750000
                 nominal_beda: ['Nominal beda', 'bg-amber-100 text-amber-800'],
-                tidak_ditemukan: ['Tidak ditemukan', 'bg-gray-200 text-gray-700'], terpotong: ['No Doc terpotong', 'bg-orange-100 text-orange-800'],
+                tidak_ditemukan: ['Tidak ditemukan', 'bg-gray-200 text-gray-700'], terpotong: ['No Doc terpotong', 'bg-orange-100 text-orange-800'], tidak_spesifik: ['No Doc tidak spesifik', 'bg-orange-100 text-orange-800'], /* 20261163990000 */
                 sudah_clearing: ['Sudah clearing', 'bg-blue-100 text-blue-800'], belum_siap: ['Belum siap Clearing', 'bg-purple-100 text-purple-800'],
                 sudah_diproses: ['Sudah diproses (file lain)', 'bg-blue-100 text-blue-800'], gagal_transfer: ['Gagal transfer', 'bg-red-100 text-red-700'],
                 duplikat: ['Duplikat dalam file', 'bg-red-100 text-red-700'], tanggal_salah: ['Tanggal salah', 'bg-red-100 text-red-700']

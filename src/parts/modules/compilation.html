@@ -180,7 +180,7 @@
                         <div id="cmpPanelDebtor" class="hidden">
                             <div id="rcZdMatiDebtor" class="hidden mb-4 p-3 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-900"><b>ZDAGE Integration mati (cara lama).</b> Upload dan Apply tetap bisa untuk menyiapkan data, tetapi belum membatasi Open dan job harian tidak berjalan. Hidupkan di Access Management &gt; On/Off Sistem.</div>
                             <div class="mb-5 border-b border-gray-100 pb-4"><h2 class="text-2xl font-extrabold text-gray-800"><i class="fas fa-file-invoice-dollar text-cyan-600 mr-2"></i>Upload Debtor (ZDAGE)</h2>
-                                <p class="text-gray-500 mt-1 text-sm">Kolom A = kode depot. Depot yang tidak ada di file memakai data debtor lama, kecuali dicentang "Tidak ada tagihan". <span id="zdAturan"></span></p></div>
+                                <p class="text-gray-500 mt-1 text-sm">Kolom A = kode depot. Depot yang tidak ada di file memakai data debtor lama, kecuali dicentang "Tidak ada tagihan". <span id="zdAturan"></span> <b>Cukup satu kali sehari:</b> dokumen yang di-compile sesudah Apply dinilai otomatis dengan data debtor yang berlaku, tanpa upload ulang.</p></div>
                             <div class="p-4 bg-cyan-50 border border-cyan-200 rounded-xl mb-4 flex flex-wrap gap-3 items-end">
                                 <label class="px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold rounded-lg text-sm cursor-pointer"><i class="fas fa-upload mr-2 text-blue-600"></i>Pilih File ZDAGE<input type="file" id="zdFile" accept=".xlsx,.xls" class="hidden" onchange="zdPilihFile(this)"></label>
                                 <label class="text-xs font-bold text-gray-600">Tanggal &amp; jam tarikan ZDAGE<input type="datetime-local" id="zdTarikan" class="block mt-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"></label>
@@ -204,7 +204,7 @@
                                     <th class="p-2 text-left font-bold whitespace-nowrap">Bulan SO - Bill</th><th class="p-2 text-right font-bold">Net CB</th><th class="p-2 text-left font-bold min-w-[130px]">Hasil</th><th class="p-2 text-left font-bold min-w-[300px]">Penyebab</th><th class="p-2 text-left font-bold">Sumber</th></tr></thead>
                                     <tbody id="zdBody"></tbody></table></div>
                             </div>
-                            <h3 class="font-black text-gray-800 mb-3"><i class="fas fa-rotate-left text-gray-500 mr-2"></i>Dikembalikan Depot</h3>
+                            <h3 class="font-black text-gray-800 mb-3"><i class="fas fa-rotate-left text-gray-500 mr-2"></i>Ditahan Depot (7 hari)</h3>
                             <div class="mb-2 flex items-center gap-3"><span class="text-sm font-bold text-gray-700"><span id="zdKembaliTerpilih">0</span> dipilih</span>
                                 <button type="button" id="btnZdTawarUlang" onclick="zdTawarkanUlang()" disabled class="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:bg-cyan-300 text-white font-bold rounded-lg text-sm"><i class="fas fa-share mr-2"></i>Tawarkan Ulang</button></div>
                             <div class="overflow-auto border border-gray-200 rounded-xl mb-6 max-h-[360px]"><table class="w-full text-sm"><thead class="bg-gray-50 text-gray-600"><tr>

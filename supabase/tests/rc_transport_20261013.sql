@@ -22,7 +22,7 @@ begin
   perform set_config('request.jwt.claims', json_build_object('sub', v_sm::text, 'role', 'authenticated')::text, true);
 
   -- ---- A. Timetable: Expired = selesai, tiga tempat sama ---------------------------------
-  m := public.rc_timetable_matrix('{}'::jsonb)->'kpi';
+  m := public.rc_timetable_matrix('{"semuaCampaign":"true"}'::jsonb)->'kpi'; -- 20261164090000: bawaan kini hanya campaign berjalan
   k := rc_private.timetable_ringkas(null);
   p := rc_private.people_metrics(array(select id from public.depots where archived_at is null), (now() at time zone 'Asia/Jakarta')::date)->'timetable';
   hasil := hasil || jsonb_build_array(jsonb_build_array('Timetable: modul = email ringkasan = People Performance',

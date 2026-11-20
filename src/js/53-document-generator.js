@@ -329,7 +329,7 @@
                 doc.setDrawColor.apply(doc, DG_GARIS); doc.line(kiri, y(20.5), kanan, y(20.5));
                 const baris = [
                     // 20261163740000: rekening pengirim tidak ditampilkan; nama perusahaan di kaki.
-                    ['Tanggal Efektif', x.tglEfektif], ['No. Referensi', x.transId], ['Layanan', x.layanan], ['Ke Rekening', x.keRek],
+                    ['Tanggal Transfer', x.tglEfektif] /* 20261163990000: dulu "Tanggal Efektif" */, ['No. Referensi', x.transId], ['Layanan', x.layanan], ['Ke Rekening', x.keRek],
                     ['Bank Tujuan', x.bankTujuan], ['Nama Penerima', x.namaPenerima || '-'],
                     ['Nominal', 'Rp ' + dgRupiah(x.nominal)],
                     ['Biaya', x.sumber === 'template' ? '-' : 'Rp ' + dgRupiah(x.biaya) + (x.biayaOleh ? ' (' + x.biayaOleh + ')' : '')],

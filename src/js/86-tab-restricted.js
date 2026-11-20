@@ -58,7 +58,7 @@
                 isi('restrictedCampaign', '-- Semua Campaign --', (opsi.campaigns || []).map(c => ({ v: c.kode, t: c.kode + ' - ' + (c.nama || '') })));
                 isi('restrictedCbType', 'Semua Jenis CB', (opsi.jenisCb || []).map(j => ({ v: j, t: j })));
                 // Tombol mengikuti hak yang dihitung server (tab Editor dan Bad Debt).
-                setHiddenSafely('btnRestrictedPindah', opsi.bolehPindah !== true);
+                rcRestrictedEditor = opsi.bolehPindah === true; setHiddenSafely('btnRestrictedPindah', false); // 20261163980000: dokumen yang ditahan boleh dikembalikan semua pemegang tab
                 setHiddenSafely('btnRestrictedBadDebt', opsi.bolehBadDebt !== true);
                 setHiddenSafely('btnRestrictedCabutBadDebt', opsi.bolehBadDebt !== true);
             }
@@ -68,6 +68,7 @@
                 'Belum lunas': 'bg-red-100 text-red-700',
                 'Periode salah': 'bg-amber-100 text-amber-800',
                 'Dikembalikan depot': 'bg-gray-200 text-gray-700',
+                'Ditahan sementara': 'bg-gray-200 text-gray-700',
                 'Tanpa Customer Master': 'bg-orange-100 text-orange-800'
             };
 
@@ -78,6 +79,7 @@
                     + (x.aturan === 1 ? '' : (x.bulan === 'jumlah' ? 'jumlah s/d Bulan Bill ' : zdLabelBulan(x.bulan) + ' ')) + rcNominalPenuh(x.nilai));
                 if (r.alasan === 'Bad Debt') return [a.badDebt || ''];
                 if (r.alasan === 'Dikembalikan depot') return [a.alasanKembali || ''];
+                if (r.alasan === 'Ditahan sementara') return ['Ditahan sampai ' + (a.ditahanSampai || '-') + '; mulai ' + (a.ikutDebtorMulai || '-') + ' kembali mengikuti aturan debtor', a.alasanKembali || ''].filter(Boolean); // 20261163980000
                 if (r.alasan === 'Periode salah') return [a.masalah === 'tanggal_salah' ? 'SO start sesudah Billing end di Campaign Master' : 'SO / Billing belum diisi di Campaign Master'];
                 return [];
             }
@@ -120,19 +122,20 @@
                 const n = rcPilihanSerap('cb-restricted', c => rcRestrictedState.rows[Number(c.dataset.idx)], 'restrictedSelectAll');
                 document.getElementById('restrictedSelectedCount').innerText = n;
                 const dipilih = rcSelectedRestrictedRows();
-                setDisabledSafely('btnRestrictedPindah', n === 0);
+                setDisabledSafely('btnRestrictedPindah', n === 0 || !(rcRestrictedEditor || dipilih.some(r => (r.alasanRinci || {}).ditahan === true))); // 20261163980000
                 setDisabledSafely('btnRestrictedExpired', n === 0);
                 setDisabledSafely('btnRestrictedUnduh', n === 0);
                 setDisabledSafely('btnRestrictedBadDebt', !dipilih.some(r => !r.badDebt));
                 setDisabledSafely('btnRestrictedCabutBadDebt', !dipilih.some(r => r.badDebt));
             }
+            let rcRestrictedEditor = false; // 20261163980000: pemegang Restricted (Editor)
             function rcSelectedRestrictedRows() { return rcPilihanData('cb-restricted').filter(Boolean); }
 
             async function restrictedPindahKeOpen() {
                 const docs = rcSelectedRestrictedRows().map(r => r.noDoc);
                 if (!docs.length) return;
-                const alasan = await rcMintaAlasan('Pindah ke Open', docs.length + ' dokumen Restricted dipindah ke Open dan boleh diajukan, berlabel Restricted. '
-                    + 'Tindakan ini tercatat di riwayat dokumen.', 'Pindah ke Open');
+                const alasan = await rcMintaAlasan('Pindahkan ke Open', docs.length + ' dokumen dipindahkan ke Open. Dokumen yang sedang ditahan kembali mengikuti aturan debtor sekarang juga (toko lunas masuk Open dengan batas 7 hari baru); dokumen Restricted lain hanya dapat dipindah Editor dan berlabel Restricted. '
+                    + 'Tindakan ini tercatat di riwayat dokumen.', 'Pindahkan ke Open');
                 if (alasan === null) return;
                 try {
                     const res = await fetchApp({ action: 'restrictedPindah', docs: docs, alasan: alasan });
@@ -143,8 +146,9 @@
                     // (boleh diajukan, Tgl Lunas tidak wajib) tanpa perlu login ulang.
                     const gagalPindah = new Set((res.gagal || []).map(x => String(x).trim().toUpperCase()));
                     const pindah = new Set(docs.map(x => String(x).trim().toUpperCase()).filter(x => !gagalPindah.has(x)));
+                    const lunasLagi = new Set((res.lunas || []).map(x => String(x).trim().toUpperCase())); // 20261163980000: lepas tahan = toko lunas, Tgl Lunas tetap wajib
                     (globalDocuments || []).forEach(function (d) {
-                        if (pindah.has(String(d.noDoc).trim().toUpperCase())) { d.bolehAjukan = true; d.restrictedOpen = true; }
+                        const kd = String(d.noDoc).trim().toUpperCase(); if (pindah.has(kd)) { d.bolehAjukan = true; d.restrictedOpen = !lunasLagi.has(kd); }
                     });
                     rcPilihanKosongkan('cb-restricted', 'restrictedSelectAll');
                     loadRestrictedClaims(rcRestrictedState.offset || 0);

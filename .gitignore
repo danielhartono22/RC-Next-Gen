@@ -27,3 +27,17 @@ bahan-uji-clearing-bank/
 
 # Berkas kunci Office yang tertinggal saat dokumen terbuka
 ~$*
+
+# 20-Nov-2026 (pemilik: "push ke github dengan exclude output dan connection link"):
+# tautan koneksi (URL project Supabase, publishable key, URL Apps Script) tidak masuk git.
+# Salin berkas *.example di config/ lalu isi nilainya secara lokal.
+config/environments.json
+config/rc-env.js
+config/rc-env.dev.js
+config/rc-auth-dev.js
+# Bahan kerja lokal (tautan Drive internal, draf, gambar), bukan kode.
+Knowledge base/
+Disc Center/
+bahan buat ilustrasi rc/
+Logo Nippon Lengkap.jpeg
+.claude/

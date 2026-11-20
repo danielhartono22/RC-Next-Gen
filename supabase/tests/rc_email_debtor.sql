@@ -37,6 +37,12 @@ begin
     update public.rc_clearing_offers set offered_at = now() - interval '30 days' where id = v_o[3];
     update public.rc_clearing_offers set offered_at = now() - interval '10 days' where id = v_o[4];
     update public.depots set email_to = 'depo.uji@contoh.co.id', email_cc = 'depo.cc@contoh.co.id' where id = v_dep;
+    -- 20261164060000: antrean debtor hari ini (dari jadwal) dikosongkan di dalam uji agar pencegah ganda tidak ikut menghitungnya.
+    delete from public.email_outbox where jenis = 'debtor' and dibuat_pada >= date_trunc('day', now() at time zone 'Asia/Jakarta') at time zone 'Asia/Jakarta';
+    -- 20261164050000: email depot ke Depot Profile (dikosongkan = cadangan Email Depot lama); region ke RSM.
+    insert into public.depot_profiles(depot_id) select v_dep where not exists(select 1 from public.depot_profiles where depot_id = v_dep);
+    update public.depot_profiles set email_kepala_admin = null, email_npc = null, email_kepala_depot = null,
+           email_rsm = 'rsm.uji@contoh.co.id', email_asm = null where depot_id = v_dep;
 
     -- ---- Saklar ZDAGE ----------------------------------------------------------------------
     update public.pengaturan_sistem set nilai = 'false'::jsonb where kunci = 'zdage_aktif';
@@ -64,17 +70,19 @@ begin
     hasil := hasil || jsonb_build_object('uji', 'Simpan jenjang: hari harus naik', 'lulus', v_galat ~ 'lebih besar', 'rinci', v_galat);
     perform public.rc_email_settings_simpan('[{"jenis":"debtor","jenjang":[{"hari":14,"cc":"cc.satu@contoh.co.id"},{"hari":21,"cc":"cc.dua@contoh.co.id, cc.dua.b@contoh.co.id"},{"hari":28,"cc":"cc.tiga@contoh.co.id"}]}]');
     r := public.rc_email_status();
-    hasil := hasil || jsonb_build_object('uji', 'Panel: jenjang tersimpan (hari + CC), CC umum tidak dipakai jenis debtor',
-      'lulus', exists (select 1 from jsonb_array_elements(r->'pengaturan') x where x->>'jenis' = 'debtor' and x->'cc' = 'null'::jsonb
+    -- 20261164050000: CC jenis debtor = CC email depot.
+    hasil := hasil || jsonb_build_object('uji', 'Panel: jenjang tersimpan (hari + CC); CC jenis debtor tampil sebagai CC email depot',
+      'lulus', exists (select 1 from jsonb_array_elements(r->'pengaturan') x where x->>'jenis' = 'debtor' and jsonb_typeof(x->'cc') = 'array'
                         and (x->'jenjang'->1->>'hari')::int = 21 and (x->'jenjang'->1->'cc') ? 'cc.dua.b@contoh.co.id'),
       'rinci', (select (x->'jenjang')::text from jsonb_array_elements(r->'pengaturan') x where x->>'jenis' = 'debtor'));
 
     -- ---- Pratinjau ---------------------------------------------------------------------------
     r := public.rc_email_susun('debtor', false);
-    hasil := hasil || jsonb_build_object('uji', 'Pratinjau: 3 email (jenjang 1, 2, 3), kolom Nama Toko / Nama Campaign / Net CB / Tanggal Lunas / Deadline; tidak menandai',
-      'lulus', (r->>'jumlahEmail')::int = 3 and (r->>'jumlahToko')::int = 3
-           and r->>'isiHtml' ~ 'NAMA TOKO</th><th[^>]*>NAMA CAMPAIGN</th><th[^>]*>NET CB</th><th[^>]*>TANGGAL LUNAS</th><th[^>]*>DEADLINE</th>'
-           and r->>'isiHtml' ~ 'Jenjang 1' and r->>'isiHtml' ~ 'Jenjang 3'
+    -- 20261164050000: satu email depot (3 jenjang digabung) + satu email region; kolom Lewat (hari).
+    hasil := hasil || jsonb_build_object('uji', 'Pratinjau: 1 email depot + 1 email region (jenjang digabung), kolom Nama Toko / Nama Campaign / Net CB / Tanggal Lunas / Lewat / Auto-Expiring; tidak menandai',
+      'lulus', (r->>'emailRegion')::int = 2
+           and r->>'isiHtml' ~ 'NAMA TOKO</th><th[^>]*>NAMA CAMPAIGN</th><th[^>]*>NET CB</th><th[^>]*>TANGGAL LUNAS</th><th[^>]*>LEWAT \(HARI\)</th><th[^>]*>AUTO-EXPIRING</th>'
+           and r->>'isiHtml' !~ 'Jenjang [0-9]'
            and not exists (select 1 from rc_private.debtor_peringatan),
       'rinci', coalesce(r->>'message', ''));
 
@@ -88,26 +96,28 @@ begin
 
     -- ---- Kirim sungguhan -----------------------------------------------------------------------
     r := public.rc_email_susun('debtor', true);
-    select * into o1 from public.email_outbox where jenis = 'debtor' and (konteks->>'depot')::uuid = v_dep and (konteks->>'tingkat')::int = 1 and status = 'pending' order by dibuat_pada desc limit 1;
-    select * into o3 from public.email_outbox where jenis = 'debtor' and (konteks->>'depot')::uuid = v_dep and (konteks->>'tingkat')::int = 3 and status = 'pending' order by dibuat_pada desc limit 1;
-    hasil := hasil || jsonb_build_object('uji', 'Kirim: satu email per depot x jenjang; TO = Email TO depot; CC = Email CC depot + CC jenjang itu saja',
-      'lulus', (r->>'jumlahEmail')::int = 3 and o1.tujuan = array['depo.uji@contoh.co.id']
-           and 'depo.cc@contoh.co.id' = any(o1.cc) and 'cc.satu@contoh.co.id' = any(o1.cc) and not ('cc.tiga@contoh.co.id' = any(o1.cc))
-           and 'cc.tiga@contoh.co.id' = any(o3.cc) and not ('cc.satu@contoh.co.id' = any(o3.cc))
-           and o1.subjek ~ 'Jenjang 1 \(14 hari\)' and o3.subjek ~ 'Jenjang 3 \(28 hari\)',
-      'rinci', coalesce(array_to_string(o1.cc, ','), '-') || ' | ' || coalesce(array_to_string(o3.cc, ','), '-'));
-    hasil := hasil || jsonb_build_object('uji', 'Toko ditandai: jenjang 3 ikut menandai jenjang 1 dan 2; isi email memuat toko, Net CB, tanggal',
-      'lulus', (select array_agg(tingkat order by tingkat) from rc_private.debtor_peringatan where offer_id = v_o[3]) = array[1,2,3]::smallint[]
-           and (select array_agg(tingkat order by tingkat) from rc_private.debtor_peringatan where offer_id = v_o[1]) = array[1]::smallint[]
-           and o1.isi_html ~ (select to_char((deadline_at at time zone 'Asia/Jakarta')::date, 'DD-Mon-YYYY') from public.rc_clearing_offers where id = v_o[1])
+    select * into o1 from public.email_outbox where jenis = 'debtor' and (konteks->>'depot')::uuid = v_dep and konteks->>'bagian' = 'depot' and status = 'pending' order by dibuat_pada desc limit 1;
+    select * into o3 from public.email_outbox where jenis = 'debtor' and konteks->>'bagian' = 'region' and status = 'pending' order by dibuat_pada desc limit 1;
+    hasil := hasil || jsonb_build_object('uji', 'Kirim: email depot (cadangan Email Depot lama, CC panel) + laporan region (toko 15 / 22 hari: CC jenjang 2) + laporan nasional (toko 30 hari: CC jenjang 3)',
+      'lulus', (r->>'emailRegion')::int = 2 and o1.tujuan = array['depo.uji@contoh.co.id']
+           and o1.cc is not distinct from (select coalesce(cc_tambahan, '{}') from public.email_settings where jenis = 'debtor')
+           and o3.tujuan = array['rsm.uji@contoh.co.id'] and 'cc.dua@contoh.co.id' = any(o3.cc) and not (o3.cc && array['cc.satu@contoh.co.id', 'cc.tiga@contoh.co.id'])
+           and exists (select 1 from public.email_outbox where jenis = 'debtor' and konteks->>'bagian' = 'nasional' and status = 'pending' and 'cc.tiga@contoh.co.id' = any(cc))
+           and o1.subjek !~ 'Jenjang' and o3.subjek ~ 'Region',
+      'rinci', coalesce(array_to_string(o1.tujuan, ','), '-') || ' | ' || coalesce(array_to_string(o3.cc, ','), '-'));
+    -- 20261164050000: laporan region tidak lagi menandai toko.
+    hasil := hasil || jsonb_build_object('uji', 'Tanpa penandaan toko; isi email depot memuat toko, Net CB, tanggal',
+      'lulus', not exists (select 1 from rc_private.debtor_peringatan where offer_id = any(v_o))
+           and o1.isi_html ~ (select to_char(((deadline_at at time zone 'Asia/Jakarta')::date + interval '1 month')::date + 1, 'DD-Mon-YYYY') from public.rc_clearing_offers where id = v_o[1])
            and o1.isi_html ~ replace(rc_private.rupiah((select cb_net from public.claims where id = v_k[1])), '.', '\.'),
       'rinci', '-');
     hasil := hasil || jsonb_build_object('uji', 'Tanpa lampiran PDF', 'lulus', not rc_private.email_perlu_pdf('debtor'), 'rinci', '-');
 
     select count(*) into n from public.email_outbox where jenis = 'debtor' and status = 'pending';
     r := public.rc_email_susun('debtor', true);
-    hasil := hasil || jsonb_build_object('uji', 'Dijalankan lagi: toko yang sama tidak diperingatkan dua kali di jenjang yang sama',
-      'lulus', r->>'message' ~ 'Tidak ada toko lunas' and (select count(*) from public.email_outbox where jenis = 'debtor' and status = 'pending') = n,
+    -- 20261164060000: dijalankan lagi di hari yang sama = depot, region dan nasional yang sudah dikirimi dilewati (tanpa ganda).
+    hasil := hasil || jsonb_build_object('uji', 'Dijalankan lagi di hari yang sama: tidak ada email ganda (depot, region, nasional dilewati)',
+      'lulus', coalesce((r->>'jumlahEmail')::int, 0) = 0 and (select count(*) from public.email_outbox where jenis = 'debtor' and status = 'pending' and konteks->>'bagian' = 'region') = 1,
       'rinci', r->>'message');
 
     update public.rc_clearing_offers set offered_at = now() - interval '21 days' where id = v_o[1];

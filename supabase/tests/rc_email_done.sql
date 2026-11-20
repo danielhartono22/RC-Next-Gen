@@ -35,7 +35,7 @@ begin
      where jenis = 'pengajuan';
     update public.depots set email_to = 'to.uji@example.invalid' where id = d.depot_id;
     insert into public.depot_profiles(depot_id, email_kepala_admin) values (d.depot_id, 'ka.uji@example.invalid')
-      on conflict (depot_id) do update set email_kepala_admin = excluded.email_kepala_admin;
+      on conflict (depot_id) do update set email_kepala_admin = excluded.email_kepala_admin, email_npc = null, email_kepala_depot = null; -- 20261164010000: NPC ikut TO Done
     update public.profiles set business_email = 'osc.uji@example.invalid' where id = v_osc;
     insert into public.user_depot_access(user_id, depot_id) values (v_osc, d.depot_id) on conflict do nothing;
     update public.profiles set business_email = 'sm.uji@example.invalid' where id = v_sm;
@@ -54,7 +54,8 @@ begin
                           and x not in (select lower(btrim(z)) from public.email_settings s, jsonb_array_elements_text(s.cc_per_jenis->'done') z where s.jenis = 'pengajuan')),
       'rinci', (p->'cc')::text);
     p := rc_private.email_pengajuan_penerima(d.depot_id, 'approval');
-    hasil := hasil || jsonb_build_object('uji', 'Jenis lain (Pengajuan / approval) tidak berubah: OSC/Supervisor tetap ditembuskan',
+    -- 20261164020000: OSC / Supervisor berjurisdiksi tetap ditembuskan (kecuali Done).
+    hasil := hasil || jsonb_build_object('uji', 'Jenis lain (approval): CC OSC/Supervisor + Semua Email + CC wajib jenis itu',
       'lulus', p->'cc' ? 'osc.uji@example.invalid' and p->'cc' ? 'semua.uji@example.invalid' and p->'cc' ? 'approval.uji@example.invalid', 'rinci', (p->'cc')::text);
 
     -- ---- Antrean email Done --------------------------------------------------------------
@@ -67,7 +68,7 @@ begin
       'rinci', 'TO ' || coalesce(array_to_string(o.tujuan, ', '), '-') || ' | CC ' || coalesce(array_to_string(o.cc, ', '), '-'));
 
     -- Email Kepala Admin kosong: ke user yang mengajukan klaim di surat itu (OSC + Supervisor).
-    update public.depot_profiles set email_kepala_admin = null where depot_id = d.depot_id;
+    update public.depot_profiles set email_kepala_admin = null, email_npc = null, email_kepala_depot = null where depot_id = d.depot_id;
     n := rc_private.email_pengajuan_antre('clearing', 'UJIDONE-2', array[d.id, v_c2], v_sm, '');
     select * into o from public.email_outbox where konteks->>'batch' = 'UJIDONE-2' order by dibuat_pada desc limit 1;
     hasil := hasil || jsonb_build_object('uji', 'Email Kepala Admin kosong: TO user yang mengajukan klaimnya (apa pun perannya), bukan Email TO depot / pemroses',
@@ -106,8 +107,10 @@ begin
     -- Jenis lain tetap ke Email TO depot, CC termasuk OSC.
     n := rc_private.email_pengajuan_antre('submit_langsung', 'UJIDONE-6', array[d.id], v_sm, '');
     select * into o from public.email_outbox where konteks->>'batch' = 'UJIDONE-6' order by dibuat_pada desc limit 1;
-    hasil := hasil || jsonb_build_object('uji', 'Email Pengajuan Baru tidak berubah: TO Email TO depot, CC termasuk OSC',
-      'lulus', n = 1 and o.tujuan = array['to.uji@example.invalid'] and 'osc.uji@example.invalid' = any(o.cc),
+    -- 20261164010000: TO = Email Kepala Depot (Depot Profile); OSC tidak otomatis ditembuskan.
+    hasil := hasil || jsonb_build_object('uji', 'Email Pengajuan Baru: TO tim depot (Depot Profile), OSC di CC',
+      'lulus', n = 1 and o.tujuan = array(select jsonb_array_elements_text(rc_private.email_pengajuan_penerima(d.depot_id, 'pengajuan')->'to'))
+           and ('osc.uji@example.invalid' = any(o.cc)) and not ('to.uji@example.invalid' = any(o.tujuan) and exists(select 1 from public.depot_profiles x where x.depot_id = d.depot_id and coalesce(x.email_kepala_depot, '') <> '')),
       'rinci', 'TO ' || coalesce(array_to_string(o.tujuan, ', '), '-') || ' | CC ' || coalesce(array_to_string(o.cc, ', '), '-'));
 
     -- Mode uji: surat uji tetap dibuat, spanduknya menyebut email Done akan ditahan.

@@ -156,12 +156,15 @@
 
                     '<h4 class="text-xs font-black text-gray-600 uppercase mt-5 mb-2">Email</h4>',
                     '<div class="grid grid-cols-1 md:grid-cols-2 gap-3">',
-                    dmKolom('dmEmailRsm', 'Email RSM', d.emailRsm, 'text', 'Maksimal 4 alamat, dipisah koma.'),
+                    // 20261164010000: TO email Pengajuan = Kepala Depot (CC RSM); TO email Done = NPC + Kepala Admin.
+                    dmKolom('dmEmailKadep', 'Email Kepala Depot', d.emailKepalaDepot, 'text', 'Maksimal 4 alamat. Tujuan (TO) email Pengajuan dan Done.'),
+                    dmKolom('dmEmailNpc', 'Email NPC', d.emailNpc, 'text', 'Maksimal 4 alamat, dipisah koma. Tujuan (TO) email Pengajuan dan Done.'),
+                    dmKolom('dmEmailRsm', 'Email RSM', d.emailRsm, 'text', 'Maksimal 4 alamat, dipisah koma. Tujuan (TO) email Pengajuan (bukan Done).'),
                     dmKolom('dmEmailAsm', 'Email ASM', d.emailAsm, 'text', 'Maksimal 4 alamat.'),
                     dmKolom('dmEmailSm', 'Email SM', d.emailSm, 'text', 'Maksimal 4 alamat.'),
-                    dmKolom('dmEmailTo', 'Email Depot (TO)', d.emailTo, 'text', 'Maksimal 4 alamat. Inilah tujuan email otomatis.'),
+                    dmKolom('dmEmailTo', 'Email Depot (lama)', d.emailTo, 'text', 'Maksimal 4 alamat. Hanya cadangan bila seluruh email tim depot kosong.'),
                     // 20261163100000: tujuan (TO) email "Done - Pengajuan".
-                    dmKolom('dmEmailKa', 'Email Kepala Admin', d.emailKepalaAdmin, 'text', 'Maksimal 4 alamat. Tujuan (TO) email Done - Pengajuan; kosong: ke user yang mengajukan klaimnya, atau bila tidak tercatat ke user yang memproses Done.'),
+                    dmKolom('dmEmailKa', 'Email Kepala Admin', d.emailKepalaAdmin, 'text', 'Maksimal 4 alamat. Tujuan (TO) email Pengajuan dan Done.'),
                     '</div>',
                     '<div class="mt-3">' + dmKolom('dmEmailCc', 'Email CC', d.emailCc, 'text',
                         'Daftar siar, maksimal 20 alamat. Alamat yang sudah ada di TO akan DIHAPUS SENDIRI dari CC saat disimpan, '
@@ -197,7 +200,8 @@
                     karLain: dmAngka('dmKarLain'),
                     emailRsm: dmAmbil('dmEmailRsm'), emailAsm: dmAmbil('dmEmailAsm'),
                     emailSm: dmAmbil('dmEmailSm'), emailTo: dmAmbil('dmEmailTo'),
-                    emailCc: dmAmbil('dmEmailCc'), emailKepalaAdmin: dmAmbil('dmEmailKa')
+                    emailCc: dmAmbil('dmEmailCc'), emailKepalaAdmin: dmAmbil('dmEmailKa'),
+                    emailKepalaDepot: dmAmbil('dmEmailKadep'), emailNpc: dmAmbil('dmEmailNpc') // 20261164010000
                 };
                 try {
                     const res = await fetchApp({ action: 'depotSave', kode: kode, data: data });

@@ -52,7 +52,7 @@ begin
 
     -- Report (lewat snapshot) mengikuti: Total Klaim = jumlah baris view.
     perform rc_private.segarkan_report('uji');
-    r := rc_private.report_dashboard('{}');
+    r := rc_private.report_dashboard('{"semuaCampaign":"true"}'); -- 20261164080000: bawaan kini hanya campaign berakhir
     select count(*) into n from public.rc_report_rows;
     hasil := hasil || jsonb_build_object('uji', 'Report Dashboard (snapshot): Total Klaim = baris view, dokumen itu tidak dihitung',
       'lulus', (r->'kpi'->>'claimQty')::int = n and not exists (select 1 from rc_private.report_rows_snap where id = v_k),

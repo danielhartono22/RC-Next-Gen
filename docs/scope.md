@@ -2,7 +2,7 @@
 
 ## Keputusan pemilik
 
-Pada 14 September 2026, pemilik meminta **“doc center dikesampingkan dulu karena masih all prod”**. Tahap aktif sekarang adalah **Resource Collection saja**, pada Supabase DEV `vvojshgcduqlugngpzkj`. Document Center tetap merupakan sistem legacy PROD dan integrasinya ditunda.
+Pada 14 September 2026, pemilik meminta **“doc center dikesampingkan dulu karena masih all prod”**. Tahap aktif sekarang adalah **Resource Collection saja**, pada Supabase DEV `<prod-project-ref>`. Document Center tetap merupakan sistem legacy PROD dan integrasinya ditunda.
 
 Keputusan ini mempersempit tahap aktif dari [instruksi migrasi](../System-Instruction-Migrasi-Claim-System-ke-Supabase.md). Sasaran integrasi kedua aplikasi tetap menjadi pekerjaan lanjutan, bukan syarat untuk memulai pengembangan RC DEV.
 

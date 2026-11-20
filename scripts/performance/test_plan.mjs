@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {validateTarget,plan,phaseAt,laneFor,thresholdsFromBaseline,outcome} from './plan.mjs';
+import {PROD_REF} from '../lib-ref.mjs';
 const cfg={environment:'isolated-test',dummyOnly:true,projectRef:'abcdefghijklmnopqrst',baseUrl:'https://abcdefghijklmnopqrst.supabase.co',frontendUrl:'https://rc-perf-staging.vercel.app',frontendVerified:true,publishableKey:'sb_publishable_dummy',claimRows:1000000,datasetId:'test',sideEffectsDisabled:true};
-test('production excluded with no environment-variable override',()=>{assert.throws(()=>validateTarget({...cfg,projectRef:'vvojshgcduqlugngpzkj',baseUrl:'https://vvojshgcduqlugngpzkj.supabase.co'}));assert.throws(()=>validateTarget({...cfg,baseUrl:cfg.baseUrl+'.evil.invalid'}));});
+test('production excluded with no environment-variable override',{skip:!PROD_REF},()=>{assert.throws(()=>validateTarget({...cfg,projectRef:PROD_REF,baseUrl:'https://'+PROD_REF+'.supabase.co'}));assert.throws(()=>validateTarget({...cfg,baseUrl:cfg.baseUrl+'.evil.invalid'}));});
 test('reject unverified frontend, unsafe secrets, non-dummy data and side effects',()=>{for(const patch of [{frontendVerified:false},{publishableKey:'sb_secret_example'},{dummyOnly:false},{sideEffectsDisabled:false},{claimRows:999999}])assert.throws(()=>validateTarget({...cfg,...patch}));assert.equal(validateTarget(cfg),cfg);});
 test('load and stress have every requested stable plateau',()=>{assert.deepEqual(plan('load').filter(s=>s.kind==='hold').map(s=>s.users),[100,250,500,750,1000]);assert.deepEqual(plan('stress').filter(s=>s.kind==='hold').map(s=>s.users),[100,250,500,750,1000,1250,1500]);});
 test('mixed workload counts 100/200/200/200/150/150 actual VUs',()=>{const counts={};for(let i=1;i<=1000;i++){const l=laneFor(i);counts[l]=(counts[l]||0)+1;}assert.deepEqual(counts,{dashboard:100,search:200,report:200,transaction:200,update:150,upload:150});});

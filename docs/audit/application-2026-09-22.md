@@ -16,7 +16,7 @@ Audit data menjalankan **36 aturan**: 19 menghasilkan nol temuan dan 17 menghasi
 |---|---|
 | Workspace | `D:\DANIEL\RC Next Gen`, Node 24, Windows |
 | Frontend | Source `src/`, adapter Supabase, build statis `public/`, Vercel |
-| Supabase | `vvojshgcduqlugngpzkj`; berlabel DEV pada registry lama, telah dipakai depot |
+| Supabase | `<prod-project-ref>`; berlabel DEV pada registry lama, telah dipakai depot |
 | Dataset audit | 2.756 claims, 2.067 customers, 100 campaigns, 52 depots |
 | Akun | 7 profiles; 6 aktif |
 | Schema publik | 24 base tables; tidak ditemukan RLS disabled pada aturan audit |

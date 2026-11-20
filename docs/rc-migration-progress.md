@@ -23,7 +23,7 @@ Migration `20260915055416_rc_corrected_compile_authority_review` applied via MCP
 - Authority has not been found: recursive workspace filename search found no Authority file or `.xlsx`/`.xls` workbook at this inspection. The folder currently contains six CSVs including ListCampaign. Account import remains pending the file location.
 - Owner requested removal from the current query. This is implemented as candidate filtering, not deletion of snapshots/reject history. The remaining reports below retain earlier audit findings for traceability.
 
-Project URL verified as `https://vvojshgcduqlugngpzkj.supabase.co`. Migration `20260915021126_rc_master_access_foundation` applied successfully; local filename matches remote migration history.
+Project URL verified as `https://<prod-project-ref>.supabase.co`. Migration `20260915021126_rc_master_access_foundation` applied successfully; local filename matches remote migration history.
 
 | Object | Verified state |
 |---|---|

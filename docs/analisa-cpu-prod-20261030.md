@@ -1,6 +1,6 @@
 # Analisa CPU Prod RC Next Gen — 30-Okt-2026
 
-Project prod: `vvojshgcduqlugngpzkj`. Pemeriksaan ini hanya membaca data (pg_stat_statements, pg_stat_activity, log edge/postgres). Tidak ada perubahan apa pun di prod.
+Project prod: `<prod-project-ref>`. Pemeriksaan ini hanya membaca data (pg_stat_statements, pg_stat_activity, log edge/postgres). Tidak ada perubahan apa pun di prod.
 
 ## 1. Jawaban singkat
 

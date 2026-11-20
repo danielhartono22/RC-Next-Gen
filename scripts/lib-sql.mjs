@@ -12,7 +12,8 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const PROJECT_REF = 'vvojshgcduqlugngpzkj';
+import { PROD_REF } from './lib-ref.mjs'; // 20-Nov-2026: ref dari config/environments.json lokal
+const PROJECT_REF = PROD_REF;
 const API = `https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query`;
 
 async function bacaToken() {

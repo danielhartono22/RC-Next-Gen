@@ -6,7 +6,7 @@
 
 ## Cara menggunakan dokumen ini
 
-> **Adendum cakupan pemilik — 14 September 2026:** tahap aktif dipersempit menjadi **Resource Collection pada Supabase DEV `vvojshgcduqlugngpzkj`**. Document Center dikesampingkan karena masih PROD. Ketentuan integrasi Document Center, upload campaign/print dan inventaris job 15 menit di bawah ditunda untuk modul tersebut; jangan menjadikannya penghalang global pekerjaan RC DEV. Header/data dictionary dan keputusan bisnis RC tetap harus dipenuhi untuk implementasi yang bergantung padanya. Rincian keputusan aktif: [docs/scope.md](docs/scope.md).
+> **Adendum cakupan pemilik — 14 September 2026:** tahap aktif dipersempit menjadi **Resource Collection pada Supabase DEV `<prod-project-ref>`**. Document Center dikesampingkan karena masih PROD. Ketentuan integrasi Document Center, upload campaign/print dan inventaris job 15 menit di bawah ditunda untuk modul tersebut; jangan menjadikannya penghalang global pekerjaan RC DEV. Header/data dictionary dan keputusan bisnis RC tetap harus dipenuhi untuk implementasi yang bergantung padanya. Rincian keputusan aktif: [docs/scope.md](docs/scope.md).
 
 1. Lampirkan frontend utama `index (4).html`, backend utama `Pasted text.txt`, frontend Document Center `index (5).html`, dan backend Document Center `Pasted code.js` kepada AI coding agent.
 2. Lampirkan juga kode job sinkronisasi 15-menit, daftar Apps Script **Triggers**, header sheet sumber/tujuan, serta formula terkait. Job tersebut belum terdapat dalam empat file di atas dan tidak boleh ditebak.

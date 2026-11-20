@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import net from 'node:net';
 import { readFile } from 'node:fs/promises';
+import { PROD_REF } from './lib-ref.mjs'; // 20-Nov-2026
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -69,7 +70,7 @@ test('the security headers match the deployed configuration', async () => {
   // supabase-js is imported from jsDelivr at runtime and must not be blocked.
   assert.match(csp, /script-src[^;]*cdn\.jsdelivr\.net/);
   // The adapter talks to exactly these two backends and nothing else.
-  assert.match(csp, /connect-src[^;]*vvojshgcduqlugngpzkj\.supabase\.co/);
+  assert.match(csp, new RegExp('connect-src[^;]*' + PROD_REF + '\\.supabase\\.co'));
   assert.match(csp, /connect-src[^;]*script\.google\.com/);
 });
 
@@ -96,7 +97,7 @@ test('the adapter and the environment file are served', async () => {
   // The flag lives here, so a stale copy would make a rollback look like it did nothing.
   assert.equal(env.headers.get('cache-control'), 'no-store, must-revalidate');
   const body = await env.text();
-  assert.match(body, /vvojshgcduqlugngpzkj/);
+  assert.match(body, new RegExp(PROD_REF));
   // A secret key here would be readable by every visitor. The file's own comments warn
   // about exactly that, so strip comments first and inspect the code that actually ships.
   const code = body.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');

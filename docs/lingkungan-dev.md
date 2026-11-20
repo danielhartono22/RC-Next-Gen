@@ -14,7 +14,7 @@ apa yang sudah jadi dan apa yang belum.
 |---|---|---|
 | Situs | https://rc-next-gen.vercel.app | https://resource-collection-dev.vercel.app |
 | Project Vercel | `rc-next-gen` | `resource-collection-dev` |
-| Project Supabase | `vvojshgcduqlugngpzkj` | `fimjgmjjsplwgmuwzwbx` |
+| Project Supabase | `<prod-project-ref>` | `<dev-project-ref>` |
 | Akun Supabase | akun lama | `jacipnuorjbfunhndqsy` (terpisah) |
 | Variabel token | `SUPABASE_ACCESS_TOKEN` | `SUPABASE_ACCESS_TOKEN_DEV` |
 | Config peramban | `config/rc-env.js` | `config/rc-env.dev.js` |
@@ -212,7 +212,7 @@ gagal. Definisinya salinan persis dari prod.
 
 ## Penghalang
 
-**Teratasi 30 September 2026:** token akun pemilik `vvojshgcduqlugngpzkj` tersimpan di `.env`
+**Teratasi 30 September 2026:** token akun pemilik `<prod-project-ref>` tersimpan di `.env`
 (`SUPABASE_ACCESS_TOKEN`). Dipakai membaca prod (ekspor user) dan, sejak 6 Oktober 2026 atas
 persetujuan pemilik, untuk transport migrasi 20261162010000 - 20261162130000.
 
@@ -223,7 +223,7 @@ di prod tidak pernah rusak; kerusakan hanya muncul pada database yang dibangun d
 
 Catatan lama:
 
-Seluruh sisanya menunggu **satu hal: token Supabase dari akun pemilik `vvojshgcduqlugngpzkj`.**
+Seluruh sisanya menunggu **satu hal: token Supabase dari akun pemilik `<prod-project-ref>`.**
 
 Diperlukan untuk menyalin skema produksi, menyalin daftar depot dan region, dan menyalin
 pengguna beserta perannya. Tanpa itu ketiganya hanya bisa ditebak.

@@ -1,7 +1,7 @@
 -- ==========================================================================================
 -- Ekspor user PROD untuk diduplikasi ke DEV - HANYA MEMBACA
 -- ==========================================================================================
--- Jalankan di SQL Editor Supabase project PROD (vvojshgcduqlugngpzkj). Kueri ini tidak
+-- Jalankan di SQL Editor Supabase project PROD (<prod-project-ref>). Kueri ini tidak
 -- mengubah apa pun: hanya SELECT. Hasilnya satu sel JSON; salin isinya ke sebuah berkas,
 -- misalnya .runtime/user-prod.json (folder .runtime tidak ikut git), lalu jalankan:
 --
@@ -22,7 +22,7 @@
 -- ==========================================================================================
 select jsonb_build_object(
   'diekspor_pada', now(),
-  'sumber', 'vvojshgcduqlugngpzkj',
+  'sumber', '<prod-project-ref>',
   'depots', (
     select jsonb_agg(jsonb_build_object(
              'kode', d.depot_code, 'nama', d.depot_name, 'abbr', d.abbr, 'region', d.region)

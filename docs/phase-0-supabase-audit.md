@@ -4,11 +4,11 @@
 
 > Catatan waktu: laporan ini mempertahankan observasi pada pemeriksaan MCP awal. Kedua backend kemudian sudah tersimpan dan diaudit; lihat [audit backend terbaru](phase-0-backend-audit.md). Pernyataan backend kosong di bagian akhir berlaku pada waktu snapshot ini, bukan keadaan workspace terkini.
 
-Waktu pencatatan: 14 September 2026, 09:29:52 UTC / 16:29:52 UTC+7. Project: `vvojshgcduqlugngpzkj`. Lingkungan: **PROD**, dikonfirmasi pemilik dalam percakapan. Dokumen induk: [audit Fase 0](phase-0-audit.md). Bukti metadata: [snapshot JSON](phase-0-supabase-evidence.json).
+Waktu pencatatan: 14 September 2026, 09:29:52 UTC / 16:29:52 UTC+7. Project: `<prod-project-ref>`. Lingkungan: **PROD**, dikonfirmasi pemilik dalam percakapan. Dokumen induk: [audit Fase 0](phase-0-audit.md). Bukti metadata: [snapshot JSON](phase-0-supabase-evidence.json).
 
 ## Hasil koneksi
 
-**PASS — MCP terhubung dan dapat membaca metadata project yang dimaksud.** `get_project_url` mengembalikan `https://vvojshgcduqlugngpzkj.supabase.co`. Inventaris tabel, migration, Edge Function, advisor dan SELECT katalog PostgreSQL semuanya berhasil.
+**PASS — MCP terhubung dan dapat membaca metadata project yang dimaksud.** `get_project_url` mengembalikan `https://<prod-project-ref>.supabase.co`. Inventaris tabel, migration, Edge Function, advisor dan SELECT katalog PostgreSQL semuanya berhasil.
 
 PASS ini hanya membuktikan koneksi agent ke Supabase. Login pengguna aplikasi, Data API dari browser, RLS role/depot, workflow, migrasi data dan restore belum diuji. Kedua frontend tetap memakai Apps Script menurut baseline sumber yang hash-nya tidak berubah.
 

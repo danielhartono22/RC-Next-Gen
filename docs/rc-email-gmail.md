@@ -87,7 +87,7 @@ dipilih dari daftarnya. Bila menemui galat, lihat tabel di bawah.
 
 ## Langkah 5 — Simpan kredensialnya di RC
 
-Buka Supabase Dashboard → SQL Editor pada project `vvojshgcduqlugngpzkj`, lalu jalankan empat
+Buka Supabase Dashboard → SQL Editor pada project `<prod-project-ref>`, lalu jalankan empat
 perintah berikut dengan nilai Anda sendiri:
 
 ```sql

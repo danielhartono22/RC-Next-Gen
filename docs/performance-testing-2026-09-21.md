@@ -3,7 +3,7 @@
 **Status: BLOCKED — staging belum tersedia. Tidak ada load/stress test terhadap aplikasi yang dijalankan.**
 
 Pemilik mengonfirmasi belum ada staging. Inventaris Management API hanya mengembalikan project
-`vvojshgcduqlugngpzkj`, nama `rc-next-gen-dev`, region `ap-southeast-1`. Dokumen operasional
+`<prod-project-ref>`, nama `rc-next-gen-dev`, region `ap-southeast-1`. Dokumen operasional
 terbaru menyatakan project ini dipakai depot. Nama DEV tidak membuktikan isolasi; project itu
 diblokir di harness. Tidak ada benchmark, seed, transaksi, atau perubahan database di project itu.
 

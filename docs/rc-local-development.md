@@ -51,7 +51,7 @@ halaman lama yang menyesatkan.
 
 ## Kondisi backend saat ini
 
-Diperiksa langsung terhadap `https://vvojshgcduqlugngpzkj.supabase.co` pada 17 September 2026:
+Diperiksa langsung terhadap `https://<prod-project-ref>.supabase.co` pada 17 September 2026:
 
 | Yang diperiksa | Hasil | Arti |
 |---|---|---|

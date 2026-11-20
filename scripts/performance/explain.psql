@@ -5,7 +5,7 @@ set local statement_timeout='60s';
 select set_config('request.jwt.claim.sub', :'test_user', true);
 do $$ begin
  if not exists(select 1 from public.profiles where id=auth.uid() and user_code like 'PERF\_%' escape '\')
-    or not exists(select 1 from rc_perf.environment where project_ref<>'vvojshgcduqlugngpzkj')
+    or not exists(select 1 from rc_perf.environment where md5(project_ref)<>'18c6a3534bbcabc5bf4445545b088432' /* ref prod, 20-Nov-2026 */)
  then raise exception 'Synthetic staging user required'; end if;
 end $$;
 set local role authenticated;

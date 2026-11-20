@@ -22,7 +22,7 @@
 --   management ... tidak boleh ada 2 report yg sama meski beda jenjang" -> lihat bagian 3 dan 4.
 -- * Email depot: SATU per depot per pengiriman, setiap 2 hari (kelompok A / B), tanpa jenjang.
 --     TO = Email Kepala Admin + Email NPC + Email Kepala Depot (Depot Profile); cadangan Email
---     Depot (TO) lama. CC = kolom CC jenis ini di Email Otomatis (bawaan osc_jkt@nipponpaint-indonesia.com).
+--     Depot (TO) lama. CC = kolom CC jenis ini di Email Otomatis (bawaan <cc-osc>@<domain-perusahaan>).
 --     Kolom: No, Nama Toko, Nama Campaign, Net CB, Tanggal Lunas, Lewat (hari), Deadline.
 -- * Email region: SATU per region per pengiriman, ringkasan depot di region itu.
 --     TO = Email RSM + Email ASM depot-depotnya.
@@ -224,7 +224,7 @@ begin
       select coalesce(array(select distinct lower(btrim(x)) from unnest(rc_private.pecah_email(d.email_to)) x where btrim(x) like '%@%'), '{}')
         into v_to from public.depots d where d.id = g.depot_id;
     end if;
-    -- "untuk cc email depot cukup masukan cc ke osc_jkt@..." -> CC panel Email Otomatis jenis ini.
+    -- "untuk cc email depot cukup masukan cc ke osc@..." -> CC panel Email Otomatis jenis ini.
     v_cc := coalesce(array(select distinct lower(btrim(x)) from unnest(coalesce(p_set.cc_tambahan, '{}')) x
                             where btrim(x) like '%@%' and not (lower(btrim(x)) = any(v_to))), '{}');
     v_html := rc_private.debtor_email_depot_html(g.depot_id, g.baris);
@@ -403,8 +403,7 @@ begin
   return replace(p_src, p_lama, p_baru);
 end $g$;
 
-update public.email_settings set cc_tambahan = array['osc_jkt@nipponpaint-indonesia.com']
- where jenis = 'debtor' and coalesce(cardinality(cc_tambahan), 0) = 0;
+-- 20-Nov-2026: CC email depot bawaan diisi lewat panel Email Otomatis (alamatnya tidak ditulis di git).
 
 do $tambal$
 declare src text;

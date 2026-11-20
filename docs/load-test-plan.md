@@ -8,7 +8,7 @@
 Ditulis untuk: Daniel dan siapa pun yang akan menjalankan pengujian serta meninjau arsitekturnya.
 
 Disusun 20 September 2026. Seluruh angka baseline di dokumen ini adalah **hasil pengukuran
-nyata** terhadap project `vvojshgcduqlugngpzkj`, bukan perkiraan. Pengukurannya hanya membaca —
+nyata** terhadap project `<prod-project-ref>`, bukan perkiraan. Pengukurannya hanya membaca —
 tidak ada satu baris pun yang diubah.
 
 ---
@@ -70,7 +70,7 @@ tempat, dan itu memudahkan sekaligus memperberat: tidak ada lapisan yang dapat m
 
 | | Produksi (diukur) | Staging (harus disiapkan) |
 |---|---|---|
-| Project | `vvojshgcduqlugngpzkj` | belum ada |
+| Project | `<prod-project-ref>` | belum ada |
 | Postgres | 17.6.1 | samakan |
 | `max_connections` | **60** | samakan, lalu uji juga di tier lebih besar |
 | `shared_buffers` | 224 MB | samakan |
@@ -727,7 +727,7 @@ lewat pengujian sungguhnya.
 Ini satu-satunya hal yang menghalangi, dan hanya Anda yang dapat mengerjakannya.
 
 **Keadaan sekarang:** hanya ada satu project Supabase pada akun ini — `rc-next-gen-dev`
-(`vvojshgcduqlugngpzkj`). Namanya "dev", tetapi isinya data yang dipakai depot: 2.756 dokumen
+(`<prod-project-ref>`). Namanya "dev", tetapi isinya data yang dipakai depot: 2.756 dokumen
 nyata, 52 depot nyata, alamat email staf yang nyata. Daftar branch kosong. Docker tidak
 terpasang di mesin ini, jadi Supabase lokal juga tidak dapat dijalankan.
 

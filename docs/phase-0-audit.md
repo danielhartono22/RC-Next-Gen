@@ -2,7 +2,7 @@
 
 Tanggal: 14 September 2026. **Status: BLOCKED_BY_SYNC_INVENTORY.** Koneksi MCP dan audit sumber kedua backend telah dilanjutkan; mapping sinkronisasi, data dictionary produksi dan baseline operasional belum selesai.
 
-Acuan: [System Instruction versi 1.1](../System-Instruction-Migrasi-Claim-System-ke-Supabase.md). Pemilik kini menetapkan Supabase project **vvojshgcduqlugngpzkj sebagai DEV**, menggantikan keputusan PROD sebelumnya; lihat [lingkungan proyek](environments.md). Audit membaca file lokal, menjalankan karakterisasi sintetis, dan memperbarui artefak. Tidak mengubah aplikasi, menerapkan migration, mengakses deployment Apps Script atau mengubah trigger.
+Acuan: [System Instruction versi 1.1](../System-Instruction-Migrasi-Claim-System-ke-Supabase.md). Pemilik kini menetapkan Supabase project **<prod-project-ref> sebagai DEV**, menggantikan keputusan PROD sebelumnya; lihat [lingkungan proyek](environments.md). Audit membaca file lokal, menjalankan karakterisasi sintetis, dan memperbarui artefak. Tidak mengubah aplikasi, menerapkan migration, mengakses deployment Apps Script atau mengubah trigger.
 
 ## 1. Sumber dan keluaran audit
 
@@ -14,7 +14,7 @@ Acuan: [System Instruction versi 1.1](../System-Instruction-Migrasi-Claim-System
 | DocumentCenter | **Tersedia**, 23.281 byte / 502 baris; dibaca penuh | Backend DC pengganti nama lampiran Pasted code.js |
 | Job/trigger sinkronisasi 15 menit | Belum tersedia / tidak ditemukan pada dua backend | Lokasi, versi, mapping, checkpoint, backlog dan retry UNKNOWN |
 | Header/formula/data anonim Spreadsheet | Belum tersedia | Label field kode belum menjadi header produksi terkonfirmasi |
-| Supabase DEV | `vvojshgcduqlugngpzkj`; ditetapkan pemilik, MCP terverifikasi | Public/migration masih kosong pada pemeriksaan ulang; bukan seluruh database kosong |
+| Supabase DEV | `<prod-project-ref>`; ditetapkan pemilik, MCP terverifikasi | Public/migration masih kosong pada pemeriksaan ulang; bukan seluruh database kosong |
 | Supabase PROD | Belum ditetapkan | Akan dipilih terpisah sebelum cutover |
 | Git | Repository lokal kini tersedia; sumber/dokumen awal sudah staged oleh pengguna | Remote/deployment Pages belum diverifikasi; index tidak diubah agent |
 

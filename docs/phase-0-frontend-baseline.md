@@ -21,7 +21,7 @@ Koneksi MCP telah terverifikasi melalui respons project URL, inventaris tabel/mi
 | `ResourceCollection`, `DocumentCenter` | Masing-masing 0 byte | File kosong, bukan implementasi backend |
 | Kode sinkronisasi 15 menit dan metadata trigger | Tidak tersedia | Mapping upload dan cutover terblokir |
 | Header, data anonim, formula Spreadsheet | Tidak tersedia | Tidak ada data dictionary produksi yang dapat disahkan |
-| Supabase project `vvojshgcduqlugngpzkj` | MCP terhubung; pemilik mengonfirmasi **PROD** | Inventaris metadata berhasil; belum ada tabel public, migration, atau Edge Function |
+| Supabase project `<prod-project-ref>` | MCP terhubung; pemilik mengonfirmasi **PROD** | Inventaris metadata berhasil; belum ada tabel public, migration, atau Edge Function |
 | Konfigurasi DEV, repository dan deployment Pages | Belum dikonfirmasi | PROD tidak digunakan sebagai lingkungan development; backend Apps Script tetap belum terinventarisasi |
 
 Penanda bukti:
@@ -358,9 +358,9 @@ System-Instruction-Migrasi-Claim-System-ke-Supabase.md  19e75b6942672fb66a193293
 
 ## 13. Koneksi MCP dan pekerjaan dari workspace
 
-Status diperbarui: server MCP `supabase` sudah dikonfigurasi dan login berhasil pada langkah sebelumnya. Sesudah extension dimuat ulang, tool Supabase tersedia dan pemeriksaan metadata berhasil pada project `vvojshgcduqlugngpzkj`. Pemilik mengonfirmasi bahwa project tersebut adalah **PROD**. URL API yang dikembalikan server: `https://vvojshgcduqlugngpzkj.supabase.co`.
+Status diperbarui: server MCP `supabase` sudah dikonfigurasi dan login berhasil pada langkah sebelumnya. Sesudah extension dimuat ulang, tool Supabase tersedia dan pemeriksaan metadata berhasil pada project `<prod-project-ref>`. Pemilik mengonfirmasi bahwa project tersebut adalah **PROD**. URL API yang dikembalikan server: `https://<prod-project-ref>.supabase.co`.
 
-Konfigurasi aktif: `https://mcp.supabase.com/mcp?project_ref=vvojshgcduqlugngpzkj`. URL ini membatasi project, tetapi **tidak memiliki parameter `read_only=true`**; tool tulis tersedia. Seluruh tool yang dipakai pada audit lanjutan merupakan pembacaan inventaris/advisor dan SELECT metadata. Tidak ada migration, perubahan grant/RLS, deploy function, atau perubahan data yang diterapkan.
+Konfigurasi aktif: `https://mcp.supabase.com/mcp?project_ref=<prod-project-ref>`. URL ini membatasi project, tetapi **tidak memiliki parameter `read_only=true`**; tool tulis tersedia. Seluruh tool yang dipakai pada audit lanjutan merupakan pembacaan inventaris/advisor dan SELECT metadata. Tidak ada migration, perubahan grant/RLS, deploy function, atau perubahan data yang diterapkan.
 
 Kebutuhan minimum:
 

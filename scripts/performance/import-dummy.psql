@@ -5,7 +5,7 @@ begin;
 select set_config('rc.performance_ref', :'test_ref', true);
 do $$ begin
  if current_setting('rc.performance_ref') !~ '^[a-z]{20}$'
-    or current_setting('rc.performance_ref')='vvojshgcduqlugngpzkj' then raise exception 'Forbidden target'; end if;
+    or md5(current_setting('rc.performance_ref'))='18c6a3534bbcabc5bf4445545b088432' /* ref prod, 20-Nov-2026 */ then raise exception 'Forbidden target'; end if;
  if exists(select 1 from public.claims) or exists(select 1 from public.customers)
     or exists(select 1 from public.depots) or exists(select 1 from public.campaigns)
     or exists(select 1 from public.profiles) or exists(select 1 from auth.users)

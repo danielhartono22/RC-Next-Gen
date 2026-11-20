@@ -1,6 +1,6 @@
 # Daftar anomali, kejanggalan dan pencilan — 20 September 2026
 
-Ditulis untuk Daniel. Seluruh angka diukur langsung dari project `vvojshgcduqlugngpzkj` dengan
+Ditulis untuk Daniel. Seluruh angka diukur langsung dari project `<prod-project-ref>` dengan
 query yang hanya membaca; tidak ada satu pun data yang berubah selama pemeriksaan.
 
 Penyapuannya menguji 30 aturan atas seluruh tabel — rujukan yatim, status versus jejak waktu,

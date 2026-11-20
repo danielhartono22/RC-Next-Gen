@@ -220,7 +220,7 @@ identik dengan dev semula (md5 klaim, data sensitif, riwayat, dan pemetaan).
 
 - **Kebutuhan:** Node 18+, Python 3 dengan openpyxl (untuk membuat template/ekspor), dan
   `SUPABASE_ACCESS_TOKEN` di `.env`.
-- **Target prod dikunci** ke `vvojshgcduqlugngpzkj`; alat berhenti kalau config menunjuk project
+- **Target prod dikunci** ke `<prod-project-ref>`; alat berhenti kalau config menunjuk project
   lain.
 - **Tempat penampungan sementara:** skema `rc_muat_ulang`, tanpa akses untuk pengguna aplikasi.
   Isinya dibersihkan setiap kali selesai.

@@ -141,7 +141,7 @@ begin
       select coalesce(array(select distinct lower(btrim(x)) from unnest(rc_private.pecah_email(d.email_to)) x where btrim(x) like '%@%'), '{}')
         into v_to from public.depots d where d.id = g.depot_id;
     end if;
-    -- "untuk cc email depot cukup masukan cc ke osc_jkt@..." -> CC panel Email Otomatis jenis ini.
+    -- "untuk cc email depot cukup masukan cc ke osc@..." -> CC panel Email Otomatis jenis ini.
     v_cc := coalesce(array(select distinct lower(btrim(x)) from unnest(coalesce(p_set.cc_tambahan, '{}')) x
                             where btrim(x) like '%@%' and not (lower(btrim(x)) = any(v_to))), '{}');
     v_html := rc_private.debtor_email_depot_html(g.depot_id, g.baris);

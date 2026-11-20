@@ -41,3 +41,7 @@ Disc Center/
 bahan buat ilustrasi rc/
 Logo Nippon Lengkap.jpeg
 .claude/
+
+# 20-Nov-2026: vercel.json memuat CSP dengan domain project Supabase; salinan tanpa nilai asli di vercel.example.json.
+vercel.json
+outputs/rc-uat-20260924/*.ndjson

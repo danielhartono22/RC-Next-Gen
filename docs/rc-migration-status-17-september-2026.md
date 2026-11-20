@@ -16,7 +16,7 @@ Diperiksa lewat HTTPS dengan publishable key, tanpa akses tulis:
 | `disable_signup` | `false` | pendaftaran mandiri sudah diizinkan |
 | `mailer_autoconfirm` | `false` | konfirmasi email masih menyala, harus dimatikan |
 
-Jadi migration sampai `20260915071855` memang hidup di `vvojshgcduqlugngpzkj`, dan dua
+Jadi migration sampai `20260915071855` memang hidup di `<prod-project-ref>`, dan dua
 migration baru sesi ini belum. Satu dari tiga setting Auth yang perlu diubah manual sudah
 benar; yang wajib diubah tinggal *Confirm email*.
 
@@ -24,7 +24,7 @@ benar; yang wajib diubah tinggal *Confirm email*.
 
 Supabase MCP pada sesi ini terhubung ke organisasi `NP-Sales-Analytics's Org`, yang hanya
 berisi dua project: `gmlnoqghnkkgbgixkpvv` (Pylox) dan `wnvscsrrjpqytydcejvq`. Project DEV
-RC `vvojshgcduqlugngpzkj` tidak ada dalam daftar, dan `get_project` terhadapnya menjawab
+RC `<prod-project-ref>` tidak ada dalam daftar, dan `get_project` terhadapnya menjawab
 `You do not have permission to perform this action`.
 
 Project DEV itu sendiri masih hidup. `GET /auth/v1/settings` dengan publishable key pada
@@ -36,8 +36,8 @@ dijalankan, dan tidak ada hasil test database yang boleh disebut PASS. Fixture s
 sesi 16 September juga belum diperiksa maupun dibersihkan.
 
 Untuk melanjutkan diperlukan salah satu dari: connector Supabase yang diotorisasi pada akun
-pemilik `vvojshgcduqlugngpzkj`, atau Supabase CLI dengan personal access token pada mesin
-operator (`supabase link --project-ref vvojshgcduqlugngpzkj` lalu `supabase db push`).
+pemilik `<prod-project-ref>`, atau Supabase CLI dengan personal access token pada mesin
+operator (`supabase link --project-ref <prod-project-ref>` lalu `supabase db push`).
 
 ## Yang selesai pada sesi ini
 

@@ -1,7 +1,7 @@
 # Audit mendalam: mengapa upload menolak dengan "field tidak ditemukan"
 
 Ditulis 20 September 2026. Seluruh angka di sini diukur langsung dari project
-`vvojshgcduqlugngpzkj`, bukan perkiraan. Pembuktiannya dijalankan di dalam transaksi yang
+`<prod-project-ref>`, bukan perkiraan. Pembuktiannya dijalankan di dalam transaksi yang
 dibatalkan, sehingga tidak ada data produksi yang berubah selama pemeriksaan.
 
 ---

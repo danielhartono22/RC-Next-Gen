@@ -1,6 +1,6 @@
 {
   "capturedAt": "2026-09-24T05:08:33.984Z",
-  "projectRef": "vvojshgcduqlugngpzkj",
+  "projectRef": "<prod-project-ref>",
   "scope": "Functional verification of 23-24 September changes; not load/stress testing",
   "deployment": {
     "backend": "Applied to existing Supabase project",
@@ -981,7 +981,7 @@
     },
     "http": {
       "testedAt": "2026-09-24T05:42:47.722Z",
-      "project": "vvojshgcduqlugngpzkj",
+      "project": "<prod-project-ref>",
       "fixturePrefix": "QA-HTTP-67642D270FA3",
       "mode": "upload",
       "cleanup": true,

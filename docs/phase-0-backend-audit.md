@@ -11,7 +11,7 @@ Bukti: [inventaris sumber](phase-0-backend-evidence.json), [hasil 26 pemeriksaan
 - `ResourceCollection:4-13,98-100` memilih `ENV="DEV"`. Konfigurasi berisi Spreadsheet DEV dan PROD berbeda. Kode lokal belum membuktikan deployment aktif memakai DEV atau PROD.
 - `DocumentCenter:48-49` mempunyai `COMPILE_SS_ID` untuk `Upload`, `ListCampaign`, `Depot_ID`; `AUTH_SS_ID` untuk `Authority`, `DM-30D`, `LogActivity`.
 - `AUTH_SS_ID` Document Center **sama dengan** ID Spreadsheet PROD pada konfigurasi RC. Spreadsheet upload Document Center berbeda dari keduanya; perbandingan ID dicatat tanpa menyalin credential.
-- Supabase `vvojshgcduqlugngpzkj` semula disebut PROD ketika audit ini dijalankan; pemilik kemudian menetapkannya sebagai **DEV**. Acuan terkini: [lingkungan proyek](environments.md). Keputusan Supabase ini tidak mengubah atau mengonfirmasi `ENV` backend legacy.
+- Supabase `<prod-project-ref>` semula disebut PROD ketika audit ini dijalankan; pemilik kemudian menetapkannya sebagai **DEV**. Acuan terkini: [lingkungan proyek](environments.md). Keputusan Supabase ini tidak mengubah atau mengonfirmasi `ENV` backend legacy.
 - Tidak ditemukan fungsi copy/sync antar-Spreadsheet, pembuatan trigger 15 menit, atau implementasi pemindahan `Upload` ke `Compile` dalam dua file backend. `perbaikiGrossUpSekarang` hanya menghitung ulang satu kolom `Compile`; bukan job pemindahan data. Trigger yang dibuat melalui dashboard dan formula Spreadsheet tidak dapat diketahui dari ketiadaan kode pembuat trigger.
 
 ## 2. Rute, otorisasi dan sheet

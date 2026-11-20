@@ -4,7 +4,7 @@
 
 ## Status 15 September 2026
 
-Migration `rc_snapshot_intake` sudah diterapkan pada **DEV** `vvojshgcduqlugngpzkj` melalui MCP. SQL yang sama disimpan di `supabase/migrations/20260915004131_rc_snapshot_intake.sql`.
+Migration `rc_snapshot_intake` sudah diterapkan pada **DEV** `<prod-project-ref>` melalui MCP. SQL yang sama disimpan di `supabase/migrations/20260915004131_rc_snapshot_intake.sql`.
 
 Tersedia tabel privat `staging.rc_snapshots` dan RPC `public.rc_import_snapshot`. RLS aktif; `anon` dan `authenticated` tidak dapat mengakses snapshot atau menjalankan RPC. Import hanya melalui `service_role` di komputer operator/backend.
 

@@ -399,7 +399,7 @@
   "migrations": [
     {
       "appliedAt": "2026-09-22T07:11:08.265Z",
-      "project": "vvojshgcduqlugngpzkj",
+      "project": "<prod-project-ref>",
       "file": "supabase/migrations/20261151010000_access_registration_sync.sql",
       "sha256": "d7b3ce7bcc12adfd20a4b39360055437fccf475913b7e3907b4b1e6744249e63",
       "status": "committed"

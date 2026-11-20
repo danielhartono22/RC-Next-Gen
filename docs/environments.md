@@ -2,21 +2,21 @@
 
 ## Keputusan aktif
 
-Pada 14 September 2026, pemilik memberikan instruksi **“tetapkan dev”** untuk project Supabase `vvojshgcduqlugngpzkj`. Keputusan ini menggantikan penetapan sebelumnya sebagai PROD.
+Pada 14 September 2026, pemilik memberikan instruksi **“tetapkan dev”** untuk project Supabase `<prod-project-ref>`. Keputusan ini menggantikan penetapan sebelumnya sebagai PROD.
 
 | Lingkungan Supabase | Project | Status |
 |---|---|---|
-| **DEV** | `vvojshgcduqlugngpzkj` | Target pengembangan dan pengujian |
+| **DEV** | `<prod-project-ref>` | Target pengembangan dan pengujian |
 | PROD | Belum ditetapkan | Tidak ada project Supabase yang ditunjuk sebagai PROD saat ini |
 
 Registry yang dapat dibaca tooling: [config/environments.json](../config/environments.json). Registry ini belum dikonsumsi frontend legacy; ia menjadi acuan pemilihan project untuk pekerjaan Supabase berikutnya.
 
 ## Koneksi DEV
 
-- Dashboard: [project DEV](https://supabase.com/dashboard/project/vvojshgcduqlugngpzkj).
-- API URL: `https://vvojshgcduqlugngpzkj.supabase.co`.
+- Dashboard: [project DEV](https://supabase.com/dashboard/project/<prod-project-ref>).
+- API URL: `https://<prod-project-ref>.supabase.co`.
 - Nama server MCP: `supabase`.
-- URL MCP: `https://mcp.supabase.com/mcp?project_ref=vvojshgcduqlugngpzkj`.
+- URL MCP: `https://mcp.supabase.com/mcp?project_ref=<prod-project-ref>`.
 
 Pada 14 September 2026, 14:20:54 UTC, MCP mengembalikan project URL yang sesuai, daftar tabel public kosong, dan daftar migration kosong. Koneksi memakai project yang sama; tidak diperlukan konfigurasi/login MCP baru hanya untuk mengubah peran project menjadi DEV.
 

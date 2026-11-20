@@ -1,11 +1,11 @@
 {
   "inspected_at_utc": "2026-09-14 09:29:52 UTC",
-  "project_ref": "vvojshgcduqlugngpzkj",
+  "project_ref": "<prod-project-ref>",
   "environment": "PROD",
   "environment_evidence": "Confirmed by owner in this conversation on 2026-09-14",
-  "project_url": "https://vvojshgcduqlugngpzkj.supabase.co",
+  "project_url": "https://<prod-project-ref>.supabase.co",
   "mcp_server_name": "supabase",
-  "mcp_configured_url": "https://mcp.supabase.com/mcp?project_ref=vvojshgcduqlugngpzkj",
+  "mcp_configured_url": "https://mcp.supabase.com/mcp?project_ref=<prod-project-ref>",
   "scope": "Metadata SELECTs and read-only inventory/advisor tools only. No application rows, auth accounts, keys or secrets retrieved. No production writes.",
   "public_tables": {
     "tool": "list_tables",

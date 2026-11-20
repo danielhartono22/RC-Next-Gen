@@ -3,7 +3,7 @@ import {browser} from 'k6/browser';
 import http from 'k6/http';
 import {check} from 'k6';
 import {Trend} from 'k6/metrics';
-import {validateTarget} from './plan.mjs';
+import {validateTarget, memuatRefTerlarang} from './plan.mjs';
 const c=validateTarget(JSON.parse(open(__ENV.RC_TEST_CONFIG)));
 const u=JSON.parse(open(__ENV.RC_BROWSER_USER));
 if(!u.userCode?.startsWith('PERF_'))throw Error('Dummy browser user required');
@@ -14,7 +14,7 @@ export function setup(){
  let m;try{m=r.json();}catch{}
  if(r.status!==200||m?.project_ref!==c.projectRef||m?.dataset_id!==c.datasetId||m?.claim_rows!==1000000||!m?.dummy_only||!m?.side_effects_disabled)throw Error('Staging attestation failed');
  const env=http.get(c.frontendUrl+'/config/rc-env.js',{timeout:'15s',redirects:0});
- if(env.status!==200||!env.body.includes(c.baseUrl)||env.body.includes('vvojshgcduqlugngpzkj')||!env.body.includes("dataBackend: 'supabase'"))throw Error('Staging frontend configuration mismatch');
+ if(env.status!==200||!env.body.includes(c.baseUrl)||memuatRefTerlarang(env.body)||!env.body.includes("dataBackend: 'supabase'"))throw Error('Staging frontend configuration mismatch');
 }
 export default async function(){
  const page=await browser.newPage();

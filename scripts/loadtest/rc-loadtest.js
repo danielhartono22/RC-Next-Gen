@@ -33,7 +33,7 @@ throw new Error('Historical 300-VU harness disabled: empty mutation payloads and
 const BASE = __ENV.BASE || '';
 const KEY = __ENV.KEY || '';
 const SKENARIO = __ENV.SKENARIO || 'load';
-const REF_PRODUKSI = 'vvojshgcduqlugngpzkj';
+const REF_PRODUKSI = __ENV.RC_PROD_REF || '<prod-project-ref>'; // 20-Nov-2026: tidak lagi ditulis polos
 
 if (!BASE || !KEY) {
   throw new Error('BASE dan KEY wajib diisi. Lihat kepala berkas ini.');

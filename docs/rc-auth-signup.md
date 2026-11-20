@@ -11,9 +11,9 @@ there is removed in full.
 The owner asked for every existing account to be deleted and replaced by a portal where
 people register themselves and a System Manager approves them. That is what
 `supabase/migrations/20260917020000_rc_auth_reset_and_signup.sql` does. It has **not been
-applied**: this session had no permission on project `vvojshgcduqlugngpzkj`.
+applied**: this session had no permission on project `<prod-project-ref>`.
 
-The target project is `vvojshgcduqlugngpzkj`. It is not one of the projects in the
+The target project is `<prod-project-ref>`. It is not one of the projects in the
 `NP-Sales-Analytics` organisation, and `config/rc-env.js` already points at it.
 
 ## The account lifecycle
@@ -119,7 +119,7 @@ cannot be undone from inside the database.
 
 ## Cara membuat akun: langkah konkret
 
-Anda punya akses Dashboard ke project `vvojshgcduqlugngpzkj`, jadi seluruh langkah di bawah
+Anda punya akses Dashboard ke project `<prod-project-ref>`, jadi seluruh langkah di bawah
 bisa dikerjakan sendiri tanpa menunggu connector.
 
 ### Langkah 0 — backup
@@ -128,7 +128,7 @@ Dashboard → Database → Backups tidak tersedia pada paket Free. Ambil dump ma
 karena reset auth tidak bisa dibatalkan:
 
 ```powershell
-npx supabase db dump --db-url "postgresql://postgres:<PASSWORD>@db.vvojshgcduqlugngpzkj.supabase.co:5432/postgres" -f backup-sebelum-reset-auth.sql
+npx supabase db dump --db-url "postgresql://postgres:<PASSWORD>@db.<prod-project-ref>.supabase.co:5432/postgres" -f backup-sebelum-reset-auth.sql
 ```
 
 Password database ada di Dashboard → Project Settings → Database. Simpan dump di luar
@@ -247,7 +247,7 @@ Kalau memang perlu membuat akun tanpa portal, misalnya untuk pemulihan, sertakan
 lewat Admin API:
 
 ```
-POST https://vvojshgcduqlugngpzkj.supabase.co/auth/v1/admin/users
+POST https://<prod-project-ref>.supabase.co/auth/v1/admin/users
 Authorization: Bearer <service_role key>
 apikey: <service_role key>
 

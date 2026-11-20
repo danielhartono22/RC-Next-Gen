@@ -4,7 +4,8 @@ import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {createHash,randomUUID} from 'node:crypto';
 import assert from 'node:assert/strict';
 import sql from './lib-sql.mjs';
-const ref='vvojshgcduqlugngpzkj',base=`https://${ref}.supabase.co`;
+import { PROD_REF, wajibRef } from './lib-ref.mjs'; // 20-Nov-2026
+const ref=wajibRef(PROD_REF,'prod'),base=`https://${ref}.supabase.co`;
 const env=await readFile('.env','utf8');
 const pat=process.env.SUPABASE_ACCESS_TOKEN||env.match(/^\s*SUPABASE_ACCESS_TOKEN\s*=\s*(.+?)\s*$/m)?.[1].replace(/^["']|["']$/g,'');
 const keysResponse=await fetch(`https://api.supabase.com/v1/projects/${ref}/api-keys?reveal=true`,{headers:{Authorization:`Bearer ${pat}`}});

@@ -4,7 +4,7 @@ import {sleep, check} from 'k6';
 import exec from 'k6/execution';
 import {SharedArray} from 'k6/data';
 import {Trend, Rate, Counter} from 'k6/metrics';
-import {validateTarget, plan, phaseAt, laneFor, outcome} from './plan.mjs';
+import {validateTarget, plan, phaseAt, laneFor, outcome, memuatRefTerlarang} from './plan.mjs';
 
 const cfg=validateTarget(JSON.parse(open(__ENV.RC_TEST_CONFIG)));
 const users=new SharedArray('dummy-identities',()=>JSON.parse(open(__ENV.RC_TEST_USERS)));
@@ -53,7 +53,7 @@ export function setup(){
   const m=r.status===200?r.json():null;
   if(!m||m.project_ref!==cfg.projectRef||m.dataset_id!==cfg.datasetId||m.claim_rows!==1000000||!m.dummy_only||!m.side_effects_disabled)throw Error('Staging dataset attestation missing/mismatched');
   const f=http.get(cfg.frontendUrl+'/config/rc-env.js',{timeout:'15s',redirects:0});
-  if(f.status!==200||!f.body.includes(cfg.baseUrl)||f.body.includes('vvojshgcduqlugngpzkj')||!f.body.includes("dataBackend: 'supabase'"))throw Error('Frontend is not wired to the isolated test project');
+  if(f.status!==200||!f.body.includes(cfg.baseUrl)||memuatRefTerlarang(f.body)||!f.body.includes("dataBackend: 'supabase'"))throw Error('Frontend is not wired to the isolated test project');
 }
 let token=null,expires=0,refreshToken=null,index=0;
 function session(u){

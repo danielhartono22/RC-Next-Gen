@@ -39,7 +39,7 @@ Dua suite SQL memakai fixture dummy yang di-rollback. `node scripts/test_registr
 
 ## Environment dan deployment
 
-Project `vvojshgcduqlugngpzkj` berlabel DEV pada dokumen lama tetapi telah digunakan depot. Localhost menunjuk project tersebut; tidak otomatis menjadi staging terisolasi. Belum ada klaim lulus 1.000 concurrent users atau 1.000.000 rows.
+Project `<prod-project-ref>` berlabel DEV pada dokumen lama tetapi telah digunakan depot. Localhost menunjuk project tersebut; tidak otomatis menjadi staging terisolasi. Belum ada klaim lulus 1.000 concurrent users atau 1.000.000 rows.
 
 Simpan token di `.env` yang diabaikan Git. Jangan memasukkan service key/PAT/PIN ke frontend atau dokumentasi. Konfigurasi publik hanya memuat URL dan publishable/anon key.
 

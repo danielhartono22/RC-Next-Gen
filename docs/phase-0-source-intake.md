@@ -1,6 +1,6 @@
 # Bahan untuk melengkapi audit Fase 0
 
-Project Supabase `vvojshgcduqlugngpzkj` sudah terhubung melalui MCP dan kini ditetapkan sebagai **DEV** oleh pemilik; lihat [keputusan lingkungan](environments.md). Kedua backend sekarang sudah tersimpan dan diaudit; kekurangan job/trigger serta header/formula masih menghalangi pemetaan upload. Acuan: [instruksi migrasi](../System-Instruction-Migrasi-Claim-System-ke-Supabase.md) bagian 2 dan 12; [audit beserta keputusan D01–D12](phase-0-audit.md).
+Project Supabase `<prod-project-ref>` sudah terhubung melalui MCP dan kini ditetapkan sebagai **DEV** oleh pemilik; lihat [keputusan lingkungan](environments.md). Kedua backend sekarang sudah tersimpan dan diaudit; kekurangan job/trigger serta header/formula masih menghalangi pemetaan upload. Acuan: [instruksi migrasi](../System-Instruction-Migrasi-Claim-System-ke-Supabase.md) bagian 2 dan 12; [audit beserta keputusan D01–D12](phase-0-audit.md).
 
 ## 1. Backend sudah diterima; lengkapi metadata deployment
 
@@ -65,7 +65,7 @@ Sertakan juga contoh anonim file `Upload_CB`, hasil preview/submit, Excel cetak,
 
 | Item | Status |
 |---|---|
-| Project Supabase DEV | `vvojshgcduqlugngpzkj`, terverifikasi dan ditetapkan pemilik |
+| Project Supabase DEV | `<prod-project-ref>`, terverifikasi dan ditetapkan pemilik |
 | Project Supabase PROD | Belum ditetapkan; dipilih terpisah sebelum cutover |
 | Repository/branch dan deployment GitHub Pages aktif | Belum tersedia |
 | Backend RC dan DC lokal | Tersedia dan diaudit; paritas deployment aktif belum terverifikasi |

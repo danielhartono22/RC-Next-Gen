@@ -1,5 +1,5 @@
 -- PENDING: not applied. Supabase MCP in this session has no permission on project
--- vvojshgcduqlugngpzkj, so nothing here has run against a PostgreSQL server yet.
+-- <prod-project-ref>, so nothing here has run against a PostgreSQL server yet.
 -- Purpose: serve the existing `index (4).html` user interface unchanged from Supabase.
 -- The legacy frontend consumes camelCase field names and whole arrays. These functions
 -- reproduce that contract on top of the RLS-scoped tables, so the browser never sends

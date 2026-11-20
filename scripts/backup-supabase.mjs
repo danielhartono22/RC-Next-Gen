@@ -15,7 +15,8 @@ import readline from 'node:readline';
 import { stdin, stdout } from 'node:process';
 import path from 'node:path';
 
-const PROJECT_REF = 'vvojshgcduqlugngpzkj';
+import { PROD_REF, wajibRef } from './lib-ref.mjs'; // 20-Nov-2026
+const PROJECT_REF = wajibRef(PROD_REF, 'prod');
 const DIRECT_HOST = `db.${PROJECT_REF}.supabase.co`;
 
 function ask(question) {

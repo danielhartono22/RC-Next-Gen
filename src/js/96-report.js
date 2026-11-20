@@ -175,7 +175,7 @@
                                 ? '<div class="flex flex-wrap items-center gap-2 pl-1">'
                                   + '<span class="text-xs text-gray-500 ' + (p.jenis === 'debtor' ? 'w-24' : 'w-14') + '">' + (p.jenis === 'debtor' ? 'CC email depot' : 'CC') + '</span>'
                                   + '<input type="text" value="' + rcEsc(p.cc.join(', ')) + '" placeholder="'
-                                  + (p.jenis === 'kesehatan' ? 'opsional, pisahkan dengan koma' : p.jenis === 'debtor' ? 'CC email depot (mis. osc_jkt@...), pisahkan dengan koma' /* 20261164050000 */ : 'CC tambahan (opsional) di luar Email CC Depot Master, pisahkan dengan koma') + '" '
+                                  + (p.jenis === 'kesehatan' ? 'opsional, pisahkan dengan koma' : p.jenis === 'debtor' ? 'CC email depot (mis. osc@...), pisahkan dengan koma' /* 20261164050000 */ : 'CC tambahan (opsional) di luar Email CC Depot Master, pisahkan dengan koma') + '" '
                                   + 'class="rt-email-cc flex-1 min-w-[220px] px-3 py-1.5 border border-gray-300 rounded-lg text-sm"></div>'
                                 : '')
                             + '</div>';

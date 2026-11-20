@@ -8,8 +8,8 @@ Dokumen ini membedakan **aturan aktif**, **implementasi yang sudah diuji**, dan 
 
 | Lingkungan | Supabase | Frontend | Isi |
 |---|---|---|---|
-| DEV | `fimjgmjjsplwgmuwzwbx` | https://resource-collection-dev.vercel.app, localhost `npm run dev:dev` | Seluruh fitur, termasuk Upload Debtor, Open/Restricted, dan Bad Debt (migrasi `20261163170000`) |
-| PROD | `vvojshgcduqlugngpzkj` | https://rc.bi-nipponpaint.com | Sampai migrasi `20261163160000` (Amend Doc, CC per jenis, kode kejadian batch, tautan Customer Master) |
+| DEV | `<dev-project-ref>` | https://resource-collection-dev.vercel.app, localhost `npm run dev:dev` | Seluruh fitur, termasuk Upload Debtor, Open/Restricted, dan Bad Debt (migrasi `20261163170000`) |
+| PROD | `<prod-project-ref>` | https://rc.bi-nipponpaint.com | Sampai migrasi `20261163160000` (Amend Doc, CC per jenis, kode kejadian batch, tautan Customer Master) |
 
 Aturan rilis: setiap perubahan masuk **dev lebih dulu**; prod hanya sesudah disetujui pemilik. Fitur yang baru ada di dev ditandai **[DEV]**.
 

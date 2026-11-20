@@ -1,5 +1,5 @@
 -- Run one numbered SELECT at a time in Supabase SQL Editor.
--- Project DEV: vvojshgcduqlugngpzkj. Read-only; no schema/data mutations.
+-- Project DEV: <prod-project-ref>. Read-only; no schema/data mutations.
 -- Latest snapshot is selected separately per source + sheet.
 -- Cells remain text; these are inspection queries, not final business tables.
 

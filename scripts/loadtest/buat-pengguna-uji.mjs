@@ -41,7 +41,8 @@ const URL_PROYEK = ambil('url', '');
 const JUMLAH = Number(ambil('jumlah', '300'));
 const PIN = ambil('pin', 'UjiBeban2026!');
 const KUNCI = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-const REF_PRODUKSI = 'vvojshgcduqlugngpzkj';
+import { PROD_REF, wajibRef } from '../lib-ref.mjs'; // 20-Nov-2026
+const REF_PRODUKSI = wajibRef(PROD_REF, 'prod');
 
 if (!URL_PROYEK) throw new Error('--url wajib diisi, contoh https://abcd.supabase.co');
 if (!KUNCI) throw new Error('SUPABASE_SERVICE_ROLE_KEY belum diatur di lingkungan.');

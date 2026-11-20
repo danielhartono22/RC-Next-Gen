@@ -1,4 +1,4 @@
--- PENDING: not applied. This session had no permission on project vvojshgcduqlugngpzkj.
+-- PENDING: not applied. This session had no permission on project <prod-project-ref>.
 --
 -- Replaces the imported-PIN authentication with self registration plus System Manager
 -- approval, on the owner's instruction to remove every existing account and start again.

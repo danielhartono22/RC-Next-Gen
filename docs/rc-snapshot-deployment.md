@@ -1,6 +1,6 @@
 # Bukti deployment RC snapshot intake
 
-Tanggal: 15 September 2026. Target terverifikasi melalui `get_project_url`: DEV `vvojshgcduqlugngpzkj`.
+Tanggal: 15 September 2026. Target terverifikasi melalui `get_project_url`: DEV `<prod-project-ref>`.
 
 - Inventaris sebelum push: tabel public kosong.
 - `apply_migration(rc_snapshot_intake)` mengembalikan `success: true`.

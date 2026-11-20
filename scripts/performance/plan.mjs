@@ -1,9 +1,13 @@
 // Shared by k6 and offline tests. No network calls or production defaults.
-export const BLOCKED_REFS = ['vvojshgcduqlugngpzkj'];
+// 20-Nov-2026: ref terlarang disimpan sebagai hash FNV-1a (jalan di k6 dan Node), bukan teks polos.
+export function hashRef(s) { let h = 0x811c9dc5; for (const ch of String(s || '')) { h ^= ch.charCodeAt(0); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(16).padStart(8, '0'); }
+export const BLOCKED_REF_HASHES = ['ee53f943'];
+export function refTerlarang(ref) { return BLOCKED_REF_HASHES.includes(hashRef(ref)); }
+export function memuatRefTerlarang(teks) { return (String(teks || '').match(/[a-z]{20}(?=\.supabase\.co)/g) || []).some(refTerlarang); }
 export const LEVELS = {load:[100,250,500,750,1000], stress:[100,250,500,750,1000,1250,1500]};
 export function validateTarget(c) {
   if (!c || c.environment !== 'isolated-test' || c.dummyOnly !== true) throw Error('Isolated dummy-only environment required');
-  if (!/^[a-z]{20}$/.test(c.projectRef) || BLOCKED_REFS.includes(c.projectRef)) throw Error('Forbidden or invalid project reference');
+  if (!/^[a-z]{20}$/.test(c.projectRef) || refTerlarang(c.projectRef)) throw Error('Forbidden or invalid project reference');
   if (c.baseUrl !== `https://${c.projectRef}.supabase.co`) throw Error('Project URL mismatch');
   if (!/^https:\/\/[a-z0-9.-]+\/?$/.test(c.frontendUrl || '') || !c.frontendVerified) throw Error('Verified staging frontend required');
   if (!/^sb_publishable_[A-Za-z0-9_-]+$/.test(c.publishableKey||'')) throw Error('Use a publishable key, never a service-role JWT or secret');

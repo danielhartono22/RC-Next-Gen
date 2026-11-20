@@ -2,7 +2,7 @@
 
 ## Implemented
 
-Migration `20260915064525_rc_userid_auth_password_gate` is applied to DEV `vvojshgcduqlugngpzkj`.
+Migration `20260915064525_rc_userid_auth_password_gate` is applied to DEV `<prod-project-ref>`.
 
 - Imported 63 Auth users and corresponding email identities/profiles; 62 active, 1 suspended/banned.
 - User ID remains the login identifier. Internally, SHA-256 of the trimmed, case-sensitive user ID forms an address at `rc-login.invalid`. Business emails remain in profiles; shared business emails do not merge identities.

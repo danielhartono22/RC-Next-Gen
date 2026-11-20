@@ -2,7 +2,7 @@
  * Menjalankan SQL ke project Supabase lewat Management API.
  *
  * Dibuat karena connector MCP pada sesi ini tidak memiliki izin atas project
- * vvojshgcduqlugngpzkj, sehingga setiap migration harus ditempel manual ke SQL Editor. Dengan
+ * <prod-project-ref>, sehingga setiap migration harus ditempel manual ke SQL Editor. Dengan
  * satu Personal Access Token, langkah itu hilang.
  *
  * CARA MEMBERI AKSES

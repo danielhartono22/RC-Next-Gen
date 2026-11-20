@@ -7,7 +7,7 @@
   "stagingConfirmedAbsentByOwner": true,
   "discoveredProjects": [
     {
-      "ref": "vvojshgcduqlugngpzkj",
+      "ref": "<prod-project-ref>",
       "name": "rc-next-gen-dev",
       "region": "ap-southeast-1",
       "eligibleForTest": false

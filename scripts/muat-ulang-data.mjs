@@ -51,6 +51,7 @@
  *   node scripts/muat-ulang-data.mjs --env prod --pulihkan <folder cadangan> --konfirmasi PULIHKAN-PROD-<yyyymmdd>
  */
 import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises';
+import { createHash } from 'node:crypto'; // 20-Nov-2026: ref prod dibandingkan lewat md5
 import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
@@ -793,8 +794,8 @@ async function sambung(namaEnv) {
   const daftar = JSON.parse(await readFile(path.join(root, 'config', 'environments.json'), 'utf8'));
   const env = (daftar.supabase_projects || {})[namaEnv];
   if (!env || !env.project_ref) throw new Error(`lingkungan "${namaEnv}" tidak dikenal`);
-  if (namaEnv === 'prod' && env.project_ref !== 'vvojshgcduqlugngpzkj') {
-    throw new Error(`ref prod tercatat ${env.project_ref}, bukan vvojshgcduqlugngpzkj - berhenti`);
+  if (namaEnv === 'prod' && createHash('md5').update(String(env.project_ref)).digest('hex') !== '18c6a3534bbcabc5bf4445545b088432') {
+    throw new Error(`ref prod tercatat ${env.project_ref}, bukan project prod yang dikenal - berhenti`);
   }
   const namaVar = env.token_env || 'SUPABASE_ACCESS_TOKEN';
   let token = process.env[namaVar];

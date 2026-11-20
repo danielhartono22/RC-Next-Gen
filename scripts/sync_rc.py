@@ -9,7 +9,8 @@ import sys
 import urllib.error
 import urllib.request
 
-URL = 'https://vvojshgcduqlugngpzkj.supabase.co'
+import json, pathlib  # 20-Nov-2026: ref dari config/environments.json lokal
+URL = json.loads((pathlib.Path(__file__).resolve().parent.parent / 'config' / 'environments.json').read_text(encoding='utf-8'))['supabase_projects']['prod']['project_url']
 SHEETS = ['Compile', 'ListCampaign', 'ListCust', 'DepoMaster', 'LogActivity', 'ReqProfile', 'BatchLog']
 
 def normalize_headers(headers):

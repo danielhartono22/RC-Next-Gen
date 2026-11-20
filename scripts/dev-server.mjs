@@ -53,7 +53,8 @@ const HOST = '127.0.0.1';
 // salinan kedua ia menyimpang: host Supabase dev ditambahkan ke vercel.json tetapi tidak ke
 // sini, sehingga login di localhost gagal diam-diam sementara situs yang ter-deploy berjalan.
 // Kini ia hanya dipakai bila vercel.json tidak terbaca.
-const SUPABASE_ORIGIN = 'https://vvojshgcduqlugngpzkj.supabase.co';
+import { PROD_REF } from './lib-ref.mjs'; // 20-Nov-2026
+const SUPABASE_ORIGIN = `https://${PROD_REF || 'project-belum-diatur'}.supabase.co`;
 let SECURITY_HEADERS = {
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'DENY',

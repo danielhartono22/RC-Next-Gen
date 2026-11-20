@@ -3,7 +3,7 @@
 # Perbaikan status Management of Approval — 22 September 2026
 
 Migration: `supabase/migrations/20261150010000_pending_approval_status.sql`.
-Sudah diterapkan ke Supabase `vvojshgcduqlugngpzkj`. Frontend hasil build tersedia di
+Sudah diterapkan ke Supabase `<prod-project-ref>`. Frontend hasil build tersedia di
 `http://localhost:5173`. Perubahan frontend ini belum dipublikasikan ulang ke Vercel.
 
 ## Perilaku

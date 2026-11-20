@@ -1,7 +1,8 @@
 // Deploy only the reviewed rc-admin function; tokens are never printed.
 // API contract: https://supabase.com/docs/reference/api/v1-deploy-a-function
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
-const ref='vvojshgcduqlugngpzkj';
+import { PROD_REF, wajibRef } from './lib-ref.mjs'; // 20-Nov-2026
+const ref=wajibRef(PROD_REF,'prod');
 const env=await readFile('.env','utf8');
 const token=process.env.SUPABASE_ACCESS_TOKEN||env.match(/^\s*SUPABASE_ACCESS_TOKEN\s*=\s*(.+?)\s*$/m)?.[1].replace(/^["']|["']$/g,'');
 if(!token)throw Error('Supabase access token missing');
